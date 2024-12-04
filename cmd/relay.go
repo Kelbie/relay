@@ -20,24 +20,6 @@ func main() {
 	env = getEnv()
 
 	relay := khatru.NewRelay()
-	relay.Info.Name = "Vertex Relay"
-	relay.Info.Software = "Vertex Relay based on Khatru"
-	relay.Info.Version = "0.0.1"
-	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, []int{90}...)
-	relay.Info.PubKey, _ = nostr.GetPublicKey(RelayPrivateKey)
-
-	// Initialize clients
-	RedisClient = redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-
-	bunker, err := nip46.ConnectBunker(context.Background(), RelayPrivateKey, "bunker://7ab3b3422466fad795e5e76a1075ea09fa510e63c5f9498aef06bb16ad0e2291?relay=wss%3A%2F%2Frelay.vertexlab.io%2F&secret=678827a8-0d8d-4dce-beca-52620200f96b", nil, nil)
-
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Bunker connected")
-	BunkerClient = bunker
 
 	db := sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
 	if err := db.Init(); err != nil {
@@ -82,4 +64,23 @@ func main() {
 
 	fmt.Printf("running on :%s\n", port)
 	http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay)
+
+	// Initialize clients
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+
+	bunker, err := nip46.ConnectBunker(context.Background(), RelayPrivateKey, env("BUNKER"), nil, nil)
+
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Bunker connected")
+	BunkerClient = bunker
+
+	relay.Info.Name = "Vertex Relay"
+	relay.Info.Software = "Vertex Relay based on Khatru"
+	relay.Info.Version = "0.0.1"
+	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, []int{90}...)
+	relay.Info.PubKey, _ = bunker.GetPublicKey(context.Background())
 }
