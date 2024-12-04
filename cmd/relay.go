@@ -80,5 +80,5 @@ func main() {
 	port := env("PORT", "3334")
 
 	fmt.Printf("running on :%s\n", port)
-	http.ListenAndServe(fmt.Sprintf(":%s", port), relay)
+	http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay)
 }
