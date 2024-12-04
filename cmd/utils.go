@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -132,7 +133,7 @@ func createEvent(result any, request *nostr.Event) nostr.Event {
 		},
 	}
 
-	event.Sign(RelayPrivateKey)
+	BunkerClient.SignEvent(context.Background(), &event)
 	return event
 }
 
@@ -151,7 +152,8 @@ func createErrorEvent(errs []error, request *nostr.Event) nostr.Event {
 		Kind:      7000,
 		Tags:      tags,
 	}
-	event.Sign(RelayPrivateKey)
+	BunkerClient.SignEvent(context.Background(), &event)
+	// event.Sign(RelayPrivateKey)
 	return event
 }
 
