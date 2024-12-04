@@ -60,7 +60,8 @@ func main() {
 				go DegreesOfSeparationHandler(event, resultChannel)
 			}
 			result := <-resultChannel
-			db.SaveEvent(ctx, &result)
+			// TODO: Do not save for now
+			// db.SaveEvent(ctx, &result)
 			relay.BroadcastEvent(&result)
 		}
 		return nil
