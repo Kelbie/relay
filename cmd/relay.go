@@ -8,6 +8,7 @@ import (
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
 	"github.com/go-redis/redis"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip46"
 )
@@ -70,6 +71,7 @@ func main() {
 		Addr: "localhost:6379",
 	})
 
+	fmt.Println("Attempting to connect to bunker at", env("BUNKER"))
 	bunker, err := nip46.ConnectBunker(context.Background(), RelayPrivateKey, env("BUNKER"), nil, nil)
 
 	if err != nil {
