@@ -2,11 +2,15 @@ module relay
 
 go 1.23.3
 
+replace github.com/vertex-lab/crawler => ../vertex-crawler
+
 require (
 	github.com/fiatjaf/eventstore v0.14.0
 	github.com/fiatjaf/khatru v0.11.0
 	github.com/nbd-wtf/go-nostr v0.42.2
+	github.com/redis/go-redis/v9 v9.7.0
 	github.com/thoas/go-funk v0.9.3
+	github.com/vertex-lab/crawler v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -16,9 +20,13 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.3 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fasthttp/websocket v1.5.7 // indirect
+	github.com/go-redis/redis v6.15.9+incompatible // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
@@ -36,7 +44,8 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.51.0 // indirect
+	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
 	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/sys v0.27.0 // indirect
 )

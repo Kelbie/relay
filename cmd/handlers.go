@@ -10,6 +10,19 @@ func RelevantWhoFollowHandler(request *nostr.Event, response chan nostr.Event) {
 		response <- createErrorEvent(errs, request)
 		return
 	}
+	// fmt.Printf("checking %s for", args.Source)
+	// pp, err := PersonalizedPagerank(
+	// 	context.Background(),
+	// 	cl,
+	// 	args.Source,
+	// 	100,
+	// )
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	response <- createErrorEvent([]error{err}, request)
+	// 	return
+	// }
+	// result := pp
 	result := RelevantWhoFollow(args.Source, args.Targets[0], args.Distance, args.Sort, args.Limit)
 	response <- createEvent(result, request)
 }
