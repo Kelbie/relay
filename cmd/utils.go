@@ -175,5 +175,3 @@ func getEnv() func(k string, fallback ...string) (v string) {
 		return v
 	}
 }
-
-const RelayPrivateKey = "e767ffac7e159f6f473753e20618a0eae9d9a4996f8fc55c495fe137f6ab3654"

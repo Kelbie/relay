@@ -80,7 +80,7 @@ func main() {
 	})
 	fmt.Println("Redis connected")
 
-	bunker, err := nip46.ConnectBunker(context.Background(), RelayPrivateKey, env("BUNKER"), nil, nil)
+	bunker, err := nip46.ConnectBunker(context.Background(), nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
 
 	if err != nil {
 		fmt.Println("Bunker failed to initialize with", env("BUNKER"))
