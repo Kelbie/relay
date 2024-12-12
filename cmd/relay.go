@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
@@ -61,28 +64,37 @@ func main() {
 		fmt.Fprintf(w, "Welcome to Vertex Relay")
 	})
 
-	port := env("PORT", "3334")
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
-	fmt.Printf("running on :%s\n", port)
-	http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay)
+	// Launch server in a goroutine to allow initializing bunker afterwards (depends on this relay)
+	go func() {
+		port := env("PORT", "3334")
+		http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay)
+		fmt.Printf("running on :%s\n", port)
+	}()
 
 	// Initialize clients
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
+	fmt.Println("Redis connected")
 
-	fmt.Println("Attempting to connect to bunker at", env("BUNKER"))
 	bunker, err := nip46.ConnectBunker(context.Background(), RelayPrivateKey, env("BUNKER"), nil, nil)
 
 	if err != nil {
+		fmt.Println("Bunker failed to initialize with", env("BUNKER"))
 		panic(err)
 	}
-	fmt.Println("Bunker connected")
+	fmt.Println("Bunker connected with", env("BUNKER"))
 	BunkerClient = bunker
 
+	// Set relay info
 	relay.Info.Name = "Vertex Relay"
 	relay.Info.Software = "Vertex Relay based on Khatru"
 	relay.Info.Version = "0.0.1"
 	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, []int{90}...)
 	relay.Info.PubKey, _ = bunker.GetPublicKey(context.Background())
+
+	<-shutdown
 }
