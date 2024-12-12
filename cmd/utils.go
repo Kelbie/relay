@@ -31,6 +31,17 @@ const defaultSort = "global"
 func getArguments(request *nostr.Event, requireTargets bool) (JobArguments, []error) {
 	var args JobArguments
 	var errs []error
+	var pubkeyAuthorized bool
+
+	err := Db.QueryRow("SELECT EXISTS(SELECT 1 FROM authorized_keys WHERE pubkey = ?)", request.PubKey).Scan(&pubkeyAuthorized)
+	if err != nil {
+		errs = append(errs, err)
+		return args, errs
+	}
+	if !pubkeyAuthorized {
+		errs = append(errs, errors.New("unauthorized"))
+		return args, errs
+	}
 
 	source := findParamValues(request, "source")
 	if len(source) > 0 {

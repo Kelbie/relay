@@ -19,6 +19,7 @@ import (
 var env func(k string, fallback ...string) (v string)
 var BunkerClient *nip46.BunkerClient
 var RedisClient *redis.Client
+var Db *sqlite3.SQLite3Backend
 
 func main() {
 	env = getEnv()
@@ -29,6 +30,7 @@ func main() {
 	if err := db.Init(); err != nil {
 		panic(err)
 	}
+	Db = &db
 
 	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
 		if event.Kind >= 5312 && event.Kind <= 5316 {
@@ -47,14 +49,14 @@ func main() {
 			}
 			result := <-resultChannel
 			// TODO: Do not save for now
-			// db.SaveEvent(ctx, &result)
+			// Db.SaveEvent(ctx, &result)
 			relay.BroadcastEvent(&result)
 		}
 		return nil
 	})
 
-	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
-	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
+	relay.QueryEvents = append(relay.QueryEvents, Db.QueryEvents)
+	relay.DeleteEvent = append(relay.DeleteEvent, Db.DeleteEvent)
 
 	mux := relay.Router()
 
@@ -95,6 +97,9 @@ func main() {
 	relay.Info.Version = "0.0.1"
 	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, []int{90}...)
 	relay.Info.PubKey, _ = bunker.GetPublicKey(context.Background())
+
+	// Initialize relay management API
+	go RelayManagementInit(relay)
 
 	<-shutdown
 }

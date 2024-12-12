@@ -19,7 +19,7 @@ func PersonalizedPagerank(
 	_ = ctx // we'll use the ctx in the future, after I (pip) will use it more consistently
 
 	// Create new DB and RWS connections; Names are bad, I know... I will change them
-	DB, err := redisdb.NewDatabase(context.Background(), cl)
+	redis, err := redisdb.NewDatabase(context.Background(), cl)
 	if err != nil {
 		return map[string]float64{}, err
 	}
@@ -29,7 +29,7 @@ func PersonalizedPagerank(
 	}
 
 	// the result is a slice of empty interfaces, which is an uint32 (nodeID) if the pubkey was found in the DB, nil otherwise
-	node, err := DB.NodeIDs([]string{pubkey})
+	node, err := redis.NodeIDs([]string{pubkey})
 	if err != nil {
 		return map[string]float64{}, err
 	}
@@ -41,7 +41,7 @@ func PersonalizedPagerank(
 	}
 
 	// pp is a map nodeID --> rank; we need pubkey --> rank.
-	pp, err := pagerank.Personalized(DB, RWS, nodeID, topK)
+	pp, err := pagerank.Personalized(redis, RWS, nodeID, topK)
 	if err != nil {
 		return map[string]float64{}, err
 	}
@@ -55,7 +55,7 @@ func PersonalizedPagerank(
 	}
 
 	// get the pubkeys that correspond to the nodeIDs. This operation preserve order
-	pubkeys, err := DB.Pubkeys(nodeIDs)
+	pubkeys, err := redis.Pubkeys(nodeIDs)
 	if err != nil {
 		return map[string]float64{}, err
 	}
