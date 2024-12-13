@@ -327,6 +327,18 @@ Errors are returned via kind 7000 for all services.
 }
 ```
 
+## Relay management
+
+The relay signs events via NIP-46. Upon initialization a connection to the bunker will be established, based on the `BUNKER` env var. It is possible to use this same relay for communicating with the bunker.
+
+Implements `listallowedpubkeys`, `allowpubkey`, `banpubkey` for managing pubkey whitelisting.
+
+Example:
+
+```bash
+nak relay allowpubkey --pubkey 79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798 --reason something --connect "<bunker-url>"
+```
+
 ## License
 
 MIT
