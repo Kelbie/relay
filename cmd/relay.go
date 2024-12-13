@@ -82,26 +82,24 @@ func main() {
 	})
 	fmt.Println("Redis connected")
 
-	go func() {
-		bunker, err := nip46.ConnectBunker(context.Background(), nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
+	bunker, err := nip46.ConnectBunker(context.Background(), nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
 
-		if err != nil {
-			fmt.Println("Bunker failed to initialize with", env("BUNKER"))
-			panic(err)
-		}
-		fmt.Println("Bunker connected with", env("BUNKER"))
-		BunkerClient = bunker
+	if err != nil {
+		fmt.Println("Bunker failed to initialize with", env("BUNKER"))
+		panic(err)
+	}
+	fmt.Println("Bunker connected with", env("BUNKER"))
+	BunkerClient = bunker
 
-		// Set relay info
-		relay.Info.Name = "Vertex Relay"
-		relay.Info.Software = "Vertex Relay based on Khatru"
-		relay.Info.Version = "0.0.1"
-		relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, []int{90}...)
-		relay.Info.PubKey, _ = bunker.GetPublicKey(context.Background())
+	// Set relay info
+	relay.Info.Name = "Vertex Relay"
+	relay.Info.Software = "Vertex Relay based on Khatru"
+	relay.Info.Version = "0.0.1"
+	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, []int{90}...)
+	relay.Info.PubKey, _ = bunker.GetPublicKey(context.Background())
 
-		// Initialize relay management API
-		go RelayManagementInit(relay)
-	}()
+	// Initialize relay management API
+	go RelayManagementInit(relay)
 
 	<-shutdown
 }
