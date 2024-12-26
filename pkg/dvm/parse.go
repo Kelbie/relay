@@ -26,7 +26,7 @@ type Args struct {
 	Sort     string
 	Distance int
 	Limit    int
-	// PequireProof    bool		better to leave it for the future
+	// RequireProof    bool		better to leave it for the future
 }
 
 // NewArgs() returns the default arguments.
@@ -34,8 +34,8 @@ func NewArgs(pubkey string) *Args {
 	return &Args{
 		Source:   pubkey,
 		Targets:  []string{},
-		Distance: defaultDistance,
 		Sort:     defaultSort,
+		Distance: defaultDistance,
 		Limit:    defaultLimit,
 	}
 }
