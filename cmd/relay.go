@@ -23,16 +23,14 @@ var Db *sqlite3.SQLite3Backend
 
 func main() {
 	env = getEnv()
-
 	relay := khatru.NewRelay()
 
-	db := sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
-	if err := db.Init(); err != nil {
+	Db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
+	if err := Db.Init(); err != nil {
 		panic(err)
 	}
-	Db = &db
 
-	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
+	relay.StoreEvent = append(relay.StoreEvent, Db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
 		if event.Kind >= 5312 && event.Kind <= 5316 {
 			resultChannel := make(chan nostr.Event)
 			switch event.Kind {

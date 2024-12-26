@@ -14,14 +14,13 @@ import (
 )
 
 // Helper functions
-
 type JobArguments struct {
 	Source   string
 	Targets  []string
 	Distance int
 	Sort     string
 	Limit    int
-	Proofs   bool
+	// Proofs   bool
 }
 
 const defaultDistance = 2
@@ -111,9 +110,8 @@ func getArguments(request *nostr.Event, requireTargets bool) (JobArguments, []er
 		args.Sort = defaultSort
 	}
 
-	proofs := findParamValues(request, "proofs")
-	args.Proofs = len(proofs) > 0 && proofs[0] == "true"
-
+	// proofs := findParamValues(request, "proofs")
+	// args.Proofs = len(proofs) > 0 && proofs[0] == "true"
 	return args, errs
 }
 
