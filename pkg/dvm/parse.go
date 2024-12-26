@@ -26,7 +26,7 @@ type Args struct {
 	Sort     string
 	Distance int
 	Limit    int
-	// Proof    bool		for the future
+	// PequireProof    bool		better to leave it for the future
 }
 
 // NewArgs() returns the default arguments.
