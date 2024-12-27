@@ -18,24 +18,47 @@ var (
 	KindDVMError               int = 7000
 )
 
-// ErrorEvent() returns an unsigned nostr error event from the specified error and request.
+// ErrorEvent() returns an unsigned nostr event for the DVM error response.
 func ErrorEvent(err error, request *nostr.Event) *nostr.Event {
+	var ID string
+	var pubkey string
+	var errMsg string
+
+	if request != nil {
+		ID = request.ID
+		pubkey = request.PubKey
+	}
+
+	if err != nil {
+		errMsg = err.Error()
+	}
+
 	event := nostr.Event{
 		Content:   "",
 		CreatedAt: nostr.Now(),
 		Kind:      KindDVMError,
 		Tags: nostr.Tags{
-			nostr.Tag{"e", request.ID},
-			nostr.Tag{"p", request.PubKey},
-			{"status", "error", err.Error()},
+			{"e", ID},
+			{"p", pubkey},
+			{"status", "error", errMsg},
 		},
 	}
 
 	return &event
 }
 
-// ResponseEvent() returns an unsigned nostr event used for a DVM response.
-func ResponseEvent(result any, request *nostr.Event) *nostr.Event {
+// ResponseEvent() returns an unsigned nostr event used for the DVM response.
+func ResponseEvent(result []RankResponse, request *nostr.Event) *nostr.Event {
+	var ID string
+	var pubkey string
+	var kind int
+
+	if request != nil {
+		ID = request.ID
+		pubkey = request.PubKey
+		kind = request.Kind
+	}
+
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		return ErrorEvent(err, request)
@@ -45,10 +68,10 @@ func ResponseEvent(result any, request *nostr.Event) *nostr.Event {
 	event := nostr.Event{
 		Content:   content,
 		CreatedAt: nostr.Now(),
-		Kind:      request.Kind + 1000,
+		Kind:      kind + 1000,
 		Tags: nostr.Tags{
-			nostr.Tag{"e", request.ID},
-			nostr.Tag{"p", request.PubKey},
+			{"e", ID},
+			{"p", pubkey},
 		},
 	}
 
