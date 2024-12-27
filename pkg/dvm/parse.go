@@ -91,6 +91,9 @@ func ParseArgs(req *nostr.Event) (*Args, error) {
 				return nil, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
 			}
 			args.Limit = l
+
+		default:
+			return nil, fmt.Errorf("%w: got %v", ErrUnknownParameter, key)
 		}
 	}
 
@@ -123,7 +126,10 @@ func ParseKey(key string) (string, error) {
 
 // ---------------------------------ERROR-CODES--------------------------------
 
-var ErrBadlyFormattedTag error = errors.New("tag should be 'param, <prefix>, <val>'")
-var ErrBadlyFormattedKey error = errors.New("badly formatted key")
-var ErrBadlyFormattedInt error = errors.New("badly formatted integer")
-var ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
+var (
+	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
+	ErrUnknownParameter  error = errors.New("parameter must be one of 'source', 'target', 'sort', 'distance', 'limit'")
+	ErrBadlyFormattedKey error = errors.New("badly formatted key")
+	ErrBadlyFormattedInt error = errors.New("badly formatted integer")
+	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
+)

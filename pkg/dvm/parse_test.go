@@ -35,18 +35,6 @@ func TestParseArgs(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name: "invalid sort option",
-			req: &nostr.Event{
-				PubKey: fran,
-				Tags: nostr.Tags{
-					{"param", "sort", "grapeWine"},
-				},
-			},
-
-			expectedArgs:  nil,
-			expectedError: ErrInvalidSortOption,
-		},
-		{
 			name: "badly formatted tag: no param",
 			req: &nostr.Event{
 				PubKey: fran,
@@ -69,7 +57,31 @@ func TestParseArgs(t *testing.T) {
 			expectedError: ErrBadlyFormattedTag,
 		},
 		{
-			name: "badly formatted key",
+			name: "invalid parameter",
+			req: &nostr.Event{
+				PubKey: fran,
+				Tags: nostr.Tags{
+					{"param", "delta", "xxx"},
+				},
+			},
+
+			expectedArgs:  nil,
+			expectedError: ErrUnknownParameter,
+		},
+		{
+			name: "invalid sort option",
+			req: &nostr.Event{
+				PubKey: fran,
+				Tags: nostr.Tags{
+					{"param", "sort", "grapeWine"},
+				},
+			},
+
+			expectedArgs:  nil,
+			expectedError: ErrInvalidSortOption,
+		},
+		{
+			name: "badly formatted pubkey",
 			req: &nostr.Event{
 				PubKey: fran,
 				Tags: nostr.Tags{
