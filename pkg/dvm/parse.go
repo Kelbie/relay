@@ -11,12 +11,11 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip19"
 )
 
-var validSorts = []string{"personalized", "global"}
-
-const (
+var (
 	defaultDistance int    = -1 // meaning no constrain on the distance
 	defaultLimit    int    = 5
 	defaultSort     string = "global"
+	validSorts             = []string{"personalized", "global"}
 )
 
 // The Args structure contains the general input parameters for our DVMs.
@@ -29,7 +28,7 @@ type Args struct {
 	// RequireProof    bool		better to leave it for the future
 }
 
-// NewArgs() returns the default arguments.
+// NewArgs() returns an Args struct with default arguments.
 func NewArgs(pubkey string) *Args {
 	return &Args{
 		Source:   pubkey,
@@ -52,43 +51,44 @@ func ParseArgs(req *nostr.Event) (*Args, error) {
 			return nil, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
 		}
 
-		if tag[0] != "param" {
+		prefix, key, val := tag[0], tag[1], tag[2]
+
+		if prefix != "param" {
 			return nil, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
 		}
 
-		prefix, value := tag[1], tag[2]
-		switch prefix {
+		switch key {
 		case "source":
-			pk, err := ParseKey(value)
+			pk, err := ParseKey(val)
 			if err != nil {
 				return nil, err
 			}
 			args.Source = pk
 
 		case "target":
-			pk, err := ParseKey(value)
+			pk, err := ParseKey(val)
 			if err != nil {
 				return nil, err
 			}
 			args.Targets = append(args.Targets, pk)
 
 		case "sort":
-			if !slices.Contains(validSorts, value) {
+			if !slices.Contains(validSorts, val) {
 				return nil, ErrInvalidSortOption
 			}
-			args.Sort = value
+			args.Sort = val
 
 		case "distance":
-			d, err := strconv.Atoi(value)
+			d, err := strconv.Atoi(val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, value)
+				return nil, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
 			}
 			args.Distance = d
 
 		case "limit":
-			l, err := strconv.Atoi(value)
+			l, err := strconv.Atoi(val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, value)
+				return nil, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
 			}
 			args.Limit = l
 		}
@@ -123,7 +123,7 @@ func ParseKey(key string) (string, error) {
 
 // ---------------------------------ERROR-CODES--------------------------------
 
-var ErrBadlyFormattedTag error = errors.New("tag should be 'param, <prefix>, <value>'")
+var ErrBadlyFormattedTag error = errors.New("tag should be 'param, <prefix>, <val>'")
 var ErrBadlyFormattedKey error = errors.New("badly formatted key")
 var ErrBadlyFormattedInt error = errors.New("badly formatted integer")
 var ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
