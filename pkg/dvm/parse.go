@@ -1,7 +1,6 @@
 package dvm
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -12,8 +11,8 @@ import (
 )
 
 var (
-	defaultDistance int    = -1 // meaning no constrain on the distance
-	defaultLimit    int    = 5
+	defaultDistance uint64 = 0 // meaning no constrain on the distance
+	defaultLimit    uint64 = 5
 	defaultSort     string = "global"
 	validSorts             = []string{"personalized", "global"}
 )
@@ -23,8 +22,8 @@ type Args struct {
 	Source   string
 	Targets  []string
 	Sort     string
-	Distance int
-	Limit    int
+	Distance uint64
+	Limit    uint64
 	// RequireProof    bool		better to leave it for the future
 }
 
@@ -79,14 +78,14 @@ func ParseArgs(req *nostr.Event) (*Args, error) {
 			args.Sort = val
 
 		case "distance":
-			d, err := strconv.Atoi(val)
+			d, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
 			}
 			args.Distance = d
 
 		case "limit":
-			l, err := strconv.Atoi(val)
+			l, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
 			}
@@ -123,13 +122,3 @@ func ParseKey(key string) (string, error) {
 
 	return "", fmt.Errorf("%w: %v", ErrBadlyFormattedKey, key)
 }
-
-// ---------------------------------ERROR-CODES--------------------------------
-
-var (
-	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
-	ErrUnknownParameter  error = errors.New("parameter must be one of 'source', 'target', 'sort', 'distance', 'limit'")
-	ErrBadlyFormattedKey error = errors.New("badly formatted key")
-	ErrBadlyFormattedInt error = errors.New("badly formatted integer")
-	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
-)

@@ -9,9 +9,12 @@ import (
 )
 
 // pubkeys for testing purposes
-var fran string = "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11"
-var pk1 string = "d05ab982e1105476ab68e4c6728d148f8e6222154e60cc359ef6b8599c820bea"
-var pk2 string = "6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2"
+var (
+	fran  string = "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11"
+	odell string = "04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"
+	calle string = "50d94fc2d8580c682b071a542f8b1e31a200b0508bab95a33bef0855df281d63"
+	pip   string = "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"
+)
 
 func TestParseArgs(t *testing.T) {
 	testCases := []struct {
@@ -107,14 +110,14 @@ func TestParseArgs(t *testing.T) {
 			req: &nostr.Event{
 				PubKey: fran,
 				Tags: nostr.Tags{
-					{"param", "source", pk1},
-					{"param", "target", pk2},
+					{"param", "source", pip},
+					{"param", "target", calle},
 					{"param", "sort", "global"},
 				},
 			},
 			expectedArgs: &Args{
-				Source:   pk1,
-				Targets:  []string{pk2},
+				Source:   pip,
+				Targets:  []string{calle},
 				Sort:     "global",
 				Distance: defaultDistance,
 				Limit:    defaultLimit,
@@ -124,13 +127,13 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid recommended follows",
 			req: &nostr.Event{
-				PubKey: pk1,
+				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "sort", "personalized"},
 				},
 			},
 			expectedArgs: &Args{
-				Source:   pk1,
+				Source:   pip,
 				Targets:  []string{},
 				Sort:     "personalized",
 				Distance: defaultDistance,
@@ -141,16 +144,16 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid sort authors",
 			req: &nostr.Event{
-				PubKey: pk1,
+				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
-					{"param", "target", pk1},
-					{"param", "target", pk2},
+					{"param", "target", pip},
+					{"param", "target", calle},
 				},
 			},
 			expectedArgs: &Args{
-				Source:   pk1,
-				Targets:  []string{fran, pk1, pk2},
+				Source:   pip,
+				Targets:  []string{fran, pip, calle},
 				Sort:     "global",
 				Distance: defaultDistance,
 				Limit:    defaultLimit,
@@ -160,13 +163,13 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid impersonator detection",
 			req: &nostr.Event{
-				PubKey: pk1,
+				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
 				},
 			},
 			expectedArgs: &Args{
-				Source:   pk1,
+				Source:   pip,
 				Targets:  []string{fran},
 				Sort:     "global",
 				Distance: defaultDistance,
@@ -177,13 +180,13 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid impersonator detection",
 			req: &nostr.Event{
-				PubKey: pk1,
+				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
 				},
 			},
 			expectedArgs: &Args{
-				Source:   pk1,
+				Source:   pip,
 				Targets:  []string{"47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
 				Sort:     "global",
 				Distance: defaultDistance,

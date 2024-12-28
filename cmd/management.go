@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 
+	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
 	"github.com/nbd-wtf/go-nostr/nip86"
 )
 
-// NIP-86
+// RelayManagementInit() initializes the NIP-86 management for the relay.
+func RelayManagementInit(db *sqlite3.SQLite3Backend, relay *khatru.Relay) {
 
-func RelayManagementInit(relay *khatru.Relay) {
-
-	Db.Exec(`CREATE TABLE IF NOT EXISTS authorized_keys(
+	db.Exec(`CREATE TABLE IF NOT EXISTS authorized_keys(
 		pubkey TEXT NOT NULL,
 		reason TEXT
 		);`)
@@ -29,26 +29,20 @@ func RelayManagementInit(relay *khatru.Relay) {
 	relay.ManagementAPI.ListAllowedPubKeys = func(ctx context.Context) ([]nip86.PubKeyReason, error) {
 		var reasons []nip86.PubKeyReason
 
-		err := Db.Select(&reasons, "SELECT pubkey, reason FROM authorized_keys")
-		if err != nil {
+		if err := db.Select(&reasons, "SELECT pubkey, reason FROM authorized_keys"); err != nil {
 			return nil, err
 		}
+
 		return reasons, nil
 	}
 
 	relay.ManagementAPI.AllowPubKey = func(ctx context.Context, pubkey string, reason string) error {
-		_, err := Db.Exec(`INSERT INTO authorized_keys (pubkey, reason) VALUES (?, ?)`, pubkey, reason)
-		if err == nil {
-			return nil
-		}
+		_, err := db.Exec(`INSERT INTO authorized_keys (pubkey, reason) VALUES (?, ?)`, pubkey, reason)
 		return err
 	}
 
 	relay.ManagementAPI.BanPubKey = func(ctx context.Context, pubkey string, reason string) error {
-		_, err := Db.Exec(`DELETE FROM authorized_keys WHERE pubkey = ?`, pubkey)
-		if err == nil {
-			return nil
-		}
+		_, err := db.Exec(`DELETE FROM authorized_keys WHERE pubkey = ?`, pubkey)
 		return err
 	}
 }

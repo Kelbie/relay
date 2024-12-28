@@ -32,7 +32,7 @@ func getArguments(request *nostr.Event, requireTargets bool) (JobArguments, []er
 	var errs []error
 	var pubkeyAuthorized bool
 
-	err := Db.QueryRow("SELECT EXISTS(SELECT 1 FROM authorized_keys WHERE pubkey = ?)", request.PubKey).Scan(&pubkeyAuthorized)
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM authorized_keys WHERE pubkey = ?)", request.PubKey).Scan(&pubkeyAuthorized)
 	if err != nil {
 		errs = append(errs, err)
 		return args, errs

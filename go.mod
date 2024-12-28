@@ -2,12 +2,13 @@ module relay
 
 go 1.23.3
 
-replace github.com/vertex-lab/crawler => ../vertex-crawler
+replace github.com/vertex-lab/crawler => ../Nostrcrawler
+
+// replace github.com/vertex-lab/crawler => ../vertex-crawler
 
 require (
 	github.com/fiatjaf/eventstore v0.14.0
 	github.com/fiatjaf/khatru v0.11.0
-	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/joho/godotenv v1.5.1
 	github.com/nbd-wtf/go-nostr v0.42.2
 	github.com/redis/go-redis/v9 v9.7.0

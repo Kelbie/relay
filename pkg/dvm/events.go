@@ -3,6 +3,7 @@ package dvm
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -16,6 +17,24 @@ var (
 	KindVerifiedFollowersCount int = 5317
 	KindVerifiedFollowers      int = 5318
 	KindDVMError               int = 7000
+)
+
+var (
+	// parsing errors
+	ErrUnknownParameter  error = errors.New("parameter must be one between 'source', 'target', 'sort', 'distance', 'limit'")
+	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
+	ErrBadlyFormattedKey error = errors.New("badly formatted key")
+	ErrBadlyFormattedInt error = errors.New("badly formatted unsigned integer")
+
+	// value errors
+	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
+	ErrInvalidTargets    error = errors.New("invalid targets")
+	ErrInvalidLimit      error = errors.New("invalid limit")
+
+	// internal system errors
+	ErrComputationFailed error = errors.New("DVM computation failed")
+	ErrNilArgs           error = errors.New("nil args pointer")
+	ErrKeyNotFound       error = errors.New("pubkey was not found")
 )
 
 // ErrorEvent() returns an unsigned nostr event for the DVM error response.
@@ -33,7 +52,7 @@ func ErrorEvent(err error, request *nostr.Event) *nostr.Event {
 		errMsg = err.Error()
 	}
 
-	event := nostr.Event{
+	return &nostr.Event{
 		Content:   "",
 		CreatedAt: nostr.Now(),
 		Kind:      KindDVMError,
@@ -43,8 +62,6 @@ func ErrorEvent(err error, request *nostr.Event) *nostr.Event {
 			{"status", "error", errMsg},
 		},
 	}
-
-	return &event
 }
 
 // ResponseEvent() returns an unsigned nostr event used for the DVM response.
@@ -65,7 +82,7 @@ func ResponseEvent(result []RankResponse, request *nostr.Event) *nostr.Event {
 	}
 
 	content := string(jsonBytes)
-	event := nostr.Event{
+	return &nostr.Event{
 		Content:   content,
 		CreatedAt: nostr.Now(),
 		Kind:      kind + 1000,
@@ -74,6 +91,4 @@ func ResponseEvent(result []RankResponse, request *nostr.Event) *nostr.Event {
 			{"p", pubkey},
 		},
 	}
-
-	return &event
 }
