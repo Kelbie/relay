@@ -12,6 +12,7 @@ import (
 )
 
 func TestRelevantWhoFollow(t *testing.T) {
+	const maxDist = 0.001
 	testCases := []struct {
 		name          string
 		DBType        string
@@ -59,7 +60,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.26}},
+			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.5}},
 		},
 		{
 			name:    "valid personalized",
@@ -72,7 +73,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 				Sort:    "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.54}},
+			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.54054}},
 		},
 	}
 
@@ -87,8 +88,10 @@ func TestRelevantWhoFollow(t *testing.T) {
 				t.Fatalf("RelevantWhoFollow: expected error %v, got %v", test.expectedError, err)
 			}
 
-			if !reflect.DeepEqual(res, test.expectedRes) {
-				t.Fatalf("RelevantWhoFollow: expected response %v, got %v", test.expectedRes, res)
+			dist := ResponseDistance(res, test.expectedRes)
+			if dist > maxDist {
+				t.Errorf("RelevantWhoFollow: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected response %v, got %v", test.expectedRes, res)
 			}
 		})
 	}

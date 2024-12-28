@@ -3,6 +3,7 @@ package dvm
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/vertex-lab/crawler/pkg/models"
@@ -136,4 +137,26 @@ func TopByValue(m map[uint32]float64, topN uint64) (keys []uint32, vals []float6
 	}
 
 	return keys, vals
+}
+
+// ResponseDistance() returns the L1 distance between two RankResponses.
+func ResponseDistance(res1, res2 []RankResponse) float64 {
+	if len(res1) != len(res2) {
+		return math.MaxFloat64
+	}
+
+	if len(res1) == 0 {
+		return 0
+	}
+
+	var distance float64
+	for i := range res1 {
+		if res1[i].Pubkey != res2[i].Pubkey {
+			return math.MaxFloat64
+		}
+
+		distance += math.Abs(res1[i].Rank - res2[i].Rank)
+	}
+
+	return distance
 }
