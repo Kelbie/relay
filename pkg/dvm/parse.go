@@ -38,7 +38,7 @@ func NewArgs(pubkey string) *Args {
 	}
 }
 
-// ParseArgs() returns the arguments of the request event as an Args struct.
+// ParseArgs() parses and returns the arguments of the request event as an Args struct.
 func ParseArgs(req *nostr.Event) (*Args, error) {
 	if req == nil {
 		return nil, nil

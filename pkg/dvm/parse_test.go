@@ -210,3 +210,25 @@ func TestParseArgs(t *testing.T) {
 		})
 	}
 }
+
+// ----------------------------------BENCHMARKS--------------------------------
+
+func BenchmarkParseArgs(b *testing.B) {
+	const npub = "npub1wf4pufsucer5va8g9p0rj5dnhvfeh6d8w0g6eayaep5dhps6rsgs43dgh9"
+	const tagsNum = 10000
+
+	tags := make([]nostr.Tag, tagsNum)
+	for i := 0; i < tagsNum; i++ {
+		tags[i] = nostr.Tag{"param", "target", npub}
+	}
+
+	req := &nostr.Event{
+		PubKey: fran,
+		Tags:   tags,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ParseArgs(req)
+	}
+}
