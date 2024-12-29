@@ -27,12 +27,13 @@ func TestParseArgs(t *testing.T) {
 			name:          "nil req",
 			req:           nil,
 			expectedArgs:  nil,
-			expectedError: nil,
+			expectedError: ErrNilRequest,
 		},
 		{
 			name: "empty req --> default args",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   5312,
 			},
 			expectedArgs:  NewArgs(fran),
 			expectedError: nil,

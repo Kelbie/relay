@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 
 	"github.com/vertex-lab/crawler/pkg/models"
 	"github.com/vertex-lab/crawler/pkg/pagerank"
-	"golang.org/x/exp/slices"
 )
 
 // RankResponse returns the requested rank for the pubkey
@@ -25,11 +25,18 @@ type RankResponse struct {
 // 	Candidate bool    `json:"candidate"`
 // }
 
+// RelevantWhoFollow() returns `limit` RankResponses for "relevant" pubkeys
+// that follow the specified `target`. These relevant pubkeys are the ones with
+// the highest scores among the followers of the target, determined by the specified
+// sorting algorithm (e.g. personalized pagerank).
 func RelevantWhoFollow(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	args *Args) ([]RankResponse, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	if err := validateRelevantWhoFollow(args); err != nil {
 		return nil, err
@@ -56,7 +63,7 @@ func RelevantWhoFollow(
 	var rankMap models.PagerankMap
 	switch args.Sort {
 	case "global":
-		rankMap, err = pagerank.Global(ctx, RWS, followers...) // TODO, make a Read() as computing it is overkill.
+		rankMap, err = pagerank.Global(ctx, RWS, followers...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
@@ -100,12 +107,10 @@ func validateRelevantWhoFollow(args *Args) error {
 		return fmt.Errorf("%w: limit must be strictly greater than zero", ErrInvalidLimit)
 	}
 
-	if !slices.Contains(validSorts, args.Sort) {
-		return fmt.Errorf("%w: %v", ErrInvalidSortOption, args.Sort)
-	}
-
 	return nil
 }
+
+// -----------------------------------HELPERS-----------------------------------
 
 // TopByValue() returns the keys and values of the topN pairs, sorted by value.
 func TopByValue(m map[uint32]float64, topN uint64) (keys []uint32, vals []float64) {
@@ -124,7 +129,7 @@ func TopByValue(m map[uint32]float64, topN uint64) (keys []uint32, vals []float6
 			continue
 		}
 
-		// if it's bigger than the last of the top, add it and sort
+		// if it's bigger than the smallest of the top, add it and sort
 		kvs[topN-1].key = k
 		kvs[topN-1].val = v
 

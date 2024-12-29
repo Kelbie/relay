@@ -2,10 +2,12 @@
 package dvm
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/vertex-lab/crawler/pkg/models"
 )
 
 var (
@@ -22,6 +24,7 @@ var (
 
 var (
 	// parsing errors
+	ErrNilRequest        error = errors.New("nil request pointer")
 	ErrUnknownParameter  error = errors.New("parameter must be one between 'source', 'target', 'sort', 'distance', 'limit'")
 	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
 	ErrBadlyFormattedKey error = errors.New("badly formatted key")
@@ -93,4 +96,24 @@ func ResponseEvent(result []RankResponse, request *nostr.Event) *nostr.Event {
 			{"p", pubkey},
 		},
 	}
+}
+
+// RelevantWhoFollowEvent() returns the relevent-who-follow event from the specified request.
+func RelevantWhoFollowEvent(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	req *nostr.Event) *nostr.Event {
+
+	args, err := ParseArgs(req)
+	if err != nil {
+		return ErrorEvent(err, req)
+	}
+
+	res, err := RelevantWhoFollow(ctx, DB, RWS, args)
+	if err != nil {
+		return ErrorEvent(err, req)
+	}
+
+	return ResponseEvent(res, req)
 }

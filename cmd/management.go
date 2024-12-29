@@ -8,13 +8,19 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip86"
 )
 
-// RelayManagementInit() initializes the NIP-86 management for the relay.
-func RelayManagementInit(db *sqlite3.SQLite3Backend, relay *khatru.Relay) {
+// RelayManagementInit() initializes the NIP-86 relay management API.
+func RelayManagementInit(
+	ctx context.Context,
+	db *sqlite3.SQLite3Backend,
+	relay *khatru.Relay) error {
 
-	db.Exec(`CREATE TABLE IF NOT EXISTS authorized_keys(
+	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS authorized_keys(
 		pubkey TEXT NOT NULL,
 		reason TEXT
 		);`)
+	if err != nil {
+		return err
+	}
 
 	relay.ManagementAPI.RejectAPICall = append(relay.ManagementAPI.RejectAPICall,
 		func(ctx context.Context, mp nip86.MethodParams) (reject bool, msg string) {
@@ -28,7 +34,6 @@ func RelayManagementInit(db *sqlite3.SQLite3Backend, relay *khatru.Relay) {
 
 	relay.ManagementAPI.ListAllowedPubKeys = func(ctx context.Context) ([]nip86.PubKeyReason, error) {
 		var reasons []nip86.PubKeyReason
-
 		if err := db.Select(&reasons, "SELECT pubkey, reason FROM authorized_keys"); err != nil {
 			return nil, err
 		}
@@ -45,4 +50,6 @@ func RelayManagementInit(db *sqlite3.SQLite3Backend, relay *khatru.Relay) {
 		_, err := db.Exec(`DELETE FROM authorized_keys WHERE pubkey = ?`, pubkey)
 		return err
 	}
+
+	return nil
 }

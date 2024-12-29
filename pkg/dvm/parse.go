@@ -44,7 +44,7 @@ func NewArgs(pubkey string) *Args {
 // ParseArgs() parses and returns the arguments of the request event as an Args struct.
 func ParseArgs(req *nostr.Event) (*Args, error) {
 	if req == nil {
-		return nil, nil
+		return nil, ErrNilRequest
 	}
 
 	args := NewArgs(req.PubKey)
@@ -54,7 +54,6 @@ func ParseArgs(req *nostr.Event) (*Args, error) {
 		}
 
 		prefix, key, val := tag[0], tag[1], tag[2]
-
 		if prefix != "param" {
 			return nil, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
 		}
@@ -112,7 +111,6 @@ func ParseArgs(req *nostr.Event) (*Args, error) {
 
 // ParseKey() returns a parsed hex key from the specified string.
 func ParseKey(key string) (string, error) {
-
 	if nostr.IsValidPublicKey(key) {
 		return key, nil
 	}

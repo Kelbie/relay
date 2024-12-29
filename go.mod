@@ -12,7 +12,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/nbd-wtf/go-nostr v0.42.2
 	github.com/redis/go-redis/v9 v9.7.0
-	github.com/thoas/go-funk v0.9.3
 	github.com/vertex-lab/crawler v0.0.0-00010101000000-000000000000
 )
 

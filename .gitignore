@@ -1,3 +1,6 @@
 .env
 relay.sqlite
 tmp/
+
+# Ignore all log files
+**/*.log
