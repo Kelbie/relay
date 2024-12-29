@@ -39,23 +39,43 @@ func main() {
 	if err := db.Init(); err != nil {
 		logger.Error("database failed to initialize: %v", err)
 		fmt.Printf("\ndatabase failed to initialize: %v", err)
-		panic(err)
+		return
 	}
 	fmt.Println("database connected")
+
+	if err := RelayManagementInit(ctx, db, relay); err != nil {
+		logger.Error("relay management failed to initialize: %v", err)
+		fmt.Printf("\nrelay management failed to initialize: %v", err)
+		return
+	}
+
+	mux := relay.Router()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("content-type", "text/html")
+		fmt.Fprintf(w, "Welcome to Vertex Relay")
+	})
+
+	// Launch server in a goroutine to allow initializing bunker afterwards (depends on this relay)
+	go func() {
+		port := env("PORT", "3334")
+		http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay)
+		fmt.Printf("running on :%s\n", port)
+	}()
 
 	bunker, err := nip46.ConnectBunker(ctx, nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
 	if err != nil {
 		logger.Error("bunker failed to initialize with %v", env("BUNKER"))
 		fmt.Println("bunker failed to initialize with", env("BUNKER"))
-		panic(err)
+		return
 	}
-	fmt.Println("bunker connected with", env("BUNKER"))
-
-	if err := RelayManagementInit(ctx, db, relay); err != nil {
-		logger.Error("relay management failed to initialize: %v", err)
-		fmt.Printf("\nrelay management failed to initialize: %v", err)
-		panic(err)
+	pubkey, err := bunker.GetPublicKey(ctx)
+	if err != nil {
+		logger.Error("failed to get pubkey: %v", err)
+		fmt.Printf("\nfailed to get pubkey: %v", err)
+		return
 	}
+	fmt.Printf("\nbunker connected with url %v, pubkey %v", env("BUNKER"), pubkey)
 
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
@@ -64,8 +84,8 @@ func main() {
 	relay.Info.Name = "Vertex Relay"
 	relay.Info.Software = "Vertex Relay based on Khatru"
 	relay.Info.Version = "0.0.1"
-	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, []int{90}...)
-	relay.Info.PubKey, _ = bunker.GetPublicKey(ctx)
+	relay.Info.PubKey = pubkey
+	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, 90)
 
 	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
@@ -83,19 +103,6 @@ func main() {
 	})
 	ProcessRequests(ctx, logger, client, bunker, relay, reqChan)
 
-	mux := relay.Router()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("content-type", "text/html")
-		fmt.Fprintf(w, "Welcome to Vertex Relay")
-	})
-
-	// Launch server in a goroutine to allow initializing bunker afterwards (depends on this relay)
-	go func() {
-		port := env("PORT", "3334")
-		http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay)
-		fmt.Printf("running on :%s\n", port)
-	}()
 }
 
 // ---------------------------------HELPERS------------------------------------
