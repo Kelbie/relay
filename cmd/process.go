@@ -53,17 +53,17 @@ func ProcessRequests(
 			case dvm.KindRelevantWhoFollow:
 				res = dvm.RelevantWhoFollowEvent(ctx, DB, RWS, req)
 			case dvm.KindDegreesOfSeparation:
-				res = &nostr.Event{}
+				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindImpersonatorDetection:
-				res = &nostr.Event{}
+				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindRecommendedFollows:
-				res = &nostr.Event{}
+				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindSortAuthors:
-				res = &nostr.Event{}
+				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindVerifiedFollowers:
-				res = &nostr.Event{}
+				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindVerifiedFollowersCount:
-				res = &nostr.Event{}
+				res = &nostr.Event{Content: "this dvm is WIP"}
 			}
 
 			bunker.SignEvent(ctx, res)
