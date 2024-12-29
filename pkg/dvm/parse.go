@@ -11,10 +11,13 @@ import (
 )
 
 var (
+	defaultSort string = "global"
+	validSorts         = []string{"personalized", "global"}
+
 	defaultDistance uint64 = 0 // meaning no constrain on the distance
+	maxDistance     uint64 = 5
 	defaultLimit    uint64 = 5
-	defaultSort     string = "global"
-	validSorts             = []string{"personalized", "global"}
+	maxLimit        uint64 = 1000
 )
 
 // The Args structure contains the general input parameters for our DVMs.
@@ -24,7 +27,7 @@ type Args struct {
 	Sort     string
 	Distance uint64
 	Limit    uint64
-	// RequireProof    bool		better to leave it for the future
+	// RequireProof    bool
 }
 
 // NewArgs() returns an Args struct with default arguments.
@@ -73,7 +76,7 @@ func ParseArgs(req *nostr.Event) (*Args, error) {
 
 		case "sort":
 			if !slices.Contains(validSorts, val) {
-				return nil, ErrInvalidSortOption
+				return nil, fmt.Errorf("%w: %v", ErrInvalidSortOption, val)
 			}
 			args.Sort = val
 
@@ -82,12 +85,20 @@ func ParseArgs(req *nostr.Event) (*Args, error) {
 			if err != nil {
 				return nil, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
 			}
+
+			if d > maxDistance {
+				return nil, fmt.Errorf("%w: distance must be smaller than %v", ErrInvalidDistance, maxDistance)
+			}
 			args.Distance = d
 
 		case "limit":
 			l, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
+			}
+
+			if l > maxLimit {
+				return nil, fmt.Errorf("%w: limit must be smaller than %v", ErrInvalidLimit, maxLimit)
 			}
 			args.Limit = l
 

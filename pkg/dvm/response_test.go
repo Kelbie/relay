@@ -12,7 +12,6 @@ import (
 )
 
 func TestRelevantWhoFollow(t *testing.T) {
-	const maxDist = 0.001
 	testCases := []struct {
 		name          string
 		DBType        string
@@ -88,6 +87,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 				t.Fatalf("RelevantWhoFollow: expected error %v, got %v", test.expectedError, err)
 			}
 
+			const maxDist float64 = 0.001
 			dist := ResponseDistance(res, test.expectedRes)
 			if dist > maxDist {
 				t.Errorf("RelevantWhoFollow: expected distance %v, got %v", maxDist, dist)

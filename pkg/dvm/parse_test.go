@@ -106,6 +106,28 @@ func TestParseArgs(t *testing.T) {
 			expectedError: ErrBadlyFormattedInt,
 		},
 		{
+			name: "limit too high",
+			req: &nostr.Event{
+				PubKey: fran,
+				Tags: nostr.Tags{
+					{"param", "limit", "10000"},
+				},
+			},
+			expectedArgs:  nil,
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name: "distance too high",
+			req: &nostr.Event{
+				PubKey: fran,
+				Tags: nostr.Tags{
+					{"param", "distance", "7"},
+				},
+			},
+			expectedArgs:  nil,
+			expectedError: ErrInvalidDistance,
+		},
+		{
 			name: "valid relevant who follow",
 			req: &nostr.Event{
 				PubKey: fran,

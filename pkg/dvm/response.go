@@ -8,6 +8,7 @@ import (
 
 	"github.com/vertex-lab/crawler/pkg/models"
 	"github.com/vertex-lab/crawler/pkg/pagerank"
+	"golang.org/x/exp/slices"
 )
 
 // RankResponse returns the requested rank for the pubkey
@@ -38,15 +39,14 @@ func RelevantWhoFollow(
 	if err != nil {
 		return nil, err
 	}
-
 	if IDs[0] == nil {
 		return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Source)
 	}
 	if IDs[1] == nil {
 		return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Targets[0])
 	}
-
 	sourceID, targetID := *IDs[0], *IDs[1]
+
 	followersByNode, err := DB.Followers(ctx, targetID)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func RelevantWhoFollow(
 	var rankMap models.PagerankMap
 	switch args.Sort {
 	case "global":
-		rankMap, err = pagerank.Global(ctx, RWS, followers...) // TODO, make a pagerank.Read() as computing it is overkill.
+		rankMap, err = pagerank.Global(ctx, RWS, followers...) // TODO, make a Read() as computing it is overkill.
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
@@ -98,6 +98,10 @@ func validateRelevantWhoFollow(args *Args) error {
 
 	if args.Limit == 0 {
 		return fmt.Errorf("%w: limit must be strictly greater than zero", ErrInvalidLimit)
+	}
+
+	if !slices.Contains(validSorts, args.Sort) {
+		return fmt.Errorf("%w: %v", ErrInvalidSortOption, args.Sort)
 	}
 
 	return nil
@@ -143,10 +147,6 @@ func TopByValue(m map[uint32]float64, topN uint64) (keys []uint32, vals []float6
 func ResponseDistance(res1, res2 []RankResponse) float64 {
 	if len(res1) != len(res2) {
 		return math.MaxFloat64
-	}
-
-	if len(res1) == 0 {
-		return 0
 	}
 
 	var distance float64

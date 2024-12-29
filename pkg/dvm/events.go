@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	// kinds
 	KindRelevantWhoFollow      int = 5312
 	KindRecommendedFollows     int = 5313
 	KindSortAuthors            int = 5314
@@ -30,6 +31,7 @@ var (
 	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
 	ErrInvalidTargets    error = errors.New("invalid targets")
 	ErrInvalidLimit      error = errors.New("invalid limit")
+	ErrInvalidDistance   error = errors.New("invalid distance")
 
 	// internal system errors
 	ErrComputationFailed error = errors.New("DVM computation failed")
