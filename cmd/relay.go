@@ -29,10 +29,11 @@ func main() {
 	defer logFile.Close()
 
 	PrintTitle(logger)
-	go HandleSignals(cancel, logger)
+	defer PrintShutdown(logger)
 
-	env = Env()
+	go HandleSignals(cancel, logger)
 	relay := khatru.NewRelay()
+	env = Env()
 
 	db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
 	if err := db.Init(); err != nil {
@@ -138,5 +139,11 @@ func PrintTitle(l *logger.Aggregate) {
 
 	l.Info("----------------------")
 	l.Info("Starting up the relay")
+	l.Info("----------------------")
+}
+
+// PrintShutdown() prints a little shutdown message.
+func PrintShutdown(l *logger.Aggregate) {
+	l.Info("Relay stopped")
 	l.Info("----------------------")
 }
