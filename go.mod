@@ -2,7 +2,7 @@ module relay
 
 go 1.23.3
 
-replace github.com/vertex-lab/crawler => ../Nostrcrawler
+replace github.com/vertex-lab/crawler => ../crawler
 
 // replace github.com/vertex-lab/crawler => ../vertex-crawler
 

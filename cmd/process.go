@@ -64,6 +64,8 @@ func ProcessRequests(
 				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindVerifiedFollowersCount:
 				res = &nostr.Event{Content: "this dvm is WIP"}
+			default:
+				logger.Error("unwanted kind: %v", req.Kind)
 			}
 
 			bunker.SignEvent(ctx, res)

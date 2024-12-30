@@ -18,7 +18,7 @@ import (
 	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
 
-var reqChan = make(chan *nostr.Event, 1000)
+var requestChan = make(chan *nostr.Event, 1000) // a queue of 1000 events seems reasonable
 var env func(k string, fallback ...string) (v string)
 
 func main() {
@@ -98,11 +98,11 @@ func main() {
 
 	// before storing the event, send it to the request queue to be processed
 	relay.StoreEvent = append(relay.StoreEvent, func(ctx context.Context, event *nostr.Event) error {
-		reqChan <- event
+		requestChan <- event
 		return db.SaveEvent(ctx, event)
 	})
-	ProcessRequests(ctx, logger, client, bunker, relay, reqChan)
 
+	ProcessRequests(ctx, logger, client, bunker, relay, requestChan)
 }
 
 // ---------------------------------HELPERS------------------------------------
