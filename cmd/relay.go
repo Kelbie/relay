@@ -25,15 +25,17 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	relay := khatru.NewRelay()
+	env = Env()
+
 	logger, logFile := logger.Init("relay.log")
+	relay.Log = logger.WarnLogger
 	defer logFile.Close()
 
 	PrintTitle(logger)
 	defer PrintShutdown(logger)
 
 	go HandleSignals(cancel, logger)
-	relay := khatru.NewRelay()
-	env = Env()
 
 	db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
 	if err := db.Init(); err != nil {
