@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
@@ -28,9 +29,8 @@ func main() {
 	relay := khatru.NewRelay()
 	env = Env()
 
-	logger, logFile := logger.Init("relay.log")
+	logger := logger.New(os.Stdout)
 	relay.Log = logger.WarnLogger
-	defer logFile.Close()
 
 	PrintTitle(logger)
 	defer PrintShutdown(logger)
@@ -64,6 +64,8 @@ func main() {
 		http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay)
 		fmt.Printf("running on :%s\n", port)
 	}()
+
+	time.Sleep(time.Second * 5)
 
 	bunker, err := nip46.ConnectBunker(ctx, nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
 	if err != nil {

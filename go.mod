@@ -4,8 +4,6 @@ go 1.23.3
 
 replace github.com/vertex-lab/crawler => ../crawler
 
-// replace github.com/vertex-lab/crawler => ../vertex-crawler
-
 require (
 	github.com/fiatjaf/eventstore v0.14.0
 	github.com/fiatjaf/khatru v0.11.0
