@@ -117,3 +117,23 @@ func RelevantWhoFollowEvent(
 
 	return ResponseEvent(res, req)
 }
+
+// RecommendedFollowsEvent() returns the recommended follows event from the specified request.
+func RecommendedFollowsEvent(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	req *nostr.Event) *nostr.Event {
+
+	args, err := ParseArgs(req)
+	if err != nil {
+		return ErrorEvent(err, req)
+	}
+
+	res, err := RecommendedFollows(ctx, DB, RWS, args)
+	if err != nil {
+		return ErrorEvent(err, req)
+	}
+
+	return ResponseEvent(res, req)
+}

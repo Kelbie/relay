@@ -75,22 +75,66 @@ func RelevantWhoFollow(
 		}
 	}
 
-	nodeIDs, ranks := TopByValue(rankMap, args.Limit)
-	pubkeys, err := DB.Pubkeys(ctx, nodeIDs...)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
+	return ResponseFromMap(ctx, DB, rankMap, args.Limit)
+}
+
+func RecommendedFollows(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	args *Args) ([]RankResponse, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := validateRecommendedFollows(args); err != nil {
+		return nil, err
 	}
 
-	response := make([]RankResponse, len(pubkeys))
-	for i, pk := range pubkeys {
-		if pk == nil {
-			return nil, fmt.Errorf("%w: %w: %v", ErrComputationFailed, models.ErrNodeNotFoundDB, nodeIDs[i])
+	IDs, err := DB.NodeIDs(ctx, args.Source)
+	if err != nil {
+		return nil, err
+	}
+	if IDs[0] == nil {
+		return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Source)
+	}
+	sourceID := *IDs[0]
+
+	followsByNode, err := DB.Follows(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	follows := followsByNode[0]
+
+	var rankMap models.PagerankMap
+	switch args.Sort {
+	case "global":
+		// anyone is a candidate
+		nodeIDs, err := DB.AllNodes(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
 
-		response[i] = RankResponse{Pubkey: *pk, Rank: ranks[i]}
+		rankMap, err = pagerank.Global(ctx, RWS, nodeIDs...)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
+		}
+
+	case "personalized":
+		limit := min(args.Limit, 10)
+		rankMap, err = pagerank.Personalized(ctx, DB, RWS, sourceID, uint16(limit))
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
+		}
 	}
 
-	return response, nil
+	// zeroing the rank of self and follows, so they don't get recommended.
+	rankMap[sourceID] = 0.0
+	for _, follow := range follows {
+		rankMap[follow] = 0.0
+	}
+
+	return ResponseFromMap(ctx, DB, rankMap, args.Limit)
 }
 
 // ValidateRelevantWhoFollow() validates the arguments for RelevantWhoFollow.
@@ -110,12 +154,54 @@ func validateRelevantWhoFollow(args *Args) error {
 	return nil
 }
 
+// ValidateRecommendedFollows() validates the arguments for RecommendedFollows.
+func validateRecommendedFollows(args *Args) error {
+	if args == nil {
+		return ErrNilArgs
+	}
+
+	if args.Limit == 0 {
+		return fmt.Errorf("%w: limit must be strictly greater than zero", ErrInvalidLimit)
+	}
+
+	return nil
+}
+
 // -----------------------------------HELPERS-----------------------------------
+
+// ResponseFromMap() returns a slice of RankResponses from the given pagerank map nodeID --> rank.
+func ResponseFromMap(
+	ctx context.Context,
+	DB models.Database,
+	rankMap models.PagerankMap,
+	limit uint64) ([]RankResponse, error) {
+
+	nodeIDs, ranks := TopByValue(rankMap, limit)
+	pubkeys, err := DB.Pubkeys(ctx, nodeIDs...)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
+	}
+
+	response := make([]RankResponse, len(pubkeys))
+	for i, pk := range pubkeys {
+		if pk == nil {
+			return nil, fmt.Errorf("%w: %w: %v", ErrComputationFailed, models.ErrNodeNotFoundDB, nodeIDs[i])
+		}
+
+		response[i] = RankResponse{Pubkey: *pk, Rank: ranks[i]}
+	}
+
+	return response, nil
+}
 
 // TopByValue() returns the keys and values of the topN pairs, sorted by value.
 func TopByValue(m map[uint32]float64, topN uint64) (keys []uint32, vals []float64) {
-	if m == nil || topN <= 0 || topN > uint64(len(m)) {
+	if len(m) == 0 || topN <= 0 {
 		return nil, nil
+	}
+
+	if topN > uint64(len(m)) {
+		topN = uint64(len(m))
 	}
 
 	type kv struct {

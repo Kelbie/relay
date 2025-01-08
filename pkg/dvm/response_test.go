@@ -12,6 +12,7 @@ import (
 )
 
 func TestRelevantWhoFollow(t *testing.T) {
+	const maxDist float64 = 0.001
 	testCases := []struct {
 		name          string
 		DBType        string
@@ -87,10 +88,83 @@ func TestRelevantWhoFollow(t *testing.T) {
 				t.Fatalf("RelevantWhoFollow: expected error %v, got %v", test.expectedError, err)
 			}
 
-			const maxDist float64 = 0.001
 			dist := ResponseDistance(res, test.expectedRes)
 			if dist > maxDist {
 				t.Errorf("RelevantWhoFollow: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected response %v, got %v", test.expectedRes, res)
+			}
+		})
+	}
+}
+
+func TestRecommendedFollows(t *testing.T) {
+	const maxDist float64 = 0.01
+	testCases := []struct {
+		name          string
+		DBType        string
+		RWSType       string
+		args          *Args
+		expectedRes   []RankResponse
+		expectedError error
+	}{
+		{
+			name:          "nil args",
+			DBType:        "simple-with-mock-pks",
+			RWSType:       "one-node0",
+			args:          nil,
+			expectedError: ErrNilArgs,
+		},
+		{
+			name:    "args limit is zero",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Source:  odell,
+				Targets: []string{calle},
+				Limit:   0,
+			},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:    "valid global",
+			DBType:  "triangle-with-pks",
+			RWSType: "triangle",
+			args: &Args{
+				Source: odell,
+				Limit:  1,
+				Sort:   "global",
+			},
+			expectedError: nil,
+			expectedRes:   []RankResponse{{Pubkey: pip, Rank: 1.0 / 3.0}},
+		},
+		{
+			name:    "valid personalized",
+			DBType:  "triangle-with-pks",
+			RWSType: "triangle",
+			args: &Args{
+				Source: calle,
+				Limit:  1,
+				Sort:   "personalized",
+			},
+			expectedError: nil,
+			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.2809}},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			DB := mockdb.SetupDB(test.DBType)
+			RWS := mockstore.SetupRWS(test.RWSType)
+			res, err := RecommendedFollows(ctx, DB, RWS, test.args)
+
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("RecommendedFollows: expected error %v, got %v", test.expectedError, err)
+			}
+
+			dist := ResponseDistance(res, test.expectedRes)
+			if dist > maxDist {
+				t.Errorf("RecommendedFollows: expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected response %v, got %v", test.expectedRes, res)
 			}
 		})
@@ -130,8 +204,8 @@ func TestTopNByValue(t *testing.T) {
 			name:         "topN bigger than the map",
 			m:            map[uint32]float64{0: 1.0},
 			topN:         10,
-			expectedKeys: nil,
-			expectedVals: nil,
+			expectedKeys: []uint32{0},
+			expectedVals: []float64{1},
 		},
 		{
 			name:         "valid, just one",

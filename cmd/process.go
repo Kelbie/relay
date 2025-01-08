@@ -52,17 +52,19 @@ func ProcessRequests(
 			switch req.Kind {
 			case dvm.KindRelevantWhoFollow:
 				res = dvm.RelevantWhoFollowEvent(ctx, DB, RWS, req)
-			case dvm.KindDegreesOfSeparation:
+
+			case dvm.KindRecommendedFollows:
+				res = dvm.RecommendedFollowsEvent(ctx, DB, RWS, req)
+
+			case dvm.KindSortAuthors:
 				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindImpersonatorDetection:
 				res = &nostr.Event{Content: "this dvm is WIP"}
-			case dvm.KindRecommendedFollows:
-				res = &nostr.Event{Content: "this dvm is WIP"}
-			case dvm.KindSortAuthors:
-				res = &nostr.Event{Content: "this dvm is WIP"}
-			case dvm.KindVerifiedFollowers:
+			case dvm.KindDegreesOfSeparation:
 				res = &nostr.Event{Content: "this dvm is WIP"}
 			case dvm.KindVerifiedFollowersCount:
+				res = &nostr.Event{Content: "this dvm is WIP"}
+			case dvm.KindVerifiedFollowers:
 				res = &nostr.Event{Content: "this dvm is WIP"}
 			default:
 				logger.Error("unwanted kind: %v", req.Kind)
