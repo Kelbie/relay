@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
@@ -29,12 +28,6 @@ func main() {
 	relay := khatru.NewRelay()
 	env = Env()
 
-	relay.Info.Name = "Vertex Relay"
-	relay.Info.Software = "Vertex Relay based on Khatru"
-	relay.Info.Version = "0.0.1"
-	// relay.Info.PubKey = pubkey
-	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, 90)
-
 	logger := logger.New(os.Stdout)
 	relay.Log = logger.WarnLogger
 
@@ -51,11 +44,11 @@ func main() {
 	}
 	fmt.Println("database connected")
 
-	// if err := RelayManagementInit(ctx, db, relay); err != nil {
-	// 	logger.Error("relay management failed to initialize: %v", err)
-	// 	fmt.Printf("\nrelay management failed to initialize: %v", err)
-	// 	return
-	// }
+	if err := RelayManagementInit(ctx, db, relay); err != nil {
+		logger.Error("relay management failed to initialize: %v", err)
+		fmt.Printf("\nrelay management failed to initialize: %v", err)
+		return
+	}
 
 	mux := relay.Router()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -73,25 +66,12 @@ func main() {
 		}
 	}()
 
-	time.Sleep(time.Second * 2)
-
-	_, err := nostr.RelayConnect(ctx, "wss://relay.vertexlab.io")
+	bunker, err := nip46.ConnectBunker(ctx, nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
 	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("connection to relay ok")
-
-	secret := "16117116deab68959ce46d9c897ea49abb28349cb2e459584a59da34e28324fb"
-	fmt.Printf("trying to connect to bunker with %v", secret)
-	// Why the fuck does this require a secret?
-	bunker, err := nip46.ConnectBunker(ctx, secret, env("BUNKER"), nil, nil)
-	if err != nil {
-		fmt.Println("bunker failed to initialize with", env("BUNKER"))
 		logger.Error("bunker failed to initialize with %v", env("BUNKER"))
+		fmt.Println("bunker failed to initialize with", env("BUNKER"))
 		return
 	}
-	fmt.Printf("bunker connected, trying to get public key")
-
 	pubkey, err := bunker.GetPublicKey(ctx)
 	if err != nil {
 		logger.Error("failed to get pubkey: %v", err)
@@ -104,17 +84,20 @@ func main() {
 		Addr: "localhost:6379",
 	})
 
-	// assign pubkey now
+	relay.Info.Name = "Vertex Relay"
+	relay.Info.Software = "Vertex Relay based on Khatru"
+	relay.Info.Version = "0.0.1"
 	relay.Info.PubKey = pubkey
+	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, 90)
 
 	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
-	// relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
-	// 	if event.Kind < 5312 || event.Kind > 5318 {
-	// 		return true, "invalid kind"
-	// 	}
-	// 	return false, ""
-	// })
+	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+		if event.Kind < 5312 || event.Kind > 5318 {
+			return true, "invalid kind"
+		}
+		return false, ""
+	})
 
 	// before storing the event, send it to the request queue to be processed
 	relay.StoreEvent = append(relay.StoreEvent, func(ctx context.Context, event *nostr.Event) error {
