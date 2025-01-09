@@ -29,6 +29,12 @@ func main() {
 	relay := khatru.NewRelay()
 	env = Env()
 
+	relay.Info.Name = "Vertex Relay"
+	relay.Info.Software = "Vertex Relay based on Khatru"
+	relay.Info.Version = "0.0.1"
+	// relay.Info.PubKey = pubkey
+	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, 90)
+
 	logger := logger.New(os.Stdout)
 	relay.Log = logger.WarnLogger
 
@@ -69,6 +75,12 @@ func main() {
 
 	time.Sleep(time.Second * 2)
 
+	_, err := nostr.RelayConnect(ctx, "wss://relay.vertexlab.io")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("connection to relay ok")
+
 	secret := "16117116deab68959ce46d9c897ea49abb28349cb2e459584a59da34e28324fb"
 	fmt.Printf("trying to connect to bunker with %v", secret)
 	// Why the fuck does this require a secret?
@@ -92,11 +104,8 @@ func main() {
 		Addr: "localhost:6379",
 	})
 
-	relay.Info.Name = "Vertex Relay"
-	relay.Info.Software = "Vertex Relay based on Khatru"
-	relay.Info.Version = "0.0.1"
+	// assign pubkey now
 	relay.Info.PubKey = pubkey
-	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, 90)
 
 	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
