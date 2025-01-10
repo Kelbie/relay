@@ -2,41 +2,39 @@
 
 This is a relay based on [Khatru](https://github.com/fiatjaf/khatru) for running Vertex DVMs and storing related events.
 
-## Available DVM services
+## DVM services
 
 These services follow the NIP-90 DVM spec. The `i` (input field) is never used, only `param`s.
 
-#### Requests
+### Requests Parameters
 
-Parameters:
- 
-  - `source`: Pubkey used for Personalized Pagerank, so it only applies when `sort` is set to `personalized`. Default: the pubkey signing the DVM request.
-  - `target`: Pubkey the requester is interested in. Can be supplied multiple times for services that require it.
-  - `distance`: Maximum (or minimum) amount of hops in the graph to perform the calculation to (or from). Default: `2`, and the maximum value is `3`.
-  - `sort`: Algorithm used to perform calculations and/or sort results. One of `personalized` (Personalized Paegrank), `global` (Global Pagerank). Default: `global`.
-  - `limit`: Maximum amount of results returned in a response. Default: `5`, or same as inputs (when applicable).
-  - `proofs`: Whether to return applicable events (kinds 0, 3, etc) on the websocket connection in order for clients to perform some validation on our claims. Default: `false`.
+| Parameter   | Description                                                                                                                                                    | Default Value                            | Maximum Value      |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------|--------------------|
+| `source`    | Pubkey used for Personalized Pagerank, so it only applies when `sort` is set to `personalized`.                                                                | The pubkey signing the DVM request.      | -                  |
+| `target`    | Pubkey the requester is interested in. Can be supplied multiple times for services that require it.                                                            | -                                        | -                  |
+| `distance`  | Maximum (or minimum) number of hops in the graph to perform the calculation to (or from).                                                                      | `0`                                      | `5`                |
+| `sort`      | Algorithm used to sort results. It must be either `personalized` (Personalized Pagerank) or `global` (Global Pagerank).                                        | `global`                                 | -                  |
+| `limit`     | Maximum number of results returned in a response.                                                                                                              | `5` (or same as inputs when applicable). | `1000`             |
+| `proofs`    | Whether to return applicable events (kinds 0, 3, etc.) on the websocket connection for clients to validate claims.                                             | `false`                                  | -                  |
 
 All parameters except `target` are optional for all services. All pubkeys can be expressed in either hex or npub format.
 
-#### Responses
+### Responses
 
 The response is included in the `content` field as escaped JSON.
 
-Fields:
-
-  - `pubkey`
-  - `ppr` (Personalized Pagerank)
-  - `gpr` (Global Pagerank)
+**Fields:**
+  - `pubkey` (a hex nostr public key)
+  - `rank` (the rank of the pubkey, computed using the algorithm specified in the `sort` parameter, _relative_ to `source`)
   - `warning` and `candidate` flags (see kind 5315)
+----
 
 ### 5312: Relevant Who Follow
-
-Required parameters: `target`.
+- **Description**: returns a list of pairs `pubkey`:`rank` where each `pubkey` follows `target`.
+- **Useful for**: Giving users information to assess the reputation of `target`.
+- **Required parameters**: `target`
 
 #### Example request
-
-Shows params with default values.
 
 ```json
 {
@@ -57,13 +55,8 @@ Shows params with default values.
     ],
     [
       "param",
-      "distance",
-      "2"
-    ],
-    [
-      "param",
       "sort",
-      "global"
+      "personalized"
     ],
     [
       "param",
@@ -99,12 +92,16 @@ Shows params with default values.
       "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
     ]
   ],
-  "content": "[{\"pubkey\":\"bd0c0615960ff21214aee7f5b06fa0a104585938c8eb4b5cd4e2b109041fdf62\",\"gpr\":0.025,\"ppr\":0.173},{\"pubkey\":\"d05ab982e1105476ab68e4c6728d148f8e6222154e60cc359ef6b8599c820bea\",\"gpr\":0.022,\"ppr\":0.163},{\"pubkey\":\"6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2\",\"gpr\":0.021,\"ppr\":0.154},{\"pubkey\":\"bb17f1e4e516e75e82a5b5e81c0120ffeb24e9e92866962440b9888ae82e42a1\",\"gpr\":0.02,\"ppr\":0.111},{\"pubkey\":\"5097f9b8bd3ebb3c240a6a0c95bdf24d22a10211181f90ba29c41c31c889ba0a\",\"gpr\":0.022,\"ppr\":0.107}]",
+  "content": "[{\"pubkey\":\"bd0c0615960ff21214aee7f5b06fa0a104585938c8eb4b5cd4e2b109041fdf62\",\"rank\":0.0025},{\"pubkey\":\"d05ab982e1105476ab68e4c6728d148f8e6222154e60cc359ef6b8599c820bea\",\"rank\":0.00163},{\"pubkey\":\"6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2\",\"rank\":0.00154},{\"pubkey\":\"bb17f1e4e516e75e82a5b5e81c0120ffeb24e9e92866962440b9888ae82e42a1\",\"rank\":0.00111},{\"pubkey\":\"5097f9b8bd3ebb3c240a6a0c95bdf24d22a10211181f90ba29c41c31c889ba0a\",\"rank\":0.000107}]",
   "sig": "3c25ff7f8d6d847775a9aafb8b1f28d2f2e9b53f78de7f53b49fbbe46402358dc281be263c20919a426cbea86fbe9d36951fd5dd86465181d9d49be056616f53"
 }
 ```
 
 ### 5313: Recommended Follows
+
+- **Description**: returns a list of pairs `pubkey`:`rank` where `pubkey` is a recommendation for `source`. They are the pubkeys with the highest ranks escluding `source` and its follows.
+- **Useful for**: Offering users recommendations on accounts they may want to follow.
+- **Required parameters**: none.
 
 #### Example request
 
@@ -140,20 +137,22 @@ This example uses no parameters, gets recommended follows for the signer.
       "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
     ]
   ],
-  "content": "[{\"pubkey\":\"7f5b06fa0a104585938c8eb4b5cd4e2b1bd0c0615960ff21214aee09041fdf62\",\"gpr\":0.035,\"ppr\":0.273},{\"pubkey\":\"af7c905827bc83e1330bee2c3a6a5b86efd1b46b3e6d1ec2447e0769734785e2\",\"gpr\":0.031,\"ppr\":0.254},{\"pubkey\":\"95bdf24d22a10211181f90ba29c41c5097f9b8bd3ebb3c240a6a0c31c889ba0a\",\"gpr\":0.032,\"ppr\":0.207}]",
+"content": "[{\"pubkey\":\"bd0c0615960ff21214aee7f5b06fa0a104585938c8eb4b5cd4e2b109041fdf62\",\"rank\":0.0025},{\"pubkey\":\"d05ab982e1105476ab68e4c6728d148f8e6222154e60cc359ef6b8599c820bea\",\"rank\":0.00163},{\"pubkey\":\"6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2\",\"rank\":0.00154},{\"pubkey\":\"bb17f1e4e516e75e82a5b5e81c0120ffeb24e9e92866962440b9888ae82e42a1\",\"rank\":0.00111},{\"pubkey\":\"5097f9b8bd3ebb3c240a6a0c95bdf24d22a10211181f90ba29c41c31c889ba0a\",\"rank\":0.000107}]",
   "sig": "c79f34b9f5603b242e00f0b04782d579ffcec2cb45e511fbbf1ba3e04d5297f7eb7a071433b0a14300fbd766feaf5e8e1f6fbd216ae1cce1cb400f987fc2d0d2"
 }
 ```
 
 ### 5314: Sort Authors
 
-As 3 `target` params are passed, 3 are returned, sorted.
+- **Description**: returns a list of pairs `target`:`rank`, one pair for each of the provided targets. 
+- **Useful for**: Sorting comments under a note, zaps, and for improving search results and discovery.
+- **Required parameters**: at least one `target`.
 
 #### Example request
 
 ```json
 {
-  "id": "fb167ebf72c8f1db0facccafe90824a7cecaf7f0013e7379693226bf944e3d4e",
+  "id": "588d828025eab6404ed17c6c7a70d09a67c5da4ffe780e2f943f32509fe8af23",
   "pubkey": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   "created_at": 1732760317,
   "kind": 5314,
@@ -195,19 +194,19 @@ As 3 `target` params are passed, 3 are returned, sorted.
   "tags": [
     [
       "e",
-      "55bf3b0bd6f377a2928ef3bdbed6495f1c4fb83afa7ed5ebb938e0e94d5c87f3"
+      "588d828025eab6404ed17c6c7a70d09a67c5da4ffe780e2f943f32509fe8af23"
     ],
     [
       "p",
       "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
     ]
   ],
-  "content": "[{\"pubkey\":\"bd0c0615960ff21214aee7f5b06fa0a104585938c8eb4b5cd4e2b109041fdf62\",\"gpr\":0.025,\"ppr\":0.173},{\"pubkey\":\"d05ab982e1105476ab68e4c6728d148f8e6222154e60cc359ef6b8599c820bea\",\"gpr\":0.022,\"ppr\":0.163},{\"pubkey\":\"6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2\",\"gpr\":0.021,\"ppr\":0.154},{\"pubkey\":\"bb17f1e4e516e75e82a5b5e81c0120ffeb24e9e92866962440b9888ae82e42a1\",\"gpr\":0.02,\"ppr\":0.111},{\"pubkey\":\"5097f9b8bd3ebb3c240a6a0c95bdf24d22a10211181f90ba29c41c31c889ba0a\",\"gpr\":0.022,\"ppr\":0.107}]",
+  "content": "[{\"pubkey\":\"bd0c0615960ff21214aee7f5b06fa0a104585938c8eb4b5cd4e2b109041fdf62\",\"rank\":0.0025},{\"pubkey\":\"d05ab982e1105476ab68e4c6728d148f8e6222154e60cc359ef6b8599c820bea\",\"rank\":0.00163},{\"pubkey\":\"6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2\",\"rank\":0.00154},{\"pubkey\":\"bb17f1e4e516e75e82a5b5e81c0120ffeb24e9e92866962440b9888ae82e42a1\",\"rank\":0.00111},{\"pubkey\":\"5097f9b8bd3ebb3c240a6a0c95bdf24d22a10211181f90ba29c41c31c889ba0a\",\"rank\":0.000107}]",
   "sig": "6fd60b9c07eac7b9150c25c4d5bb2652998b671b3b336c1407cac0473f90a25bfae5636a4eb27bcf40d2ba6f0b5f25e3300d3fdbae295dc9f2fc5cf74b793c11"
 }
 ```
 
-### 5315: Impersonator Detection
+### 5315: Impersonator Detection (WIP)
 
 #### Example request
 
@@ -222,6 +221,11 @@ As 3 `target` params are passed, 3 are returned, sorted.
       "param",
       "target",
       "npub12ztlnw9a86ancfq2dgxft00jf532zqs3rq0epw3fcswrrjyfhg9qcavenc"
+    ]
+    [
+      "param",
+      "target",
+      "6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2"
     ]
   ],
   "content": "",
@@ -247,12 +251,12 @@ As 3 `target` params are passed, 3 are returned, sorted.
       "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
     ]
   ],
-  "content": "[{\"pubkey\":\"2447af7c905827bc83e1330bee26efd1b46b3e6d1ecc3a6a5b8e0769734785e2\",\"gpr\":0.045,\"ppr\":0.043,\"warning\":false,\"candidate\":true},{\"pubkey\":\"cc359ef6b8599c820d05ab982e1105476ab68e4c6728d148f8e6222154e60bea\",\"gpr\":0.021,\"ppr\":0.001,\"warning\":true,\"candidate\":false}]",
+  "content": "[{\"pubkey\":\"2447af7c905827bc83e1330bee26efd1b46b3e6d1ecc3a6a5b8e0769734785e2\",\"rank\":0.0043,\"warning\":false,},{\"pubkey\":\"6efd1b46b3e6d1ec2447af7c905827bc83e1330bee2c3a6a5b8e0769734785e2\",\"rank\":0.000001,\"warning\":true,\"candidate\":d05ab982e1105476ab68e4c6728d148f8e6222154e60cc359ef6b8599c820bea}]",
   "sig": "1d351fe8bfb145beba13c72ca10e46b6aaca5e9b49c4503f51a34a33a19a54ae2d99ab680b628574e8666d3a867bbff354e7334b6e275c5a0537ff9f3dd0ade8"
 }
 ```
 
-### 5316: Degrees of Separation
+### 5316: Degrees of Separation (WIP)
 
 #### Example request
 
@@ -341,4 +345,4 @@ nak relay allowpubkey --pubkey 79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d95
 
 ## License
 
-MIT
+MIT; for more information, [check out the license](https://github.com/vertex-lab/relay/blob/master/LICENSE.md).
