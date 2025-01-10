@@ -99,7 +99,7 @@ The response is included in the `content` field as escaped JSON.
 
 ### 5313: Recommended Follows
 
-- **Description**: returns a list of pairs `pubkey`:`rank` where `pubkey` is a recommendation for `source`. They are the pubkeys with the highest ranks escluding `source` and its follows.
+- **Description**: returns a list of pairs `pubkey`:`rank` where `pubkey` is a recommendation for `source`. They are the pubkeys with the highest ranks excluding `source` and its follows.
 - **Useful for**: Offering users recommendations on accounts they may want to follow.
 - **Required parameters**: none.
 
