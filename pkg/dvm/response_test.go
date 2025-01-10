@@ -50,7 +50,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 			expectedError: ErrInvalidLimit,
 		},
 		{
-			name:    "valid global",
+			name:    "valid global (simple)",
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
 			args: &Args{
@@ -63,7 +63,20 @@ func TestRelevantWhoFollow(t *testing.T) {
 			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.5}},
 		},
 		{
-			name:    "valid personalized",
+			name:    "valid global (triangle)",
+			DBType:  "triangle-with-pks",
+			RWSType: "triangle",
+			args: &Args{
+				Source:  odell,
+				Targets: []string{pip},
+				Limit:   1,
+				Sort:    "global",
+			},
+			expectedError: nil,
+			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.33333}},
+		},
+		{
+			name:    "valid personalized (simple)",
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
 			args: &Args{
@@ -74,6 +87,19 @@ func TestRelevantWhoFollow(t *testing.T) {
 			},
 			expectedError: nil,
 			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.54054}},
+		},
+		{
+			name:    "valid personalized (triangle)",
+			DBType:  "triangle-with-pks",
+			RWSType: "triangle",
+			args: &Args{
+				Source:  odell,
+				Targets: []string{pip},
+				Limit:   1,
+				Sort:    "personalized",
+			},
+			expectedError: nil,
+			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.330417881}},
 		},
 	}
 

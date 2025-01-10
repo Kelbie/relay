@@ -58,24 +58,34 @@ func RelevantWhoFollow(
 	if err != nil {
 		return nil, err
 	}
-	followers := followersByNode[0]
 
-	var rankMap models.PagerankMap
+	// if target has no followers, return an empty response
+	followers := followersByNode[0]
+	if len(followers) == 0 {
+		return []RankResponse{}, nil
+	}
+
+	var followersRank models.PagerankMap
 	switch args.Sort {
 	case "global":
-		rankMap, err = pagerank.Global(ctx, RWS, followers...)
+		followersRank, err = pagerank.Global(ctx, RWS, followers...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
 
 	case "personalized":
-		rankMap, err = pagerank.Personalized(ctx, DB, RWS, sourceID, 100)
+		pp, err := pagerank.Personalized(ctx, DB, RWS, sourceID, 100)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
+
+		followersRank = make(models.PagerankMap, len(followers))
+		for _, follower := range followers {
+			followersRank[follower] = pp[follower]
+		}
 	}
 
-	return ResponseFromMap(ctx, DB, rankMap, args.Limit)
+	return ResponseFromMap(ctx, DB, followersRank, args.Limit)
 }
 
 func RecommendedFollows(
@@ -106,35 +116,35 @@ func RecommendedFollows(
 	}
 	follows := followsByNode[0]
 
-	var rankMap models.PagerankMap
+	var candidatesRank models.PagerankMap
 	switch args.Sort {
 	case "global":
-		// anyone is a candidate
-		nodeIDs, err := DB.AllNodes(ctx)
+		// anyone is a candidate; TODO: we should smart in constraining the set of candidates in ways that make sense.
+		candidates, err := DB.AllNodes(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
 
-		rankMap, err = pagerank.Global(ctx, RWS, nodeIDs...)
+		candidatesRank, err = pagerank.Global(ctx, RWS, candidates...)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
 
 	case "personalized":
 		limit := min(args.Limit, 10)
-		rankMap, err = pagerank.Personalized(ctx, DB, RWS, sourceID, uint16(limit))
+		candidatesRank, err = pagerank.Personalized(ctx, DB, RWS, sourceID, uint16(limit))
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 		}
 	}
 
 	// zeroing the rank of self and follows, so they don't get recommended.
-	rankMap[sourceID] = 0.0
+	candidatesRank[sourceID] = 0.0
 	for _, follow := range follows {
-		rankMap[follow] = 0.0
+		candidatesRank[follow] = 0.0
 	}
 
-	return ResponseFromMap(ctx, DB, rankMap, args.Limit)
+	return ResponseFromMap(ctx, DB, candidatesRank, args.Limit)
 }
 
 // ValidateRelevantWhoFollow() validates the arguments for RelevantWhoFollow.
