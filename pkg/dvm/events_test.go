@@ -2,6 +2,7 @@ package dvm
 
 import (
 	"reflect"
+	"relay/pkg/response"
 	"testing"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -16,7 +17,7 @@ func TestErrorEvent(t *testing.T) {
 	}{
 		{
 			name: "nil req",
-			err:  ErrBadlyFormattedTag,
+			err:  response.ErrBadlyFormattedTag,
 			req:  nil,
 			expectedEvent: &nostr.Event{
 				Content: "",
@@ -24,13 +25,13 @@ func TestErrorEvent(t *testing.T) {
 				Tags: nostr.Tags{
 					{"e", ""},
 					{"p", ""},
-					{"status", "error", ErrBadlyFormattedTag.Error()},
+					{"status", "error", response.ErrBadlyFormattedTag.Error()},
 				},
 			},
 		},
 		{
 			name: "empty req",
-			err:  ErrBadlyFormattedTag,
+			err:  response.ErrBadlyFormattedTag,
 			req:  &nostr.Event{},
 			expectedEvent: &nostr.Event{
 				Content: "",
@@ -38,7 +39,7 @@ func TestErrorEvent(t *testing.T) {
 				Tags: nostr.Tags{
 					{"e", ""},
 					{"p", ""},
-					{"status", "error", ErrBadlyFormattedTag.Error()},
+					{"status", "error", response.ErrBadlyFormattedTag.Error()},
 				},
 			},
 		},
@@ -61,7 +62,7 @@ func TestErrorEvent(t *testing.T) {
 		},
 		{
 			name: "valid",
-			err:  ErrBadlyFormattedTag,
+			err:  response.ErrBadlyFormattedTag,
 			req: &nostr.Event{
 				ID:     "xxx",
 				PubKey: fran,
@@ -72,7 +73,7 @@ func TestErrorEvent(t *testing.T) {
 				Tags: nostr.Tags{
 					{"e", "xxx"},
 					{"p", fran},
-					{"status", "error", ErrBadlyFormattedTag.Error()},
+					{"status", "error", response.ErrBadlyFormattedTag.Error()},
 				},
 			},
 		},
@@ -93,13 +94,13 @@ func TestErrorEvent(t *testing.T) {
 func TestResponseEvent(t *testing.T) {
 	testCases := []struct {
 		name          string
-		res           []RankResponse
+		res           []response.T
 		req           *nostr.Event
 		expectedEvent *nostr.Event
 	}{
 		{
 			name: "nil req",
-			res:  []RankResponse{{Pubkey: "abc", Rank: 0.7}},
+			res:  []response.T{{Pubkey: "abc", Rank: 0.7}},
 			req:  nil,
 			expectedEvent: &nostr.Event{
 				Content: "[{\"pubkey\":\"abc\",\"rank\":0.7}]",
@@ -129,7 +130,7 @@ func TestResponseEvent(t *testing.T) {
 		},
 		{
 			name: "valid",
-			res:  []RankResponse{{Pubkey: "abc", Rank: 0.1}, {Pubkey: "123", Rank: 0.2}},
+			res:  []response.T{{Pubkey: "abc", Rank: 0.1}, {Pubkey: "123", Rank: 0.2}},
 			req: &nostr.Event{
 				ID:     "xxx",
 				PubKey: fran,

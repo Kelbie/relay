@@ -4,7 +4,7 @@ package dvm
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"relay/pkg/response"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/crawler/pkg/models"
@@ -20,26 +20,6 @@ var (
 	KindVerifiedFollowersCount int = 5317
 	KindVerifiedFollowers      int = 5318
 	KindDVMError               int = 7000
-)
-
-var (
-	// parsing errors
-	ErrNilRequest        error = errors.New("nil request pointer")
-	ErrUnknownParameter  error = errors.New("parameter must be one between 'source', 'target', 'sort', 'distance', 'limit'")
-	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
-	ErrBadlyFormattedKey error = errors.New("badly formatted key")
-	ErrBadlyFormattedInt error = errors.New("badly formatted unsigned integer")
-
-	// value errors
-	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
-	ErrInvalidTargets    error = errors.New("invalid targets")
-	ErrInvalidLimit      error = errors.New("invalid limit")
-	ErrInvalidDistance   error = errors.New("invalid distance")
-
-	// internal system errors
-	ErrComputationFailed error = errors.New("DVM computation failed")
-	ErrNilArgs           error = errors.New("nil args pointer")
-	ErrKeyNotFound       error = errors.New("pubkey was not found")
 )
 
 // ErrorEvent() returns an unsigned nostr event for the DVM error response.
@@ -70,7 +50,7 @@ func ErrorEvent(err error, request *nostr.Event) *nostr.Event {
 }
 
 // ResponseEvent() returns an unsigned nostr event used for the DVM response.
-func ResponseEvent(result []RankResponse, request *nostr.Event) *nostr.Event {
+func ResponseEvent(res []response.T, request *nostr.Event) *nostr.Event {
 	var ID string
 	var pubkey string
 	var kind int
@@ -81,7 +61,7 @@ func ResponseEvent(result []RankResponse, request *nostr.Event) *nostr.Event {
 		kind = request.Kind
 	}
 
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(res)
 	if err != nil {
 		return ErrorEvent(err, request)
 	}
@@ -110,7 +90,7 @@ func RelevantWhoFollowEvent(
 		return ErrorEvent(err, req)
 	}
 
-	res, err := RelevantWhoFollow(ctx, DB, RWS, args)
+	res, err := response.RelevantWhoFollow(ctx, DB, RWS, args)
 	if err != nil {
 		return ErrorEvent(err, req)
 	}
@@ -130,7 +110,7 @@ func RecommendedFollowsEvent(
 		return ErrorEvent(err, req)
 	}
 
-	res, err := RecommendedFollows(ctx, DB, RWS, args)
+	res, err := response.RecommendedFollows(ctx, DB, RWS, args)
 	if err != nil {
 		return ErrorEvent(err, req)
 	}
