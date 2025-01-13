@@ -3,7 +3,6 @@ package dvm
 import (
 	"errors"
 	"reflect"
-	"relay/pkg/response"
 	"testing"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -21,14 +20,14 @@ func TestParseArgs(t *testing.T) {
 	testCases := []struct {
 		name          string
 		req           *nostr.Event
-		expectedArgs  *response.Args
+		expectedArgs  *Args
 		expectedError error
 	}{
 		{
 			name:          "nil req",
 			req:           nil,
 			expectedArgs:  nil,
-			expectedError: response.ErrNilRequest,
+			expectedError: ErrNilRequest,
 		},
 		{
 			name: "empty req --> default args",
@@ -36,7 +35,13 @@ func TestParseArgs(t *testing.T) {
 				PubKey: fran,
 				Kind:   5312,
 			},
-			expectedArgs:  response.NewArgs(fran),
+			expectedArgs: &Args{
+				Source:   fran,
+				Targets:  []string{},
+				Sort:     DefaultSort,
+				Distance: DefaultDistance,
+				Limit:    DefaultLimit,
+			},
 			expectedError: nil,
 		},
 		{
@@ -48,7 +53,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs:  nil,
-			expectedError: response.ErrBadlyFormattedTag,
+			expectedError: ErrBadlyFormattedTag,
 		},
 		{
 			name: "badly formatted tag: too short",
@@ -59,7 +64,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs:  nil,
-			expectedError: response.ErrBadlyFormattedTag,
+			expectedError: ErrBadlyFormattedTag,
 		},
 		{
 			name: "invalid parameter",
@@ -71,7 +76,7 @@ func TestParseArgs(t *testing.T) {
 			},
 
 			expectedArgs:  nil,
-			expectedError: response.ErrUnknownParameter,
+			expectedError: ErrUnknownParameter,
 		},
 		{
 			name: "invalid sort option",
@@ -83,7 +88,7 @@ func TestParseArgs(t *testing.T) {
 			},
 
 			expectedArgs:  nil,
-			expectedError: response.ErrInvalidSortOption,
+			expectedError: ErrInvalidSortOption,
 		},
 		{
 			name: "badly formatted pubkey",
@@ -94,7 +99,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs:  nil,
-			expectedError: response.ErrBadlyFormattedKey,
+			expectedError: ErrBadlyFormattedKey,
 		},
 		{
 			name: "badly formatted int",
@@ -105,7 +110,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs:  nil,
-			expectedError: response.ErrBadlyFormattedInt,
+			expectedError: ErrBadlyFormattedInt,
 		},
 		{
 			name: "limit too high",
@@ -116,7 +121,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs:  nil,
-			expectedError: response.ErrInvalidLimit,
+			expectedError: ErrInvalidLimit,
 		},
 		{
 			name: "distance too high",
@@ -127,7 +132,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs:  nil,
-			expectedError: response.ErrInvalidDistance,
+			expectedError: ErrInvalidDistance,
 		},
 		{
 			name: "valid relevant who follow",
@@ -139,12 +144,12 @@ func TestParseArgs(t *testing.T) {
 					{"param", "sort", "global"},
 				},
 			},
-			expectedArgs: &response.Args{
+			expectedArgs: &Args{
 				Source:   pip,
 				Targets:  []string{calle},
 				Sort:     "global",
-				Distance: response.DefaultDistance,
-				Limit:    response.DefaultLimit,
+				Distance: DefaultDistance,
+				Limit:    DefaultLimit,
 			},
 			expectedError: nil,
 		},
@@ -156,12 +161,12 @@ func TestParseArgs(t *testing.T) {
 					{"param", "sort", "personalized"},
 				},
 			},
-			expectedArgs: &response.Args{
+			expectedArgs: &Args{
 				Source:   pip,
 				Targets:  []string{},
 				Sort:     "personalized",
-				Distance: response.DefaultDistance,
-				Limit:    response.DefaultLimit,
+				Distance: DefaultDistance,
+				Limit:    DefaultLimit,
 			},
 			expectedError: nil,
 		},
@@ -175,12 +180,12 @@ func TestParseArgs(t *testing.T) {
 					{"param", "target", calle},
 				},
 			},
-			expectedArgs: &response.Args{
+			expectedArgs: &Args{
 				Source:   pip,
 				Targets:  []string{fran, pip, calle},
 				Sort:     "global",
-				Distance: response.DefaultDistance,
-				Limit:    response.DefaultLimit,
+				Distance: DefaultDistance,
+				Limit:    DefaultLimit,
 			},
 			expectedError: nil,
 		},
@@ -192,12 +197,12 @@ func TestParseArgs(t *testing.T) {
 					{"param", "target", fran},
 				},
 			},
-			expectedArgs: &response.Args{
+			expectedArgs: &Args{
 				Source:   pip,
 				Targets:  []string{fran},
 				Sort:     "global",
-				Distance: response.DefaultDistance,
-				Limit:    response.DefaultLimit,
+				Distance: DefaultDistance,
+				Limit:    DefaultLimit,
 			},
 			expectedError: nil,
 		},
@@ -209,12 +214,12 @@ func TestParseArgs(t *testing.T) {
 					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
 				},
 			},
-			expectedArgs: &response.Args{
+			expectedArgs: &Args{
 				Source:   pip,
 				Targets:  []string{"47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
 				Sort:     "global",
-				Distance: response.DefaultDistance,
-				Limit:    response.DefaultLimit,
+				Distance: DefaultDistance,
+				Limit:    DefaultLimit,
 			},
 			expectedError: nil,
 		},
@@ -222,7 +227,7 @@ func TestParseArgs(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			args, err := ParseArgs(test.req)
+			args, err := Parse(test.req)
 
 			if !errors.Is(err, test.expectedError) {
 				t.Fatalf("ParseRequestArgs(): expected %v, got %v", test.expectedError, err)
@@ -253,6 +258,6 @@ func BenchmarkParseArgs(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ParseArgs(req)
+		Parse(req)
 	}
 }

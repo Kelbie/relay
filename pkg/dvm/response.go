@@ -1,8 +1,7 @@
-package response
+package dvm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -12,70 +11,11 @@ import (
 	"github.com/vertex-lab/crawler/pkg/pagerank"
 )
 
-var (
-	DefaultSort string = "global"
-	ValidSorts         = []string{"personalized", "global"}
-
-	DefaultDistance uint64 = 0 // meaning no constrain on the distance
-	MaxDistance     uint64 = 5
-	DefaultLimit    uint64 = 5
-	MaxLimit        uint64 = 1000
-)
-
-var (
-	// parsing errors
-	ErrNilRequest        error = errors.New("nil request pointer")
-	ErrUnknownParameter  error = errors.New("parameter must be one between 'source', 'target', 'sort', 'distance', 'limit'")
-	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
-	ErrBadlyFormattedKey error = errors.New("badly formatted key")
-	ErrBadlyFormattedInt error = errors.New("badly formatted unsigned integer")
-
-	// value errors
-	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
-	ErrInvalidTargets    error = errors.New("invalid targets")
-	ErrInvalidLimit      error = errors.New("invalid limit")
-	ErrInvalidDistance   error = errors.New("invalid distance")
-
-	// internal system errors
-	ErrComputationFailed error = errors.New("DVM computation failed")
-	ErrNilArgs           error = errors.New("nil args pointer")
-	ErrKeyNotFound       error = errors.New("pubkey was not found")
-)
-
-// The Args structure contains the general input parameters for our service.
-type Args struct {
-	Source   string
-	Targets  []string
-	Sort     string
-	Distance uint64
-	Limit    uint64
-	// RequireProof    bool
-}
-
-// NewArgs() returns an Args struct with default arguments.
-func NewArgs(pubkey string) *Args {
-	return &Args{
-		Source:   pubkey,
-		Targets:  []string{},
-		Sort:     DefaultSort,
-		Distance: DefaultDistance,
-		Limit:    DefaultLimit,
-	}
-}
-
-// T (for type) returns the requested rank for the pubkey. It will be see by other packages as response.T
-type T struct {
+// RankResponse (for type) returns the requested rank for the pubkey.
+type RankResponse struct {
 	Pubkey string  `json:"pubkey"`
 	Rank   float64 `json:"rank"`
 }
-
-// type ImpersonatorResponse struct {
-// 	Pubkey    string  `json:"pubkey"`
-// 	Gpr       float64 `json:"gpr"`
-// 	Ppr       float64 `json:"ppr"`
-// 	Warning   bool    `json:"warning"`
-// 	Candidate bool    `json:"candidate"`
-// }
 
 // RelevantWhoFollow() returns `limit` RankResponses for "relevant" pubkeys
 // that follow the specified `target`. These relevant pubkeys are the ones with
@@ -85,7 +25,7 @@ func RelevantWhoFollow(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *Args) ([]T, error) {
+	args *Args) ([]RankResponse, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -114,7 +54,7 @@ func RelevantWhoFollow(
 	// if target has no followers, return an empty response
 	followers := followersByNode[0]
 	if len(followers) == 0 {
-		return []T{}, nil
+		return []RankResponse{}, nil
 	}
 
 	var followersRank models.PagerankMap
@@ -144,7 +84,7 @@ func RecommendedFollows(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *Args) ([]T, error) {
+	args *Args) ([]RankResponse, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -236,7 +176,7 @@ func ResponseFromMap(
 	ctx context.Context,
 	DB models.Database,
 	rankMap models.PagerankMap,
-	limit uint64) ([]T, error) {
+	limit uint64) ([]RankResponse, error) {
 
 	nodeIDs, ranks := TopByValue(rankMap, limit)
 	pubkeys, err := DB.Pubkeys(ctx, nodeIDs...)
@@ -244,13 +184,13 @@ func ResponseFromMap(
 		return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
 	}
 
-	response := make([]T, len(pubkeys))
+	response := make([]RankResponse, len(pubkeys))
 	for i, pk := range pubkeys {
 		if pk == nil {
 			return nil, fmt.Errorf("%w: %w: %v", ErrComputationFailed, models.ErrNodeNotFoundDB, nodeIDs[i])
 		}
 
-		response[i] = T{Pubkey: *pk, Rank: ranks[i]}
+		response[i] = RankResponse{Pubkey: *pk, Rank: ranks[i]}
 	}
 
 	return response, nil
@@ -297,7 +237,7 @@ func TopByValue(m map[uint32]float64, topN uint64) (keys []uint32, vals []float6
 }
 
 // ResponseDistance() returns the L1 distance between two RankResponses.
-func ResponseDistance(res1, res2 []T) float64 {
+func ResponseDistance(res1, res2 []RankResponse) float64 {
 	if len(res1) != len(res2) {
 		return math.MaxFloat64
 	}

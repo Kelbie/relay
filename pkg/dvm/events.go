@@ -4,7 +4,6 @@ package dvm
 import (
 	"context"
 	"encoding/json"
-	"relay/pkg/response"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/crawler/pkg/models"
@@ -22,58 +21,36 @@ var (
 	KindDVMError               int = 7000
 )
 
-// ErrorEvent() returns an unsigned nostr event for the DVM error response.
-func ErrorEvent(err error, request *nostr.Event) *nostr.Event {
-	var ID string
-	var pubkey string
-	var errMsg string
-
-	if request != nil {
-		ID = request.ID
-		pubkey = request.PubKey
-	}
-
-	if err != nil {
-		errMsg = err.Error()
-	}
-
+// ErrorEvent() returns an unsigned nostr event for the DVM error
+func ErrorEvent(errMsg, requestID, requestPubkey string) *nostr.Event {
 	return &nostr.Event{
 		Content:   "",
 		CreatedAt: nostr.Now(),
 		Kind:      KindDVMError,
 		Tags: nostr.Tags{
-			{"e", ID},
-			{"p", pubkey},
+			{"e", requestID},
+			{"p", requestPubkey},
 			{"status", "error", errMsg},
 		},
 	}
 }
 
-// ResponseEvent() returns an unsigned nostr event used for the DVM response.
-func ResponseEvent(res []response.T, request *nostr.Event) *nostr.Event {
-	var ID string
-	var pubkey string
-	var kind int
-
-	if request != nil {
-		ID = request.ID
-		pubkey = request.PubKey
-		kind = request.Kind
-	}
+// ResponseEvent() returns an unsigned nostr event used for the DVM
+func ResponseEvent(res []RankResponse, requestKind int, requestID, requestPubkey string) *nostr.Event {
 
 	jsonBytes, err := json.Marshal(res)
 	if err != nil {
-		return ErrorEvent(err, request)
+		return ErrorEvent(err.Error(), requestID, requestPubkey)
 	}
 
 	content := string(jsonBytes)
 	return &nostr.Event{
 		Content:   content,
 		CreatedAt: nostr.Now(),
-		Kind:      kind + 1000,
+		Kind:      requestKind + 1000,
 		Tags: nostr.Tags{
-			{"e", ID},
-			{"p", pubkey},
+			{"e", requestID},
+			{"p", requestPubkey},
 		},
 	}
 }
@@ -85,17 +62,27 @@ func RelevantWhoFollowEvent(
 	RWS models.RandomWalkStore,
 	req *nostr.Event) *nostr.Event {
 
-	args, err := ParseArgs(req)
-	if err != nil {
-		return ErrorEvent(err, req)
+	var ID string
+	var pubkey string
+	var kind int
+
+	if req != nil {
+		ID = req.ID
+		pubkey = req.PubKey
+		kind = req.Kind
 	}
 
-	res, err := response.RelevantWhoFollow(ctx, DB, RWS, args)
+	args, err := Parse(req)
 	if err != nil {
-		return ErrorEvent(err, req)
+		return ErrorEvent(err.Error(), ID, pubkey)
 	}
 
-	return ResponseEvent(res, req)
+	res, err := RelevantWhoFollow(ctx, DB, RWS, args)
+	if err != nil {
+		return ErrorEvent(err.Error(), ID, pubkey)
+	}
+
+	return ResponseEvent(res, kind, ID, pubkey)
 }
 
 // RecommendedFollowsEvent() returns the recommended follows event from the specified request.
@@ -105,15 +92,25 @@ func RecommendedFollowsEvent(
 	RWS models.RandomWalkStore,
 	req *nostr.Event) *nostr.Event {
 
-	args, err := ParseArgs(req)
-	if err != nil {
-		return ErrorEvent(err, req)
+	var ID string
+	var pubkey string
+	var kind int
+
+	if req != nil {
+		ID = req.ID
+		pubkey = req.PubKey
+		kind = req.Kind
 	}
 
-	res, err := response.RecommendedFollows(ctx, DB, RWS, args)
+	args, err := Parse(req)
 	if err != nil {
-		return ErrorEvent(err, req)
+		return ErrorEvent(err.Error(), ID, pubkey)
 	}
 
-	return ResponseEvent(res, req)
+	res, err := RecommendedFollows(ctx, DB, RWS, args)
+	if err != nil {
+		return ErrorEvent(err.Error(), ID, pubkey)
+	}
+
+	return ResponseEvent(res, kind, ID, pubkey)
 }

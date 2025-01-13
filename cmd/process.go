@@ -3,67 +3,95 @@ package main
 import (
 	"context"
 	"relay/pkg/dvm"
+	"relay/pkg/req"
 
-	"github.com/fiatjaf/khatru"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nip46"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler/pkg/database/redisdb"
 	"github.com/vertex-lab/crawler/pkg/store/redistore"
 	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
 
-// ProcessRequests() consumes from the request channel, produces a response event,
-// signs it with the bunker and broadcasts it.
+// TODO; handle the requests context in both of the Processes.
+
+// ProcessRequests() consumes from the queues, produces a response event,
+// and handle the response in the specified way.
 func ProcessRequests(
 	ctx context.Context,
 	logger *logger.Aggregate,
 	redis *redis.Client,
-	bunker *nip46.BunkerClient,
-	relay *khatru.Relay,
-	reqChan <-chan *nostr.Event,
+	DVMQueue <-chan *nostr.Event,
+	filterQueue <-chan *nostr.Filter,
+	responseHandler func(ctx context.Context, res *nostr.Event) error,
 ) {
 
+	// initialize connections to redis
 	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
 	if err != nil {
-		logger.Error("failed to connect to the redis database")
 		panic(err)
 	}
 
 	RWS, err := redistore.NewRWSConnection(ctx, redis)
 	if err != nil {
-		logger.Error("failed to connect to the redis store")
 		panic(err)
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Warn("Stopped processing the event.")
+			logger.Warn("Stopped processing DVM request events.")
 			return
 
-		case req, ok := <-reqChan:
+		case event, ok := <-DVMQueue:
 			if !ok {
-				logger.Warn("Request channel closed, stopped processing.")
+				logger.Warn("DVM queue closed, stopped processing.")
 				return
 			}
 
 			var res *nostr.Event
-			switch req.Kind {
+			switch event.Kind {
 			case dvm.KindRelevantWhoFollow:
-				res = dvm.RelevantWhoFollowEvent(ctx, DB, RWS, req)
+				res = dvm.RelevantWhoFollowEvent(ctx, DB, RWS, event)
 
 			case dvm.KindRecommendedFollows:
-				res = dvm.RecommendedFollowsEvent(ctx, DB, RWS, req)
+				res = dvm.RecommendedFollowsEvent(ctx, DB, RWS, event)
 
 			case dvm.KindSortAuthors, dvm.KindImpersonatorDetection, dvm.KindDegreesOfSeparation, dvm.KindVerifiedFollowersCount, dvm.KindVerifiedFollowers:
-				res = &nostr.Event{Content: "This service is coming soon", Kind: req.Kind + 1000}
+				res = &nostr.Event{Content: "This service is coming soon", Kind: event.Kind + 1000}
+
 			default:
-				logger.Error("unwanted kind: %v", req.Kind)
+				logger.Error("unwanted kind: %v", event.Kind)
 			}
 
-			bunker.SignEvent(ctx, res)
-			relay.BroadcastEvent(res)
+			if err := responseHandler(ctx, res); err != nil {
+				logger.Error("DVM response failed: %v", err)
+			}
+
+		case filter, ok := <-filterQueue:
+			if !ok {
+				logger.Warn("filter queue closed, stopped processing.")
+				return
+			}
+
+			var res *nostr.Event
+			var kind int = filter.Kinds[0]
+			switch kind {
+			case dvm.KindRelevantWhoFollow + 1000:
+				res = req.RelevantWhoFollowEvent(ctx, DB, RWS, filter)
+
+			case dvm.KindRecommendedFollows + 1000:
+				res = req.RecommendedFollowsEvent(ctx, DB, RWS, filter)
+
+			case dvm.KindSortAuthors + 1000, dvm.KindImpersonatorDetection + 1000, dvm.KindDegreesOfSeparation + 1000, dvm.KindVerifiedFollowersCount + 1000, dvm.KindVerifiedFollowers + 1000:
+				res = &nostr.Event{Content: "This service is coming soon", Kind: kind}
+
+			default:
+				logger.Error("unwanted kind: %v", kind)
+			}
+
+			if err := responseHandler(ctx, res); err != nil {
+				logger.Error("REQ response failed: %v", err)
+			}
 		}
 	}
 }
