@@ -45,7 +45,7 @@ func main() {
 
 	go HandleSignals(cancel, logger)
 
-	// initialize relay datastore, for events and whitelisting.
+	// initialize relay datastore, for events and white-listing.
 	db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
 	if err := db.Init(); err != nil {
 		panic("failed to initialize database" + err.Error())
