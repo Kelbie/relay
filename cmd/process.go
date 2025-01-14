@@ -36,6 +36,8 @@ func ProcessRequests(
 		panic(err)
 	}
 
+	logger.Info("started processing requests...")
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -73,8 +75,14 @@ func ProcessRequests(
 				return
 			}
 
-			var res *nostr.Event
+			// the kinds must match this format: <dvm_kind>, 7000 (dvm error)
+			if len(filter.Kinds) != 2 {
+				logger.Warn("invalid filter: %v", filter)
+				continue
+			}
+
 			var kind int = filter.Kinds[0]
+			var res *nostr.Event
 			switch kind {
 			case dvm.KindRelevantWhoFollow + 1000:
 				res = req.RelevantWhoFollowEvent(ctx, DB, RWS, filter)

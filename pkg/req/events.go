@@ -17,7 +17,7 @@ func RelevantWhoFollowEvent(
 
 	var kind int
 	if filter != nil {
-		kind = filter.Kinds[0]
+		kind = filter.Kinds[0] - 1000
 	}
 
 	args, err := Parse(filter)

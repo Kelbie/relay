@@ -13,7 +13,6 @@ import (
 	"github.com/fiatjaf/khatru"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nip46"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
@@ -31,6 +30,13 @@ func main() {
 	relay := khatru.NewRelay()
 	env = Env()
 
+	// store secret key in .env because the bunker is too buggy at the moment
+	secret := env("SK")
+	pubkey, err := nostr.GetPublicKey(secret)
+	if err != nil {
+		panic("failed to get pubkey:" + err.Error())
+	}
+
 	logger := logger.New(os.Stdout)
 	relay.Log.SetOutput(os.Stdout)
 
@@ -42,12 +48,12 @@ func main() {
 	// initialize relay datastore, for events and whitelisting.
 	db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
 	if err := db.Init(); err != nil {
-		panic(err)
+		panic("failed to initialize database" + err.Error())
 	}
-	logger.Info("database connected")
+	logger.Info("sqlite database connected")
 
 	if err := RelayManagementInit(ctx, db, relay); err != nil {
-		panic(err)
+		panic("failed to initialize relay management" + err.Error())
 	}
 
 	mux := relay.Router()
@@ -60,24 +66,13 @@ func main() {
 	// Launch server in a goroutine to allow initializing bunker afterwards (depends on this relay)
 	go func() {
 		port := env("PORT", "3334")
-		logger.Info("running on :%s\n", port)
+		logger.Info("running on :%v", port)
 		if err := http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay); err != nil {
-			logger.Error("failed to listen %v", err)
+			panic("failed to run relay: %" + err.Error())
 		}
 	}()
 
-	// initialize the bunker used for signing events
-	bunker, err := nip46.ConnectBunker(ctx, nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
-	if err != nil {
-		panic(err)
-	}
-	pubkey, err := bunker.GetPublicKey(ctx)
-	if err != nil {
-		panic(err)
-	}
-	logger.Info("\nbunker connected with url %v, pubkey %v", env("BUNKER"), pubkey)
-
-	// initialize redis connection, used for computing responses
+	// initialize redis connection used for computing responses
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 
 	// setup relay
@@ -93,7 +88,7 @@ func main() {
 			return true, "invalid kind"
 		}
 
-		DVMQueue <- event // send to the DVM queue if valid
+		DVMQueue <- event // send to the DVM queue for processing
 		return false, ""
 	})
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
@@ -101,39 +96,22 @@ func main() {
 
 	// request pipeline
 	relay.RejectFilter = append(relay.RejectFilter, func(ctx context.Context, filter nostr.Filter) (reject bool, msg string) {
-		if len(filter.Kinds) != 1 {
-			return true, "request exactly one kind at the time"
+		if filter.Search != "" {
+			filterQueue <- &filter // send to the filter queue for processing
 		}
-
-		if filter.Kinds[0] < 6312 || filter.Kinds[0] > 6318 {
-			return true, "invalid kind"
-		}
-
 		return false, ""
 	})
-	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-		ch, err := db.QueryEvents(ctx, filter)
-		if err != nil {
-			return nil, err
-		}
-
-		// If there are matches, send them.
-		if len(ch) != 0 {
-			return ch, nil
-		}
-
-		// if there are no matches (e.g. the stored event is older than the specified "Since"),
-		// then send the filter to the queue to produce a new event.
-		filterQueue <- &filter
-		return nil, nil
-	})
+	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
 
 	ProcessRequests(ctx, logger, redis, DVMQueue, filterQueue, func(ctx context.Context, res *nostr.Event) error {
-		if err := bunker.SignEvent(ctx, res); err != nil {
-			return err
+		if err := res.Sign(secret); err != nil {
+			logger.Error("error signing response eventID %v: %v", res.ID, err)
 		}
 
 		relay.BroadcastEvent(res)
+		if err := db.SaveEvent(ctx, res); err != nil {
+			logger.Error("error saving response eventID %v: %v", res.ID, err)
+		}
 		return nil
 	})
 }
@@ -146,7 +124,6 @@ func HandleSignals(cancel context.CancelFunc, logger *logger.Aggregate) {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	<-signalChan // Block until a signal is received
-	fmt.Printf("\nSignal received. Shutting down...")
 	logger.Info("Signal received. Shutting down...")
 	cancel()
 }
@@ -182,3 +159,19 @@ func PrintShutdown(l *logger.Aggregate) {
 	l.Info("Relay stopped")
 	l.Info("----------------------")
 }
+
+// -----------------------------------SCRAP------------------------------------
+
+// bunkerCtx, bunkerCancel := context.WithTimeout(ctx, 10*time.Second)
+// defer bunkerCancel()
+
+// // initialize the bunker used for signing events
+// bunker, err := nip46.ConnectBunker(bunkerCtx, nostr.GeneratePrivateKey(), env("BUNKER"), nil, nil)
+// if err != nil {
+// 	panic(fmt.Errorf("failed to connect to bunker: %v", err))
+// }
+// pubkey, err := bunker.GetPublicKey(ctx)
+// if err != nil {
+// 	panic(fmt.Errorf("failed to get public: %v", err))
+// }
+// logger.Info("bunker connected with pubkey %v", pubkey)
