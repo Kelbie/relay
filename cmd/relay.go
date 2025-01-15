@@ -93,15 +93,14 @@ func main() {
 	})
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
 	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent)
-
-	// request pipeline
-	relay.RejectFilter = append(relay.RejectFilter, func(ctx context.Context, filter nostr.Filter) (reject bool, msg string) {
-		if filter.Search != "" {
-			filterQueue <- &filter // send to the filter queue for processing
+	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+		if filter.Search == "" {
+			return db.QueryEvents(ctx, filter)
 		}
-		return false, ""
+
+		filterQueue <- &filter
+		return nil, nil
 	})
-	relay.QueryEvents = append(relay.QueryEvents, db.QueryEvents)
 
 	ProcessRequests(ctx, logger, redis, DVMQueue, filterQueue, func(ctx context.Context, res *nostr.Event) error {
 		if err := res.Sign(secret); err != nil {

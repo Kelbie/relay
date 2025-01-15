@@ -41,7 +41,7 @@ func ProcessRequests(
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Warn("Stopped processing DVM request events.")
+			logger.Warn("Stopped processing requests.")
 			return
 
 		case event, ok := <-DVMQueue:
