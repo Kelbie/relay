@@ -14,12 +14,14 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
+	"github.com/vertex-lab/crawler/pkg/database/redisdb"
+	"github.com/vertex-lab/crawler/pkg/store/redistore"
 	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
 
 // TODO; wrap event/filter in a structure that contains the context of such request as well.
-var DVMQueue = make(chan *nostr.Event, 1000)     // queue where the DVM events are processed.
-var filterQueue = make(chan *nostr.Filter, 1000) // queue where the REQ filters are processed.
+// var DVMQueue = make(chan *nostr.Event, 1000)     // queue where the DVM events are processed.
+// var filterQueue = make(chan *nostr.Filter, 1000) // queue where the REQ filters are processed.
 
 var env func(k string, fallback ...string) (v string)
 
@@ -28,14 +30,12 @@ func main() {
 	defer cancel()
 
 	relay := khatru.NewRelay()
-	env = Env()
-
-	// store secret key in .env because the bunker is too buggy at the moment
-	secret := env("SK")
-	pubkey, err := nostr.GetPublicKey(secret)
-	if err != nil {
-		panic("failed to get pubkey:" + err.Error())
-	}
+	mux := relay.Router()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("content-type", "text/html")
+		fmt.Fprintf(w, "Welcome to Vertex Relay")
+	})
 
 	logger := logger.New(os.Stdout)
 	relay.Log.SetOutput(os.Stdout)
@@ -43,7 +43,13 @@ func main() {
 	PrintTitle(logger)
 	defer PrintShutdown(logger)
 
-	go HandleSignals(cancel, logger)
+	// store secret key in .env because the bunker is too buggy at the moment
+	env = Env()
+	secret := env("SK")
+	pubkey, err := nostr.GetPublicKey(secret)
+	if err != nil {
+		panic("failed to get pubkey:" + err.Error())
+	}
 
 	// initialize relay datastore, for events and white-listing.
 	db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
@@ -56,24 +62,17 @@ func main() {
 		panic("failed to initialize relay management" + err.Error())
 	}
 
-	mux := relay.Router()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("content-type", "text/html")
-		fmt.Fprintf(w, "Welcome to Vertex Relay")
-	})
-
-	// Launch server in a goroutine to allow initializing bunker afterwards (depends on this relay)
-	go func() {
-		port := env("PORT", "3334")
-		logger.Info("running on :%v", port)
-		if err := http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay); err != nil {
-			panic("failed to run relay: %" + err.Error())
-		}
-	}()
-
 	// initialize redis connection used for computing responses
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
+	if err != nil {
+		panic(err)
+	}
+	RWS, err := redistore.NewRWSConnection(ctx, redis)
+	if err != nil {
+		panic(err)
+	}
+	logger.Info("redis connected")
 
 	// setup relay
 	relay.Info.Name = "Vertex Relay"
@@ -85,26 +84,14 @@ func main() {
 	// event pipeline
 	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
 		if event.Kind < 5312 || event.Kind > 5318 {
-			return true, "invalid kind"
+			return true, "invalid kind: we only support kind 5312 to 5318"
 		}
-
-		DVMQueue <- event // send to the DVM queue for processing
 		return false, ""
 	})
-	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
-	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent)
-	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-		if filter.Search == "" {
-			return db.QueryEvents(ctx, filter)
-		}
-
-		filterQueue <- &filter
-		return nil, nil
-	})
-
-	ProcessRequests(ctx, logger, redis, DVMQueue, filterQueue, func(ctx context.Context, res *nostr.Event) error {
-		if res == nil {
-			return fmt.Errorf("response is nil!")
+	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
+		res, err := ProcessDVMRequest(ctx, DB, RWS, event)
+		if err != nil {
+			return err
 		}
 
 		if err := res.Sign(secret); err != nil {
@@ -112,25 +99,59 @@ func main() {
 		}
 
 		relay.BroadcastEvent(res)
-		if err := db.SaveEvent(ctx, res); err != nil {
-			return fmt.Errorf("error saving response eventID %v: %v", res.ID, err)
+		return db.SaveEvent(ctx, res)
+	})
+	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
+	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+		if filter.Search == "" {
+			return db.QueryEvents(ctx, filter)
 		}
 
-		return nil
+		// produce the event to be returned, using the .Search field
+		res, err := ProcessREQRequest(ctx, DB, RWS, &filter)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := res.Sign(secret); err != nil {
+			return nil, fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+		}
+
+		ch := make(chan *nostr.Event, 1)
+		defer close(ch)
+
+		ch <- res
+		return ch, nil
 	})
+
+	go func() {
+		port := env("PORT", "3334")
+		logger.Info("running on :%v", port)
+		if err := http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay); err != nil {
+			panic("failed to run relay: %" + err.Error())
+		}
+	}()
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	<-signalChan // Block until a signal is received
+	logger.Info("Signal received. Shutting down...")
 }
 
 // ---------------------------------HELPERS------------------------------------
 
 // HandleSignals() listens for OS signals and triggers context cancellation.
-func HandleSignals(cancel context.CancelFunc, logger *logger.Aggregate) {
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+// func HandleSignals(
+// 	cancel context.CancelFunc,
+// 	logger *logger.Aggregate,
+// 	relay *khatru.Relay) {
+// 	signalChan := make(chan os.Signal, 1)
+// 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-	<-signalChan // Block until a signal is received
-	logger.Info("Signal received. Shutting down...")
-	cancel()
-}
+// 	<-signalChan // Block until a signal is received
+// 	logger.Info("Signal received. Shutting down...")
+// 	cancel()
+// }
 
 // Env() returns a function that returns the specified enviroment variable with an optional fallback.
 func Env() func(k string, fallback ...string) (v string) {
@@ -179,3 +200,29 @@ func PrintShutdown(l *logger.Aggregate) {
 // 	panic(fmt.Errorf("failed to get public: %v", err))
 // }
 // logger.Info("bunker connected with pubkey %v", pubkey)
+
+// // Launch server in a goroutine to allow initializing bunker afterwards (depends on this relay)
+// go func() {
+// 	port := env("PORT", "3334")
+// 	logger.Info("running on :%v", port)
+// 	if err := http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay); err != nil {
+// 		panic("failed to run relay: %" + err.Error())
+// 	}
+// }()
+
+// ProcessRequests(ctx, logger, redis, DVMQueue, filterQueue, func(ctx context.Context, res *nostr.Event) error {
+// 	if res == nil {
+// 		return fmt.Errorf("response is nil!")
+// 	}
+
+// 	if err := res.Sign(secret); err != nil {
+// 		return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+// 	}
+
+// 	relay.BroadcastEvent(res)
+// 	if err := db.SaveEvent(ctx, res); err != nil {
+// 		return fmt.Errorf("error saving response eventID %v: %v", res.ID, err)
+// 	}
+
+// 	return nil
+// })
