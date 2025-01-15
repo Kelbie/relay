@@ -103,14 +103,19 @@ func main() {
 	})
 
 	ProcessRequests(ctx, logger, redis, DVMQueue, filterQueue, func(ctx context.Context, res *nostr.Event) error {
+		if res == nil {
+			return fmt.Errorf("response is nil!")
+		}
+
 		if err := res.Sign(secret); err != nil {
-			logger.Error("error signing response eventID %v: %v", res.ID, err)
+			return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
 		}
 
 		relay.BroadcastEvent(res)
 		if err := db.SaveEvent(ctx, res); err != nil {
-			logger.Error("error saving response eventID %v: %v", res.ID, err)
+			return fmt.Errorf("error saving response eventID %v: %v", res.ID, err)
 		}
+
 		return nil
 	})
 }

@@ -77,7 +77,7 @@ func ProcessRequests(
 			}
 
 			// the kinds must match this format: <dvm_kind>, 7000 (dvm error)
-			if len(filter.Kinds) != 2 {
+			if len(filter.Kinds) != 2 || filter.Kinds[1] != dvm.KindDVMError {
 				logger.Warn("invalid filter: %v", filter)
 				continue
 			}
@@ -96,6 +96,7 @@ func ProcessRequests(
 
 			default:
 				logger.Error("unwanted kind: %v", kind)
+				continue
 			}
 
 			if err := responseHandler(ctx, res); err != nil {
