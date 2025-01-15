@@ -25,7 +25,7 @@ var (
 	localhost string = "http://localhost:3334"
 )
 
-func TestRelevantWhoFollow(t *testing.T) {
+func TestDVM_RelevantWhoFollow(t *testing.T) {
 	// step 1. publishing a DVM request
 	DVMreq := nostr.Event{
 		PubKey: pip,
