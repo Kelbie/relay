@@ -63,6 +63,7 @@ func ProcessRequests(
 
 			default:
 				logger.Error("unwanted kind: %v", event.Kind)
+				continue
 			}
 
 			if err := responseHandler(ctx, res); err != nil {
