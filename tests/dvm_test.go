@@ -22,13 +22,7 @@ var (
 
 	// relay URLs
 	vertexURL string = "wss://relay.vertexlab.io"
-	relays           = []string{
-		"wss://purplepag.es",
-		"wss://njump.me",
-		"wss://relay.snort.social",
-		"wss://relay.damus.io",
-		"wss://relay.primal.net",
-		"wss://relay.nostr.band"}
+	localhost string = "http://localhost:3334"
 )
 
 func TestRelevantWhoFollow(t *testing.T) {
@@ -50,7 +44,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	relay, err := nostr.RelayConnect(ctx, vertexURL)
+	relay, err := nostr.RelayConnect(ctx, localhost)
 	if err != nil {
 		t.Fatalf("failed to connect to %v: %v", vertexURL, err)
 	}
@@ -58,6 +52,9 @@ func TestRelevantWhoFollow(t *testing.T) {
 	if err := relay.Publish(ctx, DVMreq); err != nil {
 		t.Fatalf("failed to publish to %v: %v", vertexURL, err)
 	}
+
+	// waiting a little bit to give it time to process
+	time.Sleep(500 * time.Millisecond)
 
 	// step 2. querying for the DVM response
 	filter := nostr.Filter{
