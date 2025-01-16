@@ -79,7 +79,7 @@ func main() {
 	relay.Info.Software = "Vertex Relay based on Khatru"
 	relay.Info.Version = "0.0.1"
 	relay.Info.PubKey = pubkey
-	relay.Info.SupportedNIPs = append(relay.Info.SupportedNIPs, 90)
+	relay.Info.SupportedNIPs = []int{11, 42, 86, 90}
 
 	// event pipeline
 	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {

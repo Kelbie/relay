@@ -28,7 +28,7 @@ func ProcessDVMRequest(
 		res = dvm.RecommendedFollowsEvent(ctx, DB, RWS, req)
 
 	case dvm.KindSortAuthors, dvm.KindImpersonatorDetection, dvm.KindDegreesOfSeparation, dvm.KindVerifiedFollowersCount, dvm.KindVerifiedFollowers:
-		res = &nostr.Event{Content: "This service is coming soon", Kind: req.Kind + 1000}
+		res = &nostr.Event{Content: "This service is coming soon", Kind: req.Kind + 1000, Tags: nostr.Tags{{"e", req.ID}}}
 
 	default:
 		return nil, fmt.Errorf("unsupported kind: %v", req.Kind)
