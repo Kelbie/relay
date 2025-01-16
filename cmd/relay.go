@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/fiatjaf/eventstore/sqlite3"
@@ -19,11 +20,8 @@ import (
 	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
 
-// TODO; wrap event/filter in a structure that contains the context of such request as well.
-// var DVMQueue = make(chan *nostr.Event, 1000)     // queue where the DVM events are processed.
-// var filterQueue = make(chan *nostr.Filter, 1000) // queue where the REQ filters are processed.
-
 var env func(k string, fallback ...string) (v string)
+var log *logger.Aggregate
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -37,11 +35,12 @@ func main() {
 		fmt.Fprintf(w, "Welcome to Vertex Relay")
 	})
 
-	logger := logger.New(os.Stdout)
+	log = logger.New(os.Stdout)
 	relay.Log.SetOutput(os.Stdout)
+	requestCounter := atomic.Int64{}
 
-	PrintTitle(logger)
-	defer PrintShutdown(logger)
+	PrintTitle(log)
+	defer PrintShutdown(log)
 
 	// store secret key in .env because the bunker is too buggy at the moment
 	env = Env()
@@ -56,7 +55,7 @@ func main() {
 	if err := db.Init(); err != nil {
 		panic("failed to initialize database" + err.Error())
 	}
-	logger.Info("sqlite database connected")
+	log.Info("sqlite database connected")
 
 	if err := RelayManagementInit(ctx, db, relay); err != nil {
 		panic("failed to initialize relay management" + err.Error())
@@ -66,13 +65,13 @@ func main() {
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
 	if err != nil {
-		panic(err)
+		panic("redis failed to connect" + err.Error())
 	}
 	RWS, err := redistore.NewRWSConnection(ctx, redis)
 	if err != nil {
-		panic(err)
+		panic("redis failed to connect" + err.Error())
 	}
-	logger.Info("redis connected")
+	log.Info("redis connected")
 
 	// setup relay
 	relay.Info.Name = "Vertex Relay"
@@ -95,10 +94,18 @@ func main() {
 		}
 
 		if err := res.Sign(secret); err != nil {
+			log.Error("error signing response eventID %v: %v", res.ID, err)
 			return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
 		}
 
 		relay.BroadcastEvent(res)
+
+		// logging how many events have been processed
+		requestCounter.Add(1)
+		if requestCounter.Load()%1000 == 0 {
+			log.Info("processed %v requests", requestCounter.Load())
+		}
+
 		return db.SaveEvent(ctx, res)
 	})
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
@@ -114,7 +121,13 @@ func main() {
 		}
 
 		if err := res.Sign(secret); err != nil {
+			log.Error("error signing response eventID %v: %v", res.ID, err)
 			return nil, fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+		}
+
+		requestCounter.Add(1)
+		if requestCounter.Load()%1000 == 0 {
+			log.Info("processed %v requests", requestCounter.Load())
 		}
 
 		ch := make(chan *nostr.Event, 1)
@@ -126,7 +139,7 @@ func main() {
 
 	go func() {
 		port := env("PORT", "3334")
-		logger.Info("running on :%v", port)
+		log.Info("running on :%v", port)
 		if err := http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay); err != nil {
 			panic("failed to run relay: %" + err.Error())
 		}
@@ -135,23 +148,11 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	<-signalChan // Block until a signal is received
-	logger.Info("Signal received. Shutting down...")
+	log.Info("signal received. Shutting down...")
+	log.Info("total events processed: %v", requestCounter.Load())
 }
 
 // ---------------------------------HELPERS------------------------------------
-
-// HandleSignals() listens for OS signals and triggers context cancellation.
-// func HandleSignals(
-// 	cancel context.CancelFunc,
-// 	logger *logger.Aggregate,
-// 	relay *khatru.Relay) {
-// 	signalChan := make(chan os.Signal, 1)
-// 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-
-// 	<-signalChan // Block until a signal is received
-// 	logger.Info("Signal received. Shutting down...")
-// 	cancel()
-// }
 
 // Env() returns a function that returns the specified enviroment variable with an optional fallback.
 func Env() func(k string, fallback ...string) (v string) {
@@ -186,6 +187,19 @@ func PrintShutdown(l *logger.Aggregate) {
 }
 
 // -----------------------------------SCRAP------------------------------------
+
+// HandleSignals() listens for OS signals and triggers context cancellation.
+// func HandleSignals(
+// 	cancel context.CancelFunc,
+// 	logger *logger.Aggregate,
+// 	relay *khatru.Relay) {
+// 	signalChan := make(chan os.Signal, 1)
+// 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+// 	<-signalChan // Block until a signal is received
+// 	logger.Info("Signal received. Shutting down...")
+// 	cancel()
+// }
 
 // bunkerCtx, bunkerCancel := context.WithTimeout(ctx, 10*time.Second)
 // defer bunkerCancel()

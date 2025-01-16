@@ -17,6 +17,7 @@ func ProcessDVMRequest(
 	req *nostr.Event) (res *nostr.Event, err error) {
 
 	if req == nil {
+		log.Error(dvm.ErrNilRequest.Error())
 		return nil, dvm.ErrNilRequest
 	}
 
@@ -42,6 +43,11 @@ func ProcessREQRequest(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	filter *nostr.Filter) (res *nostr.Event, err error) {
+
+	if filter == nil {
+		log.Error("nil filter pointer")
+		return nil, fmt.Errorf("nil filter pointer")
+	}
 
 	// the kinds must match this format: <dvm_kind>, 7000 (dvm error)
 	if len(filter.Kinds) != 2 {
