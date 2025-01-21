@@ -82,8 +82,8 @@ func Parse(req *nostr.Event) (*Args, error) {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidKind, req.Kind)
 	}
 
-	defaultArgs := NewArgs(req.ID, req.PubKey, req.Kind)
-	args := *defaultArgs // this copy will be returned if no errors occur.
+	var defaultArgs = NewArgs(req.ID, req.PubKey, req.Kind)
+	var args = *defaultArgs // this copy will be returned if no errors occur.
 
 	for _, tag := range req.Tags {
 		if len(tag) < 3 {

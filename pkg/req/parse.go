@@ -39,24 +39,24 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 	}
 
 	var err error
-	args := dvm.NewArgs()
-	args.Kind = DVMkind - 1000
+	var defaultArgs = dvm.NewArgs("", "", DVMkind-1000)
+	var args = *defaultArgs // this copy will be returned if no errors occur.
 
 	if err = json.Unmarshal([]byte(filter.Search), &args); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
+		return defaultArgs, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
 	}
 
 	// parse source key
 	args.Source, err = dvm.ParseKey(args.Source)
 	if err != nil {
-		return nil, err
+		return defaultArgs, err
 	}
 
 	// parse targets in place
 	for i, target := range args.Targets {
 		t, err := dvm.ParseKey(target)
 		if err != nil {
-			return nil, err
+			return defaultArgs, err
 		}
 
 		args.Targets[i] = t
@@ -64,16 +64,16 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 
 	// validate sort, distance and limit.
 	if !slices.Contains(dvm.ValidSorts, args.Sort) {
-		return nil, fmt.Errorf("%w: %v", dvm.ErrInvalidSortOption, args.Sort)
+		return defaultArgs, fmt.Errorf("%w: %v", dvm.ErrInvalidSortOption, args.Sort)
 	}
 
 	if args.Distance > dvm.MaxDistance {
-		return nil, fmt.Errorf("%w: distance must be smaller than %v", dvm.ErrInvalidDistance, dvm.MaxDistance)
+		return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", dvm.ErrInvalidDistance, dvm.MaxDistance)
 	}
 
 	if args.Limit > dvm.MaxLimit {
-		return nil, fmt.Errorf("%w: limit must be smaller than %v", dvm.ErrInvalidLimit, dvm.MaxLimit)
+		return defaultArgs, fmt.Errorf("%w: limit must be smaller than %v", dvm.ErrInvalidLimit, dvm.MaxLimit)
 	}
 
-	return args, nil
+	return &args, nil
 }

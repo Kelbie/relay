@@ -37,19 +37,19 @@ func TestParse(t *testing.T) {
 			expectedError: ErrEmptyFieldSearch,
 		},
 		{
-			name:          "invalid kinds",
+			name:          "invalid kinds 1",
 			filter:        &nostr.Filter{Kinds: []int{69}, Search: "xx"},
 			expectedArgs:  nil,
 			expectedError: ErrInvalidKindsFormat,
 		},
 		{
-			name:          "invalid kinds",
+			name:          "invalid kinds 2",
 			filter:        &nostr.Filter{Kinds: []int{6312, 6313}, Search: "xx"},
 			expectedArgs:  nil,
 			expectedError: ErrInvalidKindsFormat,
 		},
 		{
-			name:          "invalid kinds",
+			name:          "invalid kinds 3",
 			filter:        &nostr.Filter{Kinds: []int{6312, 7000, 1}, Search: "xx"},
 			expectedArgs:  nil,
 			expectedError: ErrInvalidKindsFormat,
@@ -61,7 +61,7 @@ func TestParse(t *testing.T) {
 				Search: `{
 					"source": "abc"
 				}`},
-			expectedArgs:  nil,
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
 			expectedError: dvm.ErrBadlyFormattedKey,
 		},
 		{
@@ -72,7 +72,7 @@ func TestParse(t *testing.T) {
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["abc", "cde"]
 				}`},
-			expectedArgs:  nil,
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
 			expectedError: dvm.ErrBadlyFormattedKey,
 		},
 		{
@@ -84,7 +84,7 @@ func TestParse(t *testing.T) {
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
 					"sort": "abc"
 				}`},
-			expectedArgs:  nil,
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
 			expectedError: dvm.ErrInvalidSortOption,
 		},
 		{
@@ -96,7 +96,7 @@ func TestParse(t *testing.T) {
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
 					"limit": 100000
 				}`},
-			expectedArgs:  nil,
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
 			expectedError: dvm.ErrInvalidLimit,
 		},
 		{
@@ -107,7 +107,7 @@ func TestParse(t *testing.T) {
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"distance": 69
 				}`},
-			expectedArgs:  nil,
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
 			expectedError: dvm.ErrInvalidDistance,
 		},
 		{
