@@ -35,15 +35,7 @@ func TestParseArgs(t *testing.T) {
 				PubKey: fran,
 				Kind:   KindRelevantWhoFollow,
 			},
-			expectedArgs: &Args{
-				Kind:     KindRelevantWhoFollow,
-				Pubkey:   fran,
-				Source:   fran,
-				Targets:  nil,
-				Sort:     DefaultSort,
-				Distance: DefaultDistance,
-				Limit:    DefaultLimit,
-			},
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: nil,
 		},
 		{
@@ -64,7 +56,7 @@ func TestParseArgs(t *testing.T) {
 					{"target", "xxxx"},
 				},
 			},
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrBadlyFormattedTag,
 		},
 		{
@@ -76,7 +68,7 @@ func TestParseArgs(t *testing.T) {
 					{"param", "target"},
 				},
 			},
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrBadlyFormattedTag,
 		},
 		{
@@ -89,7 +81,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrUnknownParameter,
 		},
 		{
@@ -102,7 +94,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrInvalidSortOption,
 		},
 		{
@@ -114,7 +106,7 @@ func TestParseArgs(t *testing.T) {
 					{"param", "target", "xxxx"},
 				},
 			},
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrBadlyFormattedKey,
 		},
 		{
@@ -126,7 +118,7 @@ func TestParseArgs(t *testing.T) {
 					{"param", "distance", "one"},
 				},
 			},
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrBadlyFormattedInt,
 		},
 		{
@@ -138,7 +130,7 @@ func TestParseArgs(t *testing.T) {
 					{"param", "limit", "10000"},
 				},
 			},
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrInvalidLimit,
 		},
 		{
@@ -150,7 +142,7 @@ func TestParseArgs(t *testing.T) {
 					{"param", "distance", "7"},
 				},
 			},
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
 			expectedError: ErrInvalidDistance,
 		},
 		{

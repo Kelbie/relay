@@ -58,8 +58,13 @@ type Args struct {
 }
 
 // NewArgs() returns an Args struct with default arguments.
-func NewArgs() *Args {
+func NewArgs(ID, Pubkey string, Kind int) *Args {
 	return &Args{
+		ID:     ID,
+		Kind:   Kind,
+		Pubkey: Pubkey,
+
+		Source:   Pubkey,
 		Sort:     DefaultSort,
 		Distance: DefaultDistance,
 		Limit:    DefaultLimit,
@@ -67,6 +72,7 @@ func NewArgs() *Args {
 }
 
 // Parse() parses and returns the arguments of the request event as an Args struct.
+// In case of any error, the default arguments are returned in order for ErrorEvent() to have req.pubkey and req.ID
 func Parse(req *nostr.Event) (*Args, error) {
 	if req == nil {
 		return nil, ErrNilEvent
@@ -76,70 +82,68 @@ func Parse(req *nostr.Event) (*Args, error) {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidKind, req.Kind)
 	}
 
-	args := NewArgs()
-	args.ID = req.ID
-	args.Kind = req.Kind
-	args.Pubkey, args.Source = req.PubKey, req.PubKey
+	defaultArgs := NewArgs(req.ID, req.PubKey, req.Kind)
+	args := *defaultArgs // this copy will be returned if no errors occur.
 
 	for _, tag := range req.Tags {
 		if len(tag) < 3 {
-			return nil, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
+			return defaultArgs, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
 		}
 
 		prefix, key, val := tag[0], tag[1], tag[2]
 		if prefix != "param" {
-			return nil, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
+			return defaultArgs, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
 		}
 
 		switch key {
 		case "source":
 			pk, err := ParseKey(val)
 			if err != nil {
-				return nil, err
+				return defaultArgs, err
 			}
 			args.Source = pk
 
 		case "target":
 			pk, err := ParseKey(val)
 			if err != nil {
-				return nil, err
+				return defaultArgs, err
 			}
 			args.Targets = append(args.Targets, pk)
 
 		case "sort":
 			if !slices.Contains(ValidSorts, val) {
-				return nil, fmt.Errorf("%w: %v", ErrInvalidSortOption, val)
+				return defaultArgs, fmt.Errorf("%w: %v", ErrInvalidSortOption, val)
 			}
 			args.Sort = val
 
 		case "distance":
 			d, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
-				return nil, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
+				return defaultArgs, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
 			}
 
 			if d > MaxDistance {
-				return nil, fmt.Errorf("%w: distance must be smaller than %v", ErrInvalidDistance, MaxDistance)
+				return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", ErrInvalidDistance, MaxDistance)
 			}
 			args.Distance = d
 
 		case "limit":
 			l, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
-				return nil, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
+				return defaultArgs, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
 			}
 
 			if l > MaxLimit {
-				return nil, fmt.Errorf("%w: limit must be smaller than %v", ErrInvalidLimit, MaxLimit)
+				return defaultArgs, fmt.Errorf("%w: limit must be smaller than %v", ErrInvalidLimit, MaxLimit)
 			}
 			args.Limit = l
 
 		default:
-			return nil, fmt.Errorf("%w: got %v", ErrUnknownParameter, key)
+			return defaultArgs, fmt.Errorf("%w: got %v", ErrUnknownParameter, key)
 		}
 	}
 
-	return args, nil
+	return &args, nil
 }
 
 // ParseKey() returns a parsed hex key from the specified string.
