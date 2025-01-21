@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"relay/pkg/dvm"
+	"relay/pkg/req"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -22,6 +25,7 @@ import (
 
 var env func(k string, fallback ...string) (v string)
 var log *logger.Aggregate
+var requestCounter = &atomic.Int64{}
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -37,7 +41,6 @@ func main() {
 
 	log = logger.New(os.Stdout)
 	relay.Log.SetOutput(os.Stdout)
-	requestCounter := atomic.Int64{}
 
 	PrintTitle(log)
 	defer PrintShutdown(log)
@@ -83,57 +86,65 @@ func main() {
 	// event pipeline
 	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
 		if event.Kind < 5312 || event.Kind > 5318 {
-			return true, "invalid kind: we only support kind 5312 to 5318"
+			return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
 		}
 		return false, ""
 	})
 	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
-		res, err := ProcessDVMRequest(ctx, DB, RWS, event)
+		args, parsingErr := dvm.Parse(event)
+		err = ProcessRequest(ctx, DB, RWS, args, parsingErr, func(ctx context.Context, res *nostr.Event) error {
+			if err := res.Sign(secret); err != nil {
+				return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+			}
+
+			relay.BroadcastEvent(res)
+			if err := db.SaveEvent(ctx, res); err != nil {
+				return fmt.Errorf("error saving response eventID %v: %v", res.ID, err)
+			}
+
+			return nil
+		})
+
 		if err != nil {
-			return err
+			log.Error("error processing event: %v", err)
+			return fmt.Errorf("error processing event: %v", err)
 		}
-
-		if err := res.Sign(secret); err != nil {
-			log.Error("error signing response eventID %v: %v", res.ID, err)
-			return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
-		}
-
-		relay.BroadcastEvent(res)
-
-		// logging how many events have been processed
-		requestCounter.Add(1)
-		if requestCounter.Load()%1000 == 0 {
-			log.Info("processed %v requests", requestCounter.Load())
-		}
-
-		return db.SaveEvent(ctx, res)
+		return nil
 	})
+
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
 	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 		if filter.Search == "" {
 			return db.QueryEvents(ctx, filter)
 		}
 
-		// produce the event to be returned, using the .Search field
-		res, err := ProcessREQRequest(ctx, DB, RWS, &filter)
-		if err != nil {
+		args, err := req.Parse(&filter)
+		if errors.Is(err, req.ErrInvalidKindsFormat) {
+			// if the filter doesn't match the valid format kinds:<dvm_response_kind>, 7000,
+			// then return the error as a NOTICE to make sure the customer receives it.
 			return nil, err
-		}
-
-		if err := res.Sign(secret); err != nil {
-			log.Error("error signing response eventID %v: %v", res.ID, err)
-			return nil, fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
-		}
-
-		requestCounter.Add(1)
-		if requestCounter.Load()%1000 == 0 {
-			log.Info("processed %v requests", requestCounter.Load())
 		}
 
 		ch := make(chan *nostr.Event, 1)
 		defer close(ch)
 
-		ch <- res
+		err = ProcessRequest(ctx, DB, RWS, args, err, func(ctx context.Context, res *nostr.Event) error {
+			if err := res.Sign(secret); err != nil {
+				return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+			}
+
+			if err := db.SaveEvent(ctx, res); err != nil {
+				return fmt.Errorf("error saving response eventID %v: %v", res.ID, err)
+			}
+
+			ch <- res
+			return nil
+		})
+
+		if err != nil {
+			log.Error("error processing event: %v", err)
+			return nil, fmt.Errorf("error processing event: %v", err)
+		}
 		return ch, nil
 	})
 
@@ -239,4 +250,61 @@ func PrintShutdown(l *logger.Aggregate) {
 // 	}
 
 // 	return nil
+// })
+
+// // event pipeline
+// relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+// 	if event.Kind < 5312 || event.Kind > 5318 {
+// 		return true, "invalid kind: we only support kind 5312 to 5318"
+// 	}
+// 	return false, ""
+// })
+// relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
+// 	res, err := ProcessDVMRequest(ctx, DB, RWS, event)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	if err := res.Sign(secret); err != nil {
+// 		log.Error("error signing response eventID %v: %v", res.ID, err)
+// 		return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+// 	}
+
+// 	relay.BroadcastEvent(res)
+
+// 	// logging how many events have been processed
+// 	requestCounter.Add(1)
+// 	if requestCounter.Load()%1000 == 0 {
+// 		log.Info("processed %v requests", requestCounter.Load())
+// 	}
+
+// 	return db.SaveEvent(ctx, res)
+// })
+// relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
+// relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+// 	if filter.Search == "" {
+// 		return db.QueryEvents(ctx, filter)
+// 	}
+
+// 	// produce the event to be returned, using the .Search field
+// 	res, err := ProcessREQRequest(ctx, DB, RWS, &filter)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if err := res.Sign(secret); err != nil {
+// 		log.Error("error signing response eventID %v: %v", res.ID, err)
+// 		return nil, fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+// 	}
+
+// 	requestCounter.Add(1)
+// 	if requestCounter.Load()%1000 == 0 {
+// 		log.Info("processed %v requests", requestCounter.Load())
+// 	}
+
+// 	ch := make(chan *nostr.Event, 1)
+// 	defer close(ch)
+
+// 	ch <- res
+// 	return ch, nil
 // })

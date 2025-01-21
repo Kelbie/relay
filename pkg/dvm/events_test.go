@@ -50,7 +50,7 @@ func TestResponseEvent(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			event := ResponseEvent(test.res, test.kind, test.ID, test.pubkey)
+			event := ResponseEvent(test.res, test.ID, test.pubkey, test.kind)
 			test.expectedEvent.CreatedAt = nostr.Now()
 
 			if !reflect.DeepEqual(event, test.expectedEvent) {

@@ -23,94 +23,72 @@ var (
 
 // ErrorEvent() returns an unsigned nostr event for the DVM error
 func ErrorEvent(errMsg, requestID, requestPubkey string) *nostr.Event {
+	var tags = nostr.Tags{{"status", "error", errMsg}}
+	if requestID != "" {
+		tags = append(tags, nostr.Tag{"e", requestID})
+	}
+	if requestPubkey != "" {
+		tags = append(tags, nostr.Tag{"p", requestPubkey})
+	}
+
 	return &nostr.Event{
 		Content:   "",
 		CreatedAt: nostr.Now(),
 		Kind:      KindDVMError,
-		Tags: nostr.Tags{
-			{"e", requestID},
-			{"p", requestPubkey},
-			{"status", "error", errMsg},
-		},
+		Tags:      tags,
 	}
 }
 
 // ResponseEvent() returns an unsigned nostr event used for the DVM
-func ResponseEvent(res []RankResponse, requestKind int, requestID, requestPubkey string) *nostr.Event {
+func ResponseEvent(res []RankResponse, requestID, requestPubkey string, requestKind int) *nostr.Event {
+	var tags nostr.Tags
+	if requestID != "" {
+		tags = append(tags, nostr.Tag{"e", requestID})
+	}
+	if requestPubkey != "" {
+		tags = append(tags, nostr.Tag{"p", requestPubkey})
+	}
 
 	jsonBytes, err := json.Marshal(res)
 	if err != nil {
 		return ErrorEvent(err.Error(), requestID, requestPubkey)
 	}
 
-	content := string(jsonBytes)
+	var content = string(jsonBytes)
 	return &nostr.Event{
 		Content:   content,
 		CreatedAt: nostr.Now(),
 		Kind:      requestKind + 1000,
-		Tags: nostr.Tags{
-			{"e", requestID},
-			{"p", requestPubkey},
-		},
+		Tags:      tags,
 	}
 }
 
-// RelevantWhoFollowEvent() returns the relevent-who-follow event from the specified request.
+// RelevantWhoFollowEvent() returns the relevent-who-follow event from the specified args.
 func RelevantWhoFollowEvent(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	req *nostr.Event) *nostr.Event {
-
-	var ID string
-	var pubkey string
-	var kind int
-
-	if req != nil {
-		ID = req.ID
-		pubkey = req.PubKey
-		kind = req.Kind
-	}
-
-	args, err := Parse(req)
-	if err != nil {
-		return ErrorEvent(err.Error(), ID, pubkey)
-	}
+	args *Args) *nostr.Event {
 
 	res, err := RelevantWhoFollow(ctx, DB, RWS, args)
 	if err != nil {
-		return ErrorEvent(err.Error(), ID, pubkey)
+		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}
 
-	return ResponseEvent(res, kind, ID, pubkey)
+	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
 }
 
-// RecommendedFollowsEvent() returns the recommended follows event from the specified request.
+// RecommendedFollowsEvent() returns the recommended follows event from the specified args.
 func RecommendedFollowsEvent(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	req *nostr.Event) *nostr.Event {
-
-	var ID string
-	var pubkey string
-	var kind int
-
-	if req != nil {
-		ID = req.ID
-		pubkey = req.PubKey
-		kind = req.Kind
-	}
-
-	args, err := Parse(req)
-	if err != nil {
-		return ErrorEvent(err.Error(), ID, pubkey)
-	}
+	args *Args) *nostr.Event {
 
 	res, err := RecommendedFollows(ctx, DB, RWS, args)
 	if err != nil {
-		return ErrorEvent(err.Error(), ID, pubkey)
+		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}
 
-	return ResponseEvent(res, kind, ID, pubkey)
+	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
 }
