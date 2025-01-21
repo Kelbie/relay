@@ -37,8 +37,27 @@ func TestParse(t *testing.T) {
 			expectedError: ErrEmptyFieldSearch,
 		},
 		{
+			name:          "invalid kinds",
+			filter:        &nostr.Filter{Kinds: []int{69}, Search: "xx"},
+			expectedArgs:  nil,
+			expectedError: ErrInvalidKindsFormat,
+		},
+		{
+			name:          "invalid kinds",
+			filter:        &nostr.Filter{Kinds: []int{6312, 6313}, Search: "xx"},
+			expectedArgs:  nil,
+			expectedError: ErrInvalidKindsFormat,
+		},
+		{
+			name:          "invalid kinds",
+			filter:        &nostr.Filter{Kinds: []int{6312, 7000, 1}, Search: "xx"},
+			expectedArgs:  nil,
+			expectedError: ErrInvalidKindsFormat,
+		},
+		{
 			name: "invalid source",
 			filter: &nostr.Filter{
+				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "abc"
 				}`},
@@ -48,6 +67,7 @@ func TestParse(t *testing.T) {
 		{
 			name: "invalid targets",
 			filter: &nostr.Filter{
+				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["abc", "cde"]
@@ -58,6 +78,7 @@ func TestParse(t *testing.T) {
 		{
 			name: "invalid sort",
 			filter: &nostr.Filter{
+				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
@@ -69,6 +90,7 @@ func TestParse(t *testing.T) {
 		{
 			name: "invalid limit",
 			filter: &nostr.Filter{
+				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
@@ -80,6 +102,7 @@ func TestParse(t *testing.T) {
 		{
 			name: "invalid distance",
 			filter: &nostr.Filter{
+				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"distance": 69
@@ -90,12 +113,14 @@ func TestParse(t *testing.T) {
 		{
 			name: "valid",
 			filter: &nostr.Filter{
+				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9", "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"],
 					"limit": 100
 				}`},
 			expectedArgs: &dvm.Args{
+				Kind:     dvm.KindRelevantWhoFollow,
 				Source:   fran,
 				Targets:  []string{odell, pip},
 				Sort:     dvm.DefaultSort,

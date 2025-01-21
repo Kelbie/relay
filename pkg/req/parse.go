@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	ErrNilFilter        error = errors.New("nil filter pointer")
-	ErrEmptyFieldSearch error = errors.New("empty field search")
-	ErrUnmarshalling    error = errors.New("error unmarshalling search field")
+	ErrNilFilter          error = errors.New("nil filter pointer")
+	ErrEmptyFieldSearch   error = errors.New("empty field search")
+	ErrInvalidKindsFormat error = errors.New("the kinds of \"DVM-compatible\" filters must match this format: kinds:{<dvm_response_kind>, 7000}")
+	ErrUnmarshalling      error = errors.New("error unmarshalling search field")
 )
 
 // Parse() parses a filter and returns the specified arguments for the DVM.
@@ -28,8 +29,19 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 		return nil, ErrEmptyFieldSearch
 	}
 
+	if len(filter.Kinds) != 2 {
+		return nil, fmt.Errorf("%w :%v", ErrInvalidKindsFormat, filter.Kinds)
+	}
+
+	DVMkind, DVMerr := filter.Kinds[0], filter.Kinds[1]
+	if DVMkind < 6312 || DVMkind > 6318 || DVMerr != 7000 {
+		return nil, fmt.Errorf("%w :%v", ErrInvalidKindsFormat, filter.Kinds)
+	}
+
 	var err error
 	args := dvm.NewArgs()
+	args.Kind = DVMkind - 1000
+
 	if err = json.Unmarshal([]byte(filter.Search), &args); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
 	}
