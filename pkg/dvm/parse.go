@@ -23,7 +23,8 @@ var (
 
 var (
 	// parsing errors
-	ErrNilRequest        error = errors.New("nil request pointer")
+	ErrNilEvent          error = errors.New("nil event pointer")
+	ErrInvalidKind       error = errors.New("invalid kind; we support kinds 5312 to 5318")
 	ErrUnknownParameter  error = errors.New("parameter must be one between 'source', 'target', 'sort', 'distance', 'limit'")
 	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
 	ErrBadlyFormattedKey error = errors.New("badly formatted key")
@@ -43,7 +44,7 @@ var (
 
 // The Args structure contains the general input parameters for our service.
 type Args struct {
-	// same as the equivalent from request
+	// copied from the request event
 	ID     string
 	Pubkey string
 	Kind   int
@@ -68,7 +69,11 @@ func NewArgs() *Args {
 // Parse() parses and returns the arguments of the request event as an Args struct.
 func Parse(req *nostr.Event) (*Args, error) {
 	if req == nil {
-		return nil, ErrNilRequest
+		return nil, ErrNilEvent
+	}
+
+	if req.Kind < 5312 || req.Kind > 5318 {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidKind, req.Kind)
 	}
 
 	args := NewArgs()

@@ -27,16 +27,17 @@ func TestParseArgs(t *testing.T) {
 			name:          "nil req",
 			req:           nil,
 			expectedArgs:  nil,
-			expectedError: ErrNilRequest,
+			expectedError: ErrNilEvent,
 		},
 		{
 			name: "empty req --> default args",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   5312,
+				Kind:   KindRelevantWhoFollow,
 			},
 			expectedArgs: &Args{
-				Kind:     5312,
+				Kind:     KindRelevantWhoFollow,
+				Pubkey:   fran,
 				Source:   fran,
 				Targets:  nil,
 				Sort:     DefaultSort,
@@ -46,9 +47,19 @@ func TestParseArgs(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			name: "invalid kind",
+			req: &nostr.Event{
+				PubKey: fran,
+				Kind:   43223,
+			},
+			expectedArgs:  nil,
+			expectedError: ErrInvalidKind,
+		},
+		{
 			name: "badly formatted tag: no param",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"target", "xxxx"},
 				},
@@ -60,6 +71,7 @@ func TestParseArgs(t *testing.T) {
 			name: "badly formatted tag: too short",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"param", "target"},
 				},
@@ -71,6 +83,7 @@ func TestParseArgs(t *testing.T) {
 			name: "invalid parameter",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"param", "delta", "xxx"},
 				},
@@ -83,6 +96,7 @@ func TestParseArgs(t *testing.T) {
 			name: "invalid sort option",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"param", "sort", "grapeWine"},
 				},
@@ -95,6 +109,7 @@ func TestParseArgs(t *testing.T) {
 			name: "badly formatted pubkey",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"param", "target", "xxxx"},
 				},
@@ -106,6 +121,7 @@ func TestParseArgs(t *testing.T) {
 			name: "badly formatted int",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"param", "distance", "one"},
 				},
@@ -117,6 +133,7 @@ func TestParseArgs(t *testing.T) {
 			name: "limit too high",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"param", "limit", "10000"},
 				},
@@ -128,6 +145,7 @@ func TestParseArgs(t *testing.T) {
 			name: "distance too high",
 			req: &nostr.Event{
 				PubKey: fran,
+				Kind:   KindRelevantWhoFollow,
 				Tags: nostr.Tags{
 					{"param", "distance", "7"},
 				},
@@ -138,7 +156,7 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid relevant who follow",
 			req: &nostr.Event{
-				Kind:   5312,
+				Kind:   KindRelevantWhoFollow,
 				PubKey: fran,
 				Tags: nostr.Tags{
 					{"param", "source", pip},
@@ -147,7 +165,8 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     5312,
+				Kind:     KindRelevantWhoFollow,
+				Pubkey:   fran,
 				Source:   pip,
 				Targets:  []string{calle},
 				Sort:     "global",
@@ -159,14 +178,15 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid recommended follows",
 			req: &nostr.Event{
-				Kind:   5313,
+				Kind:   KindRecommendedFollows,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "sort", "personalized"},
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     5313,
+				Kind:     KindRecommendedFollows,
+				Pubkey:   pip,
 				Source:   pip,
 				Targets:  nil,
 				Sort:     "personalized",
@@ -178,7 +198,7 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid sort authors",
 			req: &nostr.Event{
-				Kind:   5314,
+				Kind:   KindSortAuthors,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
@@ -187,7 +207,8 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     5314,
+				Kind:     KindSortAuthors,
+				Pubkey:   pip,
 				Source:   pip,
 				Targets:  []string{fran, pip, calle},
 				Sort:     "global",
@@ -197,16 +218,17 @@ func TestParseArgs(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name: "valid impersonator detection",
+			name: "valid impersonator detection pk",
 			req: &nostr.Event{
-				Kind:   5315,
+				Kind:   KindImpersonatorDetection,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     5315,
+				Kind:     KindImpersonatorDetection,
+				Pubkey:   pip,
 				Source:   pip,
 				Targets:  []string{fran},
 				Sort:     "global",
@@ -216,16 +238,17 @@ func TestParseArgs(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name: "valid impersonator detection",
+			name: "valid impersonator detection npub",
 			req: &nostr.Event{
-				Kind:   5316,
+				Kind:   KindImpersonatorDetection,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     5316,
+				Kind:     KindImpersonatorDetection,
+				Pubkey:   pip,
 				Source:   pip,
 				Targets:  []string{"47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
 				Sort:     "global",
