@@ -111,7 +111,7 @@ func RecommendedFollows(
 	var candidatesRank models.PagerankMap
 	switch args.Sort {
 	case "global":
-		// anyone is a candidate; TODO: we should smart in constraining the set of candidates in ways that make sense.
+		// anyone is a candidate; TODO: we should be smart in constraining the set of candidates in ways that make sense.
 		candidates, err := DB.AllNodes(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)

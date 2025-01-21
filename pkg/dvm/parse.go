@@ -43,6 +43,7 @@ var (
 
 // The Args structure contains the general input parameters for our service.
 type Args struct {
+	Kind     int
 	Source   string   `json:"source,omitempty"`
 	Targets  []string `json:"targets,omitempty"`
 	Sort     string   `json:"sort,omitempty"`
@@ -54,7 +55,6 @@ type Args struct {
 // NewArgs() returns an Args struct with default arguments.
 func NewArgs() *Args {
 	return &Args{
-		Targets:  []string{},
 		Sort:     DefaultSort,
 		Distance: DefaultDistance,
 		Limit:    DefaultLimit,
@@ -69,6 +69,7 @@ func Parse(req *nostr.Event) (*Args, error) {
 
 	args := NewArgs()
 	args.Source = req.PubKey
+	args.Kind = req.Kind
 
 	for _, tag := range req.Tags {
 		if len(tag) < 3 {

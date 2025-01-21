@@ -36,8 +36,9 @@ func TestParseArgs(t *testing.T) {
 				Kind:   5312,
 			},
 			expectedArgs: &Args{
+				Kind:     5312,
 				Source:   fran,
-				Targets:  []string{},
+				Targets:  nil,
 				Sort:     DefaultSort,
 				Distance: DefaultDistance,
 				Limit:    DefaultLimit,
@@ -137,6 +138,7 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid relevant who follow",
 			req: &nostr.Event{
+				Kind:   5312,
 				PubKey: fran,
 				Tags: nostr.Tags{
 					{"param", "source", pip},
@@ -145,6 +147,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs: &Args{
+				Kind:     5312,
 				Source:   pip,
 				Targets:  []string{calle},
 				Sort:     "global",
@@ -156,14 +159,16 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid recommended follows",
 			req: &nostr.Event{
+				Kind:   5313,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "sort", "personalized"},
 				},
 			},
 			expectedArgs: &Args{
+				Kind:     5313,
 				Source:   pip,
-				Targets:  []string{},
+				Targets:  nil,
 				Sort:     "personalized",
 				Distance: DefaultDistance,
 				Limit:    DefaultLimit,
@@ -173,6 +178,7 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid sort authors",
 			req: &nostr.Event{
+				Kind:   5314,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
@@ -181,6 +187,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs: &Args{
+				Kind:     5314,
 				Source:   pip,
 				Targets:  []string{fran, pip, calle},
 				Sort:     "global",
@@ -192,12 +199,14 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid impersonator detection",
 			req: &nostr.Event{
+				Kind:   5315,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
 				},
 			},
 			expectedArgs: &Args{
+				Kind:     5315,
 				Source:   pip,
 				Targets:  []string{fran},
 				Sort:     "global",
@@ -209,12 +218,14 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid impersonator detection",
 			req: &nostr.Event{
+				Kind:   5316,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
 				},
 			},
 			expectedArgs: &Args{
+				Kind:     5316,
 				Source:   pip,
 				Targets:  []string{"47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
 				Sort:     "global",
