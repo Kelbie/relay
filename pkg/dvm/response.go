@@ -34,17 +34,15 @@ func RelevantWhoFollow(
 		return nil, err
 	}
 
-	IDs, err := DB.NodeIDs(ctx, args.Source, args.Targets[0])
+	// fetching the IDs of both target and source, even though we use the source only in "personalized"
+	IDs, err := DB.NodeIDs(ctx, args.Targets[0], args.Source)
 	if err != nil {
 		return nil, err
 	}
 	if IDs[0] == nil {
-		return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Source)
-	}
-	if IDs[1] == nil {
 		return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Targets[0])
 	}
-	sourceID, targetID := *IDs[0], *IDs[1]
+	targetID := *IDs[0]
 
 	followersByNode, err := DB.Followers(ctx, targetID)
 	if err != nil {
@@ -66,6 +64,12 @@ func RelevantWhoFollow(
 		}
 
 	case "personalized":
+		if IDs[1] == nil {
+			// check that the source is in our database
+			return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Source)
+		}
+
+		sourceID := *IDs[1]
 		pp, err := pagerank.Personalized(ctx, DB, RWS, sourceID, 100)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrComputationFailed, err)
