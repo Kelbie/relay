@@ -134,7 +134,7 @@ func main() {
 			}
 
 			if err := db.SaveEvent(ctx, res); err != nil {
-				return fmt.Errorf("error saving response eventID %v: %v", res.ID, err)
+				log.Error("error saving response eventID: %v, %v", res.ID, err)
 			}
 
 			ch <- res
