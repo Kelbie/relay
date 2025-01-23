@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
 	_ "github.com/joho/godotenv/autoload"
@@ -83,7 +84,6 @@ func main() {
 	relay.Info.PubKey = pubkey
 	relay.Info.SupportedNIPs = []int{11, 42, 86, 90}
 
-	// event pipeline
 	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
 		if event.Kind < 5312 || event.Kind > 5318 {
 			return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
@@ -98,8 +98,10 @@ func main() {
 			}
 
 			relay.BroadcastEvent(res)
-			if err := db.SaveEvent(ctx, res); err != nil {
-				return fmt.Errorf("error saving response eventID %v: %v", res.ID, err)
+			err := db.SaveEvent(ctx, res)
+			if err != nil && !errors.Is(err, eventstore.ErrDupEvent) {
+				// we don't care if the event is a duplicate
+				return fmt.Errorf("error saving response eventID: %v, %v", res.ID, err)
 			}
 
 			return nil
@@ -111,7 +113,6 @@ func main() {
 		}
 		return nil
 	})
-
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
 	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 		if filter.Search == "" {
@@ -133,7 +134,9 @@ func main() {
 				return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
 			}
 
-			if err := db.SaveEvent(ctx, res); err != nil {
+			err := db.SaveEvent(ctx, res)
+			if err != nil && !errors.Is(err, eventstore.ErrDupEvent) {
+				// we don't care if the event is a duplicate
 				log.Error("error saving response eventID: %v, %v", res.ID, err)
 			}
 

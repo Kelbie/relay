@@ -46,11 +46,11 @@ func TestDVM_RelevantWhoFollow(t *testing.T) {
 
 	relay, err := nostr.RelayConnect(ctx, localhost)
 	if err != nil {
-		t.Fatalf("failed to connect to %v: %v", vertexURL, err)
+		t.Fatalf("failed to connect to %v: %v", localhost, err)
 	}
 
 	if err := relay.Publish(ctx, DVMreq); err != nil {
-		t.Fatalf("failed to publish to %v: %v", vertexURL, err)
+		t.Fatalf("failed to publish to %v: %v", localhost, err)
 	}
 
 	// waiting a little bit to give it time to process

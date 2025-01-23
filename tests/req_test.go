@@ -21,7 +21,7 @@ func TestREQ_RelevantWhoFollow(t *testing.T) {
 
 	relay, err := nostr.RelayConnect(ctx, localhost)
 	if err != nil {
-		t.Fatalf("failed to connect to %v: %v", vertexURL, err)
+		t.Fatalf("failed to connect to %v: %v", localhost, err)
 	}
 
 	var res *nostr.Event
