@@ -47,7 +47,7 @@ func ProcessRequest(
 
 	// log how many requests have been processed so far
 	requestCounter.Add(1)
-	if requestCounter.Load()%500 == 0 {
+	if requestCounter.Load()%250 == 0 {
 		log.Info("processed %v requests", requestCounter.Load())
 	}
 
