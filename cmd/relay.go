@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"relay/pkg/dvm"
+	"relay/pkg/rate"
 	"relay/pkg/req"
 	"strings"
 	"sync/atomic"
@@ -26,7 +27,7 @@ import (
 
 var env func(k string, fallback ...string) (v string)
 var log *logger.Aggregate
-var requestCounter = &atomic.Int64{}
+var requestCounter = &atomic.Uint32{}
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -69,13 +70,15 @@ func main() {
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
 	if err != nil {
-		panic("redis failed to connect" + err.Error())
+		panic("redis failed to connect " + err.Error())
 	}
 	RWS, err := redistore.NewRWSConnection(ctx, redis)
 	if err != nil {
 		panic("redis failed to connect" + err.Error())
 	}
 	log.Info("redis connected")
+
+	RateLimiter := rate.NewLimiter() // used to rate-limit requests for un-authorized users
 
 	// setup relay
 	relay.Info.Name = "Vertex Relay"
@@ -84,12 +87,23 @@ func main() {
 	relay.Info.PubKey = pubkey
 	relay.Info.SupportedNIPs = []int{11, 42, 86, 90}
 
-	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
-		if event.Kind < 5312 || event.Kind > 5318 {
-			return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
+	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+		// accept all events from authorized pubkeys
+		pubkeyReasons, err := relay.ManagementAPI.ListAllowedPubKeys(ctx)
+		if err != nil {
+			return true, "failed to fetch list of authorized pubkeys"
 		}
-		return false, ""
+		for _, PR := range pubkeyReasons {
+			if event.PubKey == PR.PubKey {
+				return false, ""
+			}
+		}
+
+		// everyone else has strict rate-limits
+		bucket, _ := RateLimiter.LoadOrStore(event.PubKey, rate.NewBucket())
+		return bucket.Reject(1)
 	})
+
 	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
 		args, parsingErr := dvm.Parse(event)
 		err = ProcessRequest(ctx, DB, RWS, args, parsingErr, func(ctx context.Context, res *nostr.Event) error {
@@ -121,8 +135,8 @@ func main() {
 
 		args, err := req.Parse(&filter)
 		if errors.Is(err, req.ErrInvalidKindsFormat) {
-			// if the filter doesn't match the valid format kinds:<dvm_response_kind>, 7000,
-			// then return the error as a NOTICE to make sure the customer receives it.
+			// if the filter doesn't match the valid format "kinds:<dvm_response_kind>, 7000",
+			// return the error as a NOTICE and not as a kind:7000 to make sure the customer receives it.
 			return nil, err
 		}
 
@@ -166,7 +180,14 @@ func main() {
 	log.Info("total events processed: %v", requestCounter.Load())
 }
 
-// ---------------------------------HELPERS------------------------------------
+// ---------------------------------HELPERS-------------------------------------
+
+func RejectNonDVMs(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+	if event.Kind < 5312 || event.Kind > 5318 {
+		return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
+	}
+	return false, ""
+}
 
 // Env() returns a function that returns the specified enviroment variable with an optional fallback.
 func Env() func(k string, fallback ...string) (v string) {
