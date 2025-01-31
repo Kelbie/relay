@@ -120,6 +120,10 @@ func CheckResponseIsConsistent(res *nostr.Event, target string) error {
 		}
 	}
 
+	if len(newest) != len(pubkeys) {
+		return fmt.Errorf("expected to receive one follow-list per pubkey (%d), got %d", len(pubkeys), len(newest))
+	}
+
 	for pubkey, event := range newest {
 		follows := crawler.ParsePubkeys(event)
 		if !slices.Contains(follows, fran) {
