@@ -25,15 +25,13 @@ var (
 	// parsing errors
 	ErrNilEvent          error = errors.New("nil event pointer")
 	ErrInvalidKind       error = errors.New("invalid kind; we support kinds 5312 to 5318")
-	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <vals>'")
-	ErrUnknownParameter  error = errors.New("parameter must be one between 'sources', 'targets', 'sort', 'limit'")
-	ErrEmptyKeys         error = errors.New("at least one key must be specified")
+	ErrUnknownParameter  error = errors.New("parameter must be one between 'source', 'target', 'sort', 'distance', 'limit'")
+	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
 	ErrBadlyFormattedKey error = errors.New("badly formatted key")
 	ErrBadlyFormattedInt error = errors.New("badly formatted unsigned integer")
 
 	// value errors
 	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
-	ErrInvalidSources    error = errors.New("invalid sources")
 	ErrInvalidTargets    error = errors.New("invalid targets")
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidDistance   error = errors.New("invalid distance")
@@ -51,11 +49,11 @@ type Args struct {
 	Pubkey string
 	Kind   int
 
-	Sources []string
-	Targets []string
-	Sort    string
-	Limit   uint64
-	// Distance uint64   `json:"distance,omitempty"`
+	Source   string   `json:"source,omitempty"`
+	Targets  []string `json:"targets,omitempty"`
+	Sort     string   `json:"sort,omitempty"`
+	Distance uint64   `json:"distance,omitempty"`
+	Limit    uint64   `json:"limit,omitempty"`
 	// RequireProof    bool
 }
 
@@ -66,10 +64,10 @@ func NewArgs(ID, Pubkey string, Kind int) *Args {
 		Kind:   Kind,
 		Pubkey: Pubkey,
 
-		Sources: []string{Pubkey},
-		Sort:    DefaultSort,
-		Limit:   DefaultLimit,
-		// Distance: DefaultDistance,
+		Source:   Pubkey,
+		Sort:     DefaultSort,
+		Distance: DefaultDistance,
+		Limit:    DefaultLimit,
 	}
 }
 
@@ -92,44 +90,47 @@ func Parse(req *nostr.Event) (*Args, error) {
 			return defaultArgs, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
 		}
 
-		prefix, key, vals := tag[0], tag[1], tag[2:]
+		prefix, key, val := tag[0], tag[1], tag[2]
 		if prefix != "param" {
 			return defaultArgs, fmt.Errorf("%w: %v", ErrBadlyFormattedTag, tag)
 		}
 
 		switch key {
-		case "sources":
-			if len(vals) == 0 {
-				return defaultArgs, ErrEmptyKeys
-			}
-
-			keys, err := ParseKeys(vals)
+		case "source":
+			pk, err := ParseKey(val)
 			if err != nil {
 				return defaultArgs, err
 			}
-			args.Sources = keys
+			args.Source = pk
 
-		case "targets":
-			if len(vals) == 0 {
-				return defaultArgs, ErrEmptyKeys
-			}
-
-			keys, err := ParseKeys(vals)
+		case "target":
+			pk, err := ParseKey(val)
 			if err != nil {
 				return defaultArgs, err
 			}
-			args.Targets = keys
+			args.Targets = append(args.Targets, pk)
 
 		case "sort":
-			if !slices.Contains(ValidSorts, vals[0]) {
-				return defaultArgs, fmt.Errorf("%w: %v", ErrInvalidSortOption, vals[0])
+			if !slices.Contains(ValidSorts, val) {
+				return defaultArgs, fmt.Errorf("%w: %v", ErrInvalidSortOption, val)
 			}
-			args.Sort = vals[0]
+			args.Sort = val
+
+		case "distance":
+			d, err := strconv.ParseUint(val, 10, 32)
+			if err != nil {
+				return defaultArgs, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
+			}
+
+			if d > MaxDistance {
+				return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", ErrInvalidDistance, MaxDistance)
+			}
+			args.Distance = d
 
 		case "limit":
-			l, err := strconv.ParseUint(vals[0], 10, 32)
+			l, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
-				return defaultArgs, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, vals[0])
+				return defaultArgs, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
 			}
 
 			if l > MaxLimit {
@@ -137,39 +138,12 @@ func Parse(req *nostr.Event) (*Args, error) {
 			}
 			args.Limit = l
 
-		// case "distance":
-		// 	d, err := strconv.ParseUint(vals[0], 10, 32)
-		// 	if err != nil {
-		// 		return defaultArgs, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, vals[0])
-		// 	}
-
-		// 	if d > MaxDistance {
-		// 		return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", ErrInvalidDistance, MaxDistance)
-		// 	}
-		// 	args.Distance = d
-
 		default:
 			return defaultArgs, fmt.Errorf("%w: got %v", ErrUnknownParameter, key)
 		}
 	}
 
 	return &args, nil
-}
-
-// ParseKeys() returns a slice of parsed hex keys from the specified keys.
-func ParseKeys(keys []string) ([]string, error) {
-
-	// parse keys and update them in place
-	for i, key := range keys {
-		key, err := ParseKey(key)
-		if err != nil {
-			return nil, err
-		}
-
-		keys[i] = key
-	}
-
-	return keys, nil
 }
 
 // ParseKey() returns a parsed hex key from the specified string.

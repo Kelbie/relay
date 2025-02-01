@@ -31,8 +31,8 @@ func TestDVM_RelevantWhoFollow(t *testing.T) {
 		PubKey: pip,
 		Kind:   dvm.KindRelevantWhoFollow,
 		Tags: nostr.Tags{
-			{"param", "sources", odell},
-			{"param", "targets", fran},
+			{"param", "source", odell},
+			{"param", "target", fran},
 		},
 	}
 

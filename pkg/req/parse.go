@@ -19,34 +19,6 @@ var (
 	ErrUnmarshalling      error = errors.New("error unmarshalling search field")
 )
 
-type OldArgs struct {
-	// copied from the request event
-	ID     string
-	Pubkey string
-	Kind   int
-
-	Source  string   `json:"source,omitempty"`
-	Targets []string `json:"targets,omitempty"`
-	Sort    string   `json:"sort,omitempty"`
-	Limit   uint64   `json:"limit,omitempty"`
-	// Distance uint64   `json:"distance,omitempty"`
-	// RequireProof    bool
-}
-
-// NewArgs() returns an Args struct with default arguments.
-func NewOldArgs(ID, Pubkey string, Kind int) *OldArgs {
-	return &OldArgs{
-		ID:     ID,
-		Kind:   Kind,
-		Pubkey: Pubkey,
-
-		Source: Pubkey,
-		Sort:   dvm.DefaultSort,
-		Limit:  dvm.DefaultLimit,
-		// Distance: DefaultDistance,
-	}
-}
-
 // Parse() parses a filter and returns the specified arguments for the DVM.
 func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 	if filter == nil {
@@ -68,31 +40,26 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 
 	var err error
 	var defaultArgs = dvm.NewArgs("", "", DVMkind-1000)
-	var args = *defaultArgs
+	var args = *defaultArgs // this copy will be returned if no errors occur.
 
-	// oldArgs is only used for unmarshalling, keeping compability with the old arguments structure
-	var oldArgs = NewOldArgs("", "", DVMkind-1000)
-
-	if err = json.Unmarshal([]byte(filter.Search), &oldArgs); err != nil {
+	if err = json.Unmarshal([]byte(filter.Search), &args); err != nil {
 		return defaultArgs, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
 	}
 
-	// now we convert to the new argument structure
-	args.Sources = []string{oldArgs.Source}
-	args.Targets = oldArgs.Targets
-	args.Sort = oldArgs.Sort
-	args.Limit = oldArgs.Limit
-
 	// parse source key
-	args.Sources, err = dvm.ParseKeys(args.Sources)
+	args.Source, err = dvm.ParseKey(args.Source)
 	if err != nil {
 		return defaultArgs, err
 	}
 
-	// parse targets
-	args.Targets, err = dvm.ParseKeys(args.Targets)
-	if err != nil {
-		return defaultArgs, err
+	// parse targets in place
+	for i, target := range args.Targets {
+		t, err := dvm.ParseKey(target)
+		if err != nil {
+			return defaultArgs, err
+		}
+
+		args.Targets[i] = t
 	}
 
 	// validate sort, distance and limit.
@@ -100,13 +67,13 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 		return defaultArgs, fmt.Errorf("%w: %v", dvm.ErrInvalidSortOption, args.Sort)
 	}
 
+	if args.Distance > dvm.MaxDistance {
+		return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", dvm.ErrInvalidDistance, dvm.MaxDistance)
+	}
+
 	if args.Limit > dvm.MaxLimit {
 		return defaultArgs, fmt.Errorf("%w: limit must be smaller than %v", dvm.ErrInvalidLimit, dvm.MaxLimit)
 	}
-
-	// if args.Distance > dvm.MaxDistance {
-	// 	return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", dvm.ErrInvalidDistance, dvm.MaxDistance)
-	// }
 
 	return &args, nil
 }

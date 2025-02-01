@@ -33,7 +33,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
 			args: &Args{
-				Sources: []string{odell},
+				Source:  odell,
 				Targets: []string{pip, calle},
 			},
 			expectedError: ErrInvalidTargets,
@@ -43,7 +43,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
 			args: &Args{
-				Sources: []string{odell},
+				Source:  odell,
 				Targets: []string{calle},
 				Limit:   0,
 			},
@@ -54,7 +54,7 @@ func TestRelevantWhoFollow(t *testing.T) {
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
 			args: &Args{
-				Sources: []string{odell},
+				Source:  odell,
 				Targets: []string{calle},
 				Limit:   1,
 				Sort:    "global",
@@ -64,23 +64,23 @@ func TestRelevantWhoFollow(t *testing.T) {
 		},
 		{
 			name:    "valid global (triangle)",
-			DBType:  "triangle",
+			DBType:  "triangle-with-pks",
 			RWSType: "triangle",
 			args: &Args{
-				Sources: []string{"0"},
-				Targets: []string{"2"},
+				Source:  odell,
+				Targets: []string{pip},
 				Limit:   1,
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "1", Rank: 0.33333}},
+			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.33333}},
 		},
 		{
 			name:    "valid personalized (simple)",
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
 			args: &Args{
-				Sources: []string{odell},
+				Source:  odell,
 				Targets: []string{calle},
 				Limit:   1,
 				Sort:    "personalized",
@@ -90,16 +90,16 @@ func TestRelevantWhoFollow(t *testing.T) {
 		},
 		{
 			name:    "valid personalized (triangle)",
-			DBType:  "triangle",
+			DBType:  "triangle-with-pks",
 			RWSType: "triangle",
 			args: &Args{
-				Sources: []string{"0"},
-				Targets: []string{"2"},
+				Source:  odell,
+				Targets: []string{pip},
 				Limit:   1,
 				Sort:    "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "1", Rank: 0.330417881}},
+			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.330417881}},
 		},
 	}
 
@@ -145,7 +145,7 @@ func TestRecommendedFollows(t *testing.T) {
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
 			args: &Args{
-				Sources: []string{odell},
+				Source:  odell,
 				Targets: []string{calle},
 				Limit:   0,
 			},
@@ -153,27 +153,27 @@ func TestRecommendedFollows(t *testing.T) {
 		},
 		{
 			name:    "valid global",
-			DBType:  "triangle",
+			DBType:  "triangle-with-pks",
 			RWSType: "triangle",
 			args: &Args{
-				Sources: []string{"0"},
-				Limit:   1,
-				Sort:    "global",
+				Source: odell,
+				Limit:  1,
+				Sort:   "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "2", Rank: 1.0 / 3.0}},
+			expectedRes:   []RankResponse{{Pubkey: pip, Rank: 1.0 / 3.0}},
 		},
 		{
 			name:    "valid personalized",
-			DBType:  "triangle",
+			DBType:  "triangle-with-pks",
 			RWSType: "triangle",
 			args: &Args{
-				Sources: []string{"1"},
-				Limit:   1,
-				Sort:    "personalized",
+				Source: calle,
+				Limit:  1,
+				Sort:   "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "0", Rank: 0.2809}},
+			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.2809}},
 		},
 	}
 
