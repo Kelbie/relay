@@ -33,9 +33,9 @@ func TestParseArgs(t *testing.T) {
 			name: "empty req --> default args",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 			},
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: nil,
 		},
 		{
@@ -51,104 +51,104 @@ func TestParseArgs(t *testing.T) {
 			name: "badly formatted tag: no param",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"target", "xxxx"},
 				},
 			},
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrBadlyFormattedTag,
 		},
 		{
 			name: "badly formatted tag: too short",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"param", "target"},
 				},
 			},
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrBadlyFormattedTag,
 		},
 		{
 			name: "invalid parameter",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"param", "delta", "xxx"},
 				},
 			},
 
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrUnknownParameter,
 		},
 		{
 			name: "invalid sort option",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"param", "sort", "grapeWine"},
 				},
 			},
 
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrInvalidSortOption,
 		},
 		{
 			name: "badly formatted pubkey",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"param", "target", "xxxx"},
 				},
 			},
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrBadlyFormattedKey,
 		},
 		{
 			name: "badly formatted int",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"param", "distance", "one"},
 				},
 			},
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrBadlyFormattedInt,
 		},
 		{
 			name: "limit too high",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"param", "limit", "10000"},
 				},
 			},
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name: "distance too high",
 			req: &nostr.Event{
 				PubKey: fran,
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				Tags: nostr.Tags{
 					{"param", "distance", "7"},
 				},
 			},
-			expectedArgs:  NewArgs("", fran, KindRelevantWhoFollow),
+			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrInvalidDistance,
 		},
 		{
 			name: "valid relevant who follow",
 			req: &nostr.Event{
-				Kind:   KindRelevantWhoFollow,
+				Kind:   KindVerifyReputation,
 				PubKey: fran,
 				Tags: nostr.Tags{
 					{"param", "source", pip},
@@ -157,7 +157,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     KindRelevantWhoFollow,
+				Kind:     KindVerifyReputation,
 				Pubkey:   fran,
 				Source:   pip,
 				Targets:  []string{calle},
@@ -170,14 +170,14 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid recommended follows",
 			req: &nostr.Event{
-				Kind:   KindRecommendedFollows,
+				Kind:   KindRecommendFollows,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "sort", "personalized"},
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     KindRecommendedFollows,
+				Kind:     KindRecommendFollows,
 				Pubkey:   pip,
 				Source:   pip,
 				Targets:  nil,
@@ -212,14 +212,14 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid impersonator detection pk",
 			req: &nostr.Event{
-				Kind:   KindImpersonatorDetection,
+				Kind:   KindVerifyReputation,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     KindImpersonatorDetection,
+				Kind:     KindVerifyReputation,
 				Pubkey:   pip,
 				Source:   pip,
 				Targets:  []string{fran},
@@ -232,14 +232,14 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid impersonator detection npub",
 			req: &nostr.Event{
-				Kind:   KindImpersonatorDetection,
+				Kind:   KindVerifyReputation,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
 				},
 			},
 			expectedArgs: &Args{
-				Kind:     KindImpersonatorDetection,
+				Kind:     KindVerifyReputation,
 				Pubkey:   pip,
 				Source:   pip,
 				Targets:  []string{"47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},

@@ -17,11 +17,11 @@ type RankResponse struct {
 	Rank   float64 `json:"rank"`
 }
 
-// RelevantWhoFollow() returns `limit` RankResponses for "relevant" pubkeys
+// VerifyReputation() returns `limit` RankResponses for "relevant" pubkeys
 // that follow the specified `target`. These relevant pubkeys are the ones with
 // the highest scores among the followers of the target, determined by the specified
 // sorting algorithm (e.g. personalized pagerank).
-func RelevantWhoFollow(
+func VerifyReputation(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
@@ -30,7 +30,7 @@ func RelevantWhoFollow(
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := validateRelevantWhoFollow(args); err != nil {
+	if err := validateVerifyReputation(args); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +84,7 @@ func RelevantWhoFollow(
 	return ResponseFromMap(ctx, DB, followersRank, args.Limit)
 }
 
-func RecommendedFollows(
+func RecommendFollows(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
@@ -143,8 +143,8 @@ func RecommendedFollows(
 	return ResponseFromMap(ctx, DB, candidatesRank, args.Limit)
 }
 
-// ValidateRelevantWhoFollow() validates the arguments for RelevantWhoFollow.
-func validateRelevantWhoFollow(args *Args) error {
+// ValidateVerifyReputation() validates the arguments for VerifyReputation.
+func validateVerifyReputation(args *Args) error {
 	if args == nil {
 		return ErrNilArgs
 	}

@@ -9,10 +9,10 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-func TestREQ_RelevantWhoFollow(t *testing.T) {
+func TestREQ_VerifyReputation(t *testing.T) {
 	// step 1. send the request to the relay
 	req := nostr.Filter{
-		Kinds:  []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+		Kinds:  []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 		Search: "{\"source\":\"04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9\", \"targets\":[\"726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11\"]}",
 	}
 

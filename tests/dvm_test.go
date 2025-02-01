@@ -25,11 +25,11 @@ var (
 	localhost string = "http://localhost:3334"
 )
 
-func TestDVM_RelevantWhoFollow(t *testing.T) {
+func TestDVM_VerifyReputation(t *testing.T) {
 	// step 1. publishing a DVM request
 	DVMreq := nostr.Event{
 		PubKey: pip,
-		Kind:   dvm.KindRelevantWhoFollow,
+		Kind:   dvm.KindVerifyReputation,
 		Tags: nostr.Tags{
 			{"param", "source", odell},
 			{"param", "target", fran},

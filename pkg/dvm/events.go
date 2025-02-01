@@ -11,14 +11,10 @@ import (
 
 var (
 	// kinds
-	KindRelevantWhoFollow      int = 5312
-	KindRecommendedFollows     int = 5313
-	KindSortAuthors            int = 5314
-	KindImpersonatorDetection  int = 5315
-	KindDegreesOfSeparation    int = 5316
-	KindVerifiedFollowersCount int = 5317
-	KindVerifiedFollowers      int = 5318
-	KindDVMError               int = 7000
+	KindVerifyReputation int = 5312
+	KindRecommendFollows int = 5313
+	KindSortAuthors      int = 5314
+	KindDVMError         int = 7000
 )
 
 // ErrorEvent() returns an unsigned nostr event for the DVM error
@@ -63,14 +59,14 @@ func ResponseEvent(res []RankResponse, requestID, requestPubkey string, requestK
 	}
 }
 
-// RelevantWhoFollowEvent() returns the relevent-who-follow event from the specified args.
-func RelevantWhoFollowEvent(
+// VerifyReputationEvent() returns the relevent-who-follow event from the specified args.
+func VerifyReputationEvent(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	args *Args) *nostr.Event {
 
-	res, err := RelevantWhoFollow(ctx, DB, RWS, args)
+	res, err := VerifyReputation(ctx, DB, RWS, args)
 	if err != nil {
 		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}
@@ -78,14 +74,14 @@ func RelevantWhoFollowEvent(
 	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
 }
 
-// RecommendedFollowsEvent() returns the recommended follows event from the specified args.
-func RecommendedFollowsEvent(
+// RecommendFollowsEvent() returns the recommended follows event from the specified args.
+func RecommendFollowsEvent(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	args *Args) *nostr.Event {
 
-	res, err := RecommendedFollows(ctx, DB, RWS, args)
+	res, err := RecommendFollows(ctx, DB, RWS, args)
 	if err != nil {
 		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}

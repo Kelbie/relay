@@ -57,70 +57,70 @@ func TestParse(t *testing.T) {
 		{
 			name: "invalid source",
 			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "abc"
 				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
 			expectedError: dvm.ErrBadlyFormattedKey,
 		},
 		{
 			name: "invalid targets",
 			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["abc", "cde"]
 				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
 			expectedError: dvm.ErrBadlyFormattedKey,
 		},
 		{
 			name: "invalid sort",
 			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
 					"sort": "abc"
 				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
 			expectedError: dvm.ErrInvalidSortOption,
 		},
 		{
 			name: "invalid limit",
 			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
 					"limit": 100000
 				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
 			expectedError: dvm.ErrInvalidLimit,
 		},
 		{
 			name: "invalid distance",
 			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"distance": 69
 				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
+			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
 			expectedError: dvm.ErrInvalidDistance,
 		},
 		{
 			name: "valid",
 			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: `{
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9", "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"],
 					"limit": 100
 				}`},
 			expectedArgs: &dvm.Args{
-				Kind:     dvm.KindRelevantWhoFollow,
+				Kind:     dvm.KindVerifyReputation,
 				Source:   fran,
 				Targets:  []string{odell, pip},
 				Sort:     dvm.DefaultSort,

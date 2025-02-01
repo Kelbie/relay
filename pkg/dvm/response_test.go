@@ -11,7 +11,7 @@ import (
 	mockstore "github.com/vertex-lab/crawler/pkg/store/mock"
 )
 
-func TestRelevantWhoFollow(t *testing.T) {
+func TestVerifyReputation(t *testing.T) {
 	const maxDist float64 = 0.001
 	testCases := []struct {
 		name          string
@@ -64,16 +64,16 @@ func TestRelevantWhoFollow(t *testing.T) {
 		},
 		{
 			name:    "valid global (triangle)",
-			DBType:  "triangle-with-pks",
+			DBType:  "triangle",
 			RWSType: "triangle",
 			args: &Args{
-				Source:  odell,
-				Targets: []string{pip},
+				Source:  "0",
+				Targets: []string{"2"},
 				Limit:   1,
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.33333}},
+			expectedRes:   []RankResponse{{Pubkey: "1", Rank: 0.33333}},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -90,16 +90,16 @@ func TestRelevantWhoFollow(t *testing.T) {
 		},
 		{
 			name:    "valid personalized (triangle)",
-			DBType:  "triangle-with-pks",
+			DBType:  "triangle",
 			RWSType: "triangle",
 			args: &Args{
-				Source:  odell,
-				Targets: []string{pip},
+				Source:  "0",
+				Targets: []string{"2"},
 				Limit:   1,
 				Sort:    "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.330417881}},
+			expectedRes:   []RankResponse{{Pubkey: "1", Rank: 0.330417881}},
 		},
 	}
 
@@ -108,22 +108,22 @@ func TestRelevantWhoFollow(t *testing.T) {
 			ctx := context.Background()
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
-			res, err := RelevantWhoFollow(ctx, DB, RWS, test.args)
+			res, err := VerifyReputation(ctx, DB, RWS, test.args)
 
 			if !errors.Is(err, test.expectedError) {
-				t.Fatalf("RelevantWhoFollow: expected error %v, got %v", test.expectedError, err)
+				t.Fatalf("VerifyReputation: expected error %v, got %v", test.expectedError, err)
 			}
 
 			dist := ResponseDistance(res, test.expectedRes)
 			if dist > maxDist {
-				t.Errorf("RelevantWhoFollow: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected response %v, got %v", test.expectedRes, res)
 			}
 		})
 	}
 }
 
-func TestRecommendedFollows(t *testing.T) {
+func TestRecommendFollows(t *testing.T) {
 	const maxDist float64 = 0.01
 	testCases := []struct {
 		name          string
@@ -153,27 +153,27 @@ func TestRecommendedFollows(t *testing.T) {
 		},
 		{
 			name:    "valid global",
-			DBType:  "triangle-with-pks",
+			DBType:  "triangle",
 			RWSType: "triangle",
 			args: &Args{
-				Source: odell,
+				Source: "0",
 				Limit:  1,
 				Sort:   "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: pip, Rank: 1.0 / 3.0}},
+			expectedRes:   []RankResponse{{Pubkey: "2", Rank: 1.0 / 3.0}},
 		},
 		{
 			name:    "valid personalized",
-			DBType:  "triangle-with-pks",
+			DBType:  "triangle",
 			RWSType: "triangle",
 			args: &Args{
-				Source: calle,
+				Source: "1",
 				Limit:  1,
 				Sort:   "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.2809}},
+			expectedRes:   []RankResponse{{Pubkey: "0", Rank: 0.2809}},
 		},
 	}
 
@@ -182,15 +182,15 @@ func TestRecommendedFollows(t *testing.T) {
 			ctx := context.Background()
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
-			res, err := RecommendedFollows(ctx, DB, RWS, test.args)
+			res, err := RecommendFollows(ctx, DB, RWS, test.args)
 
 			if !errors.Is(err, test.expectedError) {
-				t.Fatalf("RecommendedFollows: expected error %v, got %v", test.expectedError, err)
+				t.Fatalf("RecommendFollows: expected error %v, got %v", test.expectedError, err)
 			}
 
 			dist := ResponseDistance(res, test.expectedRes)
 			if dist > maxDist {
-				t.Errorf("RecommendedFollows: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("RecommendFollows: expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected response %v, got %v", test.expectedRes, res)
 			}
 		})

@@ -24,7 +24,7 @@ var (
 var (
 	// parsing errors
 	ErrNilEvent          error = errors.New("nil event pointer")
-	ErrInvalidKind       error = errors.New("invalid kind; we support kinds 5312 to 5318")
+	ErrInvalidKind       error = errors.New("invalid kind; we support kinds 5312 to 5314")
 	ErrUnknownParameter  error = errors.New("parameter must be one between 'source', 'target', 'sort', 'distance', 'limit'")
 	ErrBadlyFormattedTag error = errors.New("tag should be 'param, <key>, <val>'")
 	ErrBadlyFormattedKey error = errors.New("badly formatted key")
@@ -78,7 +78,7 @@ func Parse(req *nostr.Event) (*Args, error) {
 		return nil, ErrNilEvent
 	}
 
-	if req.Kind < 5312 || req.Kind > 5318 {
+	if req.Kind < 5312 || req.Kind > 5314 {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidKind, req.Kind)
 	}
 

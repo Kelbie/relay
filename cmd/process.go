@@ -32,13 +32,13 @@ func ProcessRequest(
 	}
 
 	switch args.Kind {
-	case dvm.KindRelevantWhoFollow:
-		res = dvm.RelevantWhoFollowEvent(ctx, DB, RWS, args)
+	case dvm.KindVerifyReputation:
+		res = dvm.VerifyReputationEvent(ctx, DB, RWS, args)
 
-	case dvm.KindRecommendedFollows:
-		res = dvm.RecommendedFollowsEvent(ctx, DB, RWS, args)
+	case dvm.KindRecommendFollows:
+		res = dvm.RecommendFollowsEvent(ctx, DB, RWS, args)
 
-	case dvm.KindSortAuthors, dvm.KindImpersonatorDetection, dvm.KindDegreesOfSeparation, dvm.KindVerifiedFollowersCount, dvm.KindVerifiedFollowers:
+	case dvm.KindSortAuthors:
 		res = &nostr.Event{Content: "This service is coming soon", Kind: args.Kind + 1000}
 
 	default:

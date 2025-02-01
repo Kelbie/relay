@@ -183,7 +183,7 @@ func main() {
 // ---------------------------------HELPERS-------------------------------------
 
 func RejectNonDVMs(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
-	if event.Kind < 5312 || event.Kind > 5318 {
+	if event.Kind < 5312 || event.Kind > 5314 {
 		return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
 	}
 	return false, ""
