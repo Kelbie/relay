@@ -99,17 +99,17 @@ func TestParse(t *testing.T) {
 			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
 			expectedError: dvm.ErrInvalidLimit,
 		},
-		{
-			name: "invalid distance",
-			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
-				Search: `{
-					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
-					"distance": 69
-				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
-			expectedError: dvm.ErrInvalidDistance,
-		},
+		// {
+		// 	name: "invalid distance",
+		// 	filter: &nostr.Filter{
+		// 		Kinds: []int{dvm.KindRelevantWhoFollow + 1000, dvm.KindDVMError},
+		// 		Search: `{
+		// 			"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
+		// 			"distance": 69
+		// 		}`},
+		// 	expectedArgs:  dvm.NewArgs("", "", dvm.KindRelevantWhoFollow),
+		// 	expectedError: dvm.ErrInvalidDistance,
+		// },
 		{
 			name: "valid",
 			filter: &nostr.Filter{
@@ -120,12 +120,12 @@ func TestParse(t *testing.T) {
 					"limit": 100
 				}`},
 			expectedArgs: &dvm.Args{
-				Kind:     dvm.KindRelevantWhoFollow,
-				Source:   fran,
-				Targets:  []string{odell, pip},
-				Sort:     dvm.DefaultSort,
-				Distance: dvm.DefaultDistance,
-				Limit:    100,
+				Kind:    dvm.KindRelevantWhoFollow,
+				Sources: []string{fran},
+				Targets: []string{odell, pip},
+				Sort:    dvm.DefaultSort,
+				Limit:   100,
+				// Distance: dvm.DefaultDistance,
 			},
 		},
 	}

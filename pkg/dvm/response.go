@@ -34,8 +34,9 @@ func RelevantWhoFollow(
 		return nil, err
 	}
 
-	// fetching the IDs of both target and source, even though we use the source only in "personalized"
-	IDs, err := DB.NodeIDs(ctx, args.Targets[0], args.Source)
+	// fetching the IDs of both target and source, even though we use the source only in "personalized".
+	// at the moment, we only use the first source
+	IDs, err := DB.NodeIDs(ctx, args.Targets[0], args.Sources[0])
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +67,7 @@ func RelevantWhoFollow(
 	case "personalized":
 		if IDs[1] == nil {
 			// check that the source is in our database
-			return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Source)
+			return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Sources[0])
 		}
 
 		sourceID := *IDs[1]
@@ -97,12 +98,12 @@ func RecommendedFollows(
 		return nil, err
 	}
 
-	IDs, err := DB.NodeIDs(ctx, args.Source)
+	IDs, err := DB.NodeIDs(ctx, args.Sources[0])
 	if err != nil {
 		return nil, err
 	}
 	if IDs[0] == nil {
-		return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Source)
+		return nil, fmt.Errorf("%w: %v", ErrKeyNotFound, args.Sources[0])
 	}
 	sourceID := *IDs[0]
 
@@ -149,6 +150,10 @@ func validateRelevantWhoFollow(args *Args) error {
 		return ErrNilArgs
 	}
 
+	if len(args.Sources) < 1 {
+		return fmt.Errorf("%w: %w", ErrInvalidSources, ErrEmptyKeys)
+	}
+
 	if len(args.Targets) != 1 {
 		return fmt.Errorf("%w: exactly one target must be provided for relevant-who-follow", ErrInvalidTargets)
 	}
@@ -164,6 +169,10 @@ func validateRelevantWhoFollow(args *Args) error {
 func validateRecommendedFollows(args *Args) error {
 	if args == nil {
 		return ErrNilArgs
+	}
+
+	if len(args.Sources) < 1 {
+		return fmt.Errorf("%w: %w", ErrInvalidSources, ErrEmptyKeys)
 	}
 
 	if args.Limit == 0 {
