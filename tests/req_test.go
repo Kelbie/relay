@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"relay/pkg/dvm"
 	"testing"
 	"time"
@@ -11,21 +12,46 @@ import (
 )
 
 func TestREQ_VerifyReputation(t *testing.T) {
-	// step 1. send the request to the relay
 	req := nostr.Filter{
 		Kinds:  []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 		Search: "{\"source\":\"04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9\", \"targets\":[\"726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11\"]}",
 	}
 
+	expectedKind := req.Kinds[0]
+	expectedTags := nostr.Tags{}
+
+	res, err := reqResponse(req, localhost)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := checkFormat(res, expectedKind, expectedTags); err != nil {
+		t.Errorf("the format of the response is wrong: %v", err)
+	}
+
+	var ranks dvm.RankResponses
+	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
+		t.Errorf("failed to unmarshal the DVM response content: %v", err)
+	}
+
+	pubkeys, _ := ranks.Unpack()
+	if err := checkPubkeysFollowTarget(pubkeys, fran); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// ------------------------------------HELPERS---------------------------------
+
+// reqResponse() connects to the relay, send the REQ.
+func reqResponse(req nostr.Filter, relayURL string) (res *nostr.Event, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	relay, err := nostr.RelayConnect(ctx, localhost)
+	relay, err := nostr.RelayConnect(ctx, relayURL)
 	if err != nil {
-		t.Fatalf("failed to connect to %v: %v", localhost, err)
+		return nil, fmt.Errorf("failed to connect to %s: %w", relayURL, err)
 	}
 
-	var res *nostr.Event
 	var counter int
 	ch, err := relay.QueryEvents(ctx, req)
 	for event := range ch {
@@ -34,16 +60,8 @@ func TestREQ_VerifyReputation(t *testing.T) {
 	}
 
 	if counter != 1 {
-		t.Fatalf("expected exactly one event, got %v", counter)
+		return nil, fmt.Errorf("expected exactly one response, got %v", counter)
 	}
 
-	var ranks []dvm.RankResponse
-	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
-		t.Errorf("failed to unmarshal the DVM response content: %v", err)
-	}
-
-	// step 3. checking the response is consistent, meaning each pubkey follows target.
-	if err := checkFollowers(ranks, fran); err != nil {
-		t.Fatal(err)
-	}
+	return res, nil
 }

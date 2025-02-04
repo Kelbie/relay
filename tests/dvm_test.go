@@ -33,8 +33,7 @@ var (
 )
 
 func TestDVM_VerifyReputation(t *testing.T) {
-	// step 1. publishing a DVM request
-	DVMreq := nostr.Event{
+	req := &nostr.Event{
 		Kind: dvm.KindVerifyReputation,
 		Tags: nostr.Tags{
 			{"param", "source", odell},
@@ -43,68 +42,45 @@ func TestDVM_VerifyReputation(t *testing.T) {
 	}
 
 	sk := nostr.GeneratePrivateKey()
-	if err := DVMreq.Sign(sk); err != nil {
+	pk, err := nostr.GetPublicKey(sk)
+	if err != nil {
+		t.Fatalf("failed to get pk from sk: %v", err)
+	}
+
+	if err := req.Sign(sk); err != nil {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}}
+	expectedKind := req.Kind + 1000
 
-	relay, err := nostr.RelayConnect(ctx, localhost)
+	res, err := dvmResponse(req, localhost)
 	if err != nil {
-		t.Fatalf("failed to connect to %v: %v", localhost, err)
+		t.Fatal(err)
 	}
 
-	if err := relay.Publish(ctx, DVMreq); err != nil {
-		t.Fatalf("failed to publish to %v: %v", localhost, err)
+	if err := checkFormat(res, expectedKind, expectedTags); err != nil {
+		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	// waiting a little bit to give it time to process
-	time.Sleep(500 * time.Millisecond)
-
-	// step 2. querying for the DVM response
-	filter := nostr.Filter{
-		Tags: nostr.TagMap{
-			"e": {DVMreq.ID},
-		},
+	var ranks dvm.RankResponses
+	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
+		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	var DVMres *nostr.Event
-	var counter int
-
-	ch, err := relay.QueryEvents(ctx, filter)
-	for event := range ch {
-		DVMres = event
-		counter++
-	}
-
-	if counter != 1 {
-		t.Fatalf("expected exactly one event, got %v", counter)
-	}
-
-	if DVMres.Kind != dvm.KindVerifyReputation+1000 {
-		t.Errorf("expected DVM response to have kind %d, got %d", dvm.KindVerifyReputation+1000, DVMres.Kind)
-		t.Fatalf("DVM res: %v", DVMres)
-	}
-
-	var ranks []dvm.RankResponse
-	if err := json.Unmarshal([]byte(DVMres.Content), &ranks); err != nil {
-		t.Errorf("failed to unmarshal the DVM response content: %v", err)
-	}
-
-	if ranks[0].Pubkey != fran {
+	pubkeys, _ := ranks.Unpack()
+	if pubkeys[0] != fran {
 		t.Errorf("the first pubkey should be the target %s", fran)
 	}
 
-	// step 3. checking each pubkey follows target.
-	if err := checkFollowers(ranks[1:], fran); err != nil {
+	if err := checkPubkeysFollowTarget(pubkeys[1:], fran); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDVM_SortAuthors(t *testing.T) {
 	// step 1. publishing a DVM request
-	DVMreq := nostr.Event{
+	req := &nostr.Event{
 		Kind: dvm.KindSortAuthors,
 		Tags: nostr.Tags{
 			{"param", "source", odell},
@@ -114,135 +90,86 @@ func TestDVM_SortAuthors(t *testing.T) {
 		},
 	}
 
-	expectedSortedPubkeys := []string{calle, fran, randomKey}
-
 	sk := nostr.GeneratePrivateKey()
-	if err := DVMreq.Sign(sk); err != nil {
+	pk, err := nostr.GetPublicKey(sk)
+	if err != nil {
+		t.Fatalf("failed to get pk from sk: %v", err)
+	}
+
+	if err := req.Sign(sk); err != nil {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	expectedSorted := []string{calle, fran, randomKey}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}}
+	expectedKind := req.Kind + 1000
 
-	relay, err := nostr.RelayConnect(ctx, localhost)
+	res, err := dvmResponse(req, localhost)
 	if err != nil {
-		t.Fatalf("failed to connect to %v: %v", localhost, err)
+		t.Fatal(err)
 	}
 
-	if err := relay.Publish(ctx, DVMreq); err != nil {
-		t.Fatalf("failed to publish to %v: %v", localhost, err)
+	if err := checkFormat(res, expectedKind, expectedTags); err != nil {
+		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	// waiting a little bit to give it time to process
-	time.Sleep(500 * time.Millisecond)
-
-	// step 2. querying for the DVM response
-	filter := nostr.Filter{
-		Tags: nostr.TagMap{
-			"e": {DVMreq.ID},
-		},
-	}
-
-	var DVMres *nostr.Event
-	var counter int
-
-	ch, err := relay.QueryEvents(ctx, filter)
-	for event := range ch {
-		DVMres = event
-		counter++
-	}
-
-	if counter != 1 {
-		t.Fatalf("expected exactly one event, got %v", counter)
-	}
-
-	if DVMres.Kind != dvm.KindSortAuthors+1000 {
-		t.Errorf("expected DVM response to have kind %d, got %d", dvm.KindSortAuthors+1000, DVMres.Kind)
-		t.Fatalf("DVM res: %v", DVMres)
-	}
-
-	var ranks []dvm.RankResponse
-	if err := json.Unmarshal([]byte(DVMres.Content), &ranks); err != nil {
+	var ranks dvm.RankResponses
+	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
 		t.Errorf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	pubkeys := make([]string, len(ranks))
-	for i, rank := range ranks {
-		pubkeys[i] = rank.Pubkey
-	}
-
-	if !reflect.DeepEqual(pubkeys, expectedSortedPubkeys) {
-		t.Fatalf("expected sorted pubkeys %v, got %v", expectedSortedPubkeys, pubkeys)
+	sorted, _ := ranks.Unpack()
+	if !reflect.DeepEqual(sorted, expectedSorted) {
+		t.Errorf("sorted keys don't match the expected ones")
+		t.Errorf("sorted:")
+		for i, pk := range sorted {
+			t.Errorf("%d) %s", i, pk)
+		}
+		t.Errorf("expected:")
+		for i, pk := range expectedSorted {
+			t.Errorf("%d) %s", i, pk)
+		}
 	}
 }
 
 func TestDVM_RecommendFollows(t *testing.T) {
-	// step 1. publishing a DVM request
-	DVMreq := nostr.Event{
+	req := &nostr.Event{
 		Kind: dvm.KindRecommendFollows,
 		Tags: nostr.Tags{
 			{"param", "source", randomKey},
 		},
 	}
 
-	// this is list is dependent on the database
-	expectedRecommendations := []string{damus, jack, jb55, snowden, odell}
-
 	sk := nostr.GeneratePrivateKey()
-	if err := DVMreq.Sign(sk); err != nil {
+	pk, err := nostr.GetPublicKey(sk)
+	if err != nil {
+		t.Fatalf("failed to get pk from sk: %v", err)
+	}
+
+	if err := req.Sign(sk); err != nil {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	// this list is dependent on the specific database
+	expectedRecommendations := []string{damus, jack, jb55, snowden, odell}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}}
+	expectedKind := req.Kind + 1000
 
-	relay, err := nostr.RelayConnect(ctx, localhost)
+	res, err := dvmResponse(req, localhost)
 	if err != nil {
-		t.Fatalf("failed to connect to %v: %v", localhost, err)
+		t.Fatal(err)
 	}
 
-	if err := relay.Publish(ctx, DVMreq); err != nil {
-		t.Fatalf("failed to publish to %v: %v", localhost, err)
+	if err := checkFormat(res, expectedKind, expectedTags); err != nil {
+		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	// waiting a little bit to give it time to process
-	time.Sleep(500 * time.Millisecond)
-
-	// step 2. querying for the DVM response
-	filter := nostr.Filter{
-		Tags: nostr.TagMap{
-			"e": {DVMreq.ID},
-		},
-	}
-
-	var DVMres *nostr.Event
-	var counter int
-
-	ch, err := relay.QueryEvents(ctx, filter)
-	for event := range ch {
-		DVMres = event
-		counter++
-	}
-
-	if counter != 1 {
-		t.Fatalf("expected exactly one event, got %v", counter)
-	}
-
-	if DVMres.Kind != dvm.KindRecommendFollows+1000 {
-		t.Errorf("expected DVM response to have kind %d, got %d", dvm.KindRecommendFollows+1000, DVMres.Kind)
-		t.Fatalf("DVM res: %v", DVMres)
-	}
-
-	var ranks []dvm.RankResponse
-	if err := json.Unmarshal([]byte(DVMres.Content), &ranks); err != nil {
+	var ranks dvm.RankResponses
+	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
 		t.Errorf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	recommendations := make([]string, len(ranks))
-	for i, rank := range ranks {
-		recommendations[i] = rank.Pubkey
-	}
-
+	recommendations, _ := ranks.Unpack()
 	if !reflect.DeepEqual(recommendations, expectedRecommendations) {
 		t.Errorf("recommendations don't match the expected ones")
 		t.Errorf("recommendations:")
@@ -254,14 +181,50 @@ func TestDVM_RecommendFollows(t *testing.T) {
 			t.Errorf("%d) %s", i, pk)
 		}
 	}
-
 }
 
-// checkFollowers() and checks that each of the pubkeys listed in the response follows the target.
-func checkFollowers(ranks []dvm.RankResponse, target string) error {
-	pubkeys := make([]string, len(ranks))
-	for i, rank := range ranks {
-		pubkeys[i] = rank.Pubkey
+// -----------------------------------HELPERS----------------------------------
+
+// dvmResponse() connects to the relay, send the request and fetches the response using the request ID.
+func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	relay, err := nostr.RelayConnect(ctx, relayURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to %s: %w", relayURL, err)
+	}
+
+	if err := relay.Publish(ctx, *req); err != nil {
+		return nil, fmt.Errorf("failed to publish to %s: %v", relayURL, err)
+	}
+
+	filter := nostr.Filter{
+		Tags: nostr.TagMap{
+			"e": {req.ID},
+		},
+	}
+
+	var counter int
+	ch, err := relay.QueryEvents(ctx, filter)
+	for event := range ch {
+		res = event
+		counter++
+	}
+
+	if counter != 1 {
+		return nil, fmt.Errorf("expected exactly one response, got %v", counter)
+	}
+
+	return res, nil
+}
+
+// checkPubkeysFollowTarget() checks that each of the pubkeys listed in the response follows the target.
+func checkPubkeysFollowTarget(pubkeys []string, target string) error {
+	for _, pk := range pubkeys {
+		if !nostr.IsValidPublicKey(pk) {
+			return fmt.Errorf("%s is not a valid public key", pk)
+		}
 	}
 
 	// now we query the relays for the follow-lists of the pubkeys contained in the response
@@ -297,9 +260,39 @@ func checkFollowers(ranks []dvm.RankResponse, target string) error {
 	for pubkey, event := range newest {
 		follows := crawler.ParsePubkeys(event)
 		if !slices.Contains(follows, target) {
-			return fmt.Errorf("%v doesn't follow %v, but the response showed otherwise:\n\n %v", pubkey, fran, ranks)
+			return fmt.Errorf("%v doesn't follow %v, but the response showed otherwise", pubkey, target)
 		}
 	}
 
 	return nil
+}
+
+// checkFormat() checks that the "format" (tags) of the event matches what it should be.
+func checkFormat(event *nostr.Event, kind int, tags nostr.Tags) error {
+	if event == nil {
+		return fmt.Errorf("nil event")
+	}
+
+	if event.Kind != kind {
+		return fmt.Errorf("expected kind %d, got %d", kind, event.Kind)
+	}
+
+	for _, t := range tags {
+		if !contains(event.Tags, t) {
+			return fmt.Errorf("the tag %v is not present in the event's tags", t)
+		}
+	}
+
+	return nil
+}
+
+// contains() returns whether tags contains a specified tag
+func contains(tags nostr.Tags, tag nostr.Tag) bool {
+	for _, t := range tags {
+		if reflect.DeepEqual(tag, t) {
+			return true
+		}
+	}
+
+	return false
 }
