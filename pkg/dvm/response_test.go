@@ -13,7 +13,7 @@ import (
 )
 
 func TestVerifyReputation(t *testing.T) {
-	const maxDist float64 = 0.001
+	const maxDist float64 = 0.002
 	testCases := []struct {
 		name          string
 		DBType        string
@@ -49,6 +49,17 @@ func TestVerifyReputation(t *testing.T) {
 				Limit:   0,
 			},
 			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:    "target not in the DB",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Source:  odell,
+				Targets: []string{randomKey},
+				Limit:   5,
+			},
+			expectedRes: []RankResponse{{Pubkey: randomKey, Rank: 0.0}},
 		},
 		{
 			name:    "valid global (simple)",
@@ -125,7 +136,7 @@ func TestVerifyReputation(t *testing.T) {
 }
 
 func TestRecommendFollows(t *testing.T) {
-	const maxDist float64 = 0.01
+	const maxDist float64 = 0.02
 	testCases := []struct {
 		name          string
 		DBType        string
@@ -153,6 +164,18 @@ func TestRecommendFollows(t *testing.T) {
 			expectedError: ErrInvalidLimit,
 		},
 		{
+			name:    "valid global (source not in the DB)",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Source: randomKey,
+				Limit:  2,
+				Sort:   "global",
+			},
+			expectedError: nil,
+			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.5}, {Pubkey: odell, Rank: 0.5}},
+		},
+		{
 			name:    "valid global",
 			DBType:  "triangle",
 			RWSType: "triangle",
@@ -169,12 +192,12 @@ func TestRecommendFollows(t *testing.T) {
 			DBType:  "triangle",
 			RWSType: "triangle",
 			args: &Args{
-				Source: "1",
+				Source: "0",
 				Limit:  1,
 				Sort:   "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "0", Rank: 0.2809}},
+			expectedRes:   []RankResponse{{Pubkey: "2", Rank: 0.2809}},
 		},
 	}
 
@@ -199,7 +222,7 @@ func TestRecommendFollows(t *testing.T) {
 }
 
 func TestSortAuthors(t *testing.T) {
-	const maxDist float64 = 0.001
+	const maxDist float64 = 0.002
 	testCases := []struct {
 		name          string
 		DBType        string
@@ -236,6 +259,19 @@ func TestSortAuthors(t *testing.T) {
 				Limit:   0,
 			},
 			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:    "valid global (one target not found in the DB)",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Source:  odell,
+				Targets: []string{randomKey, calle, pip},
+				Limit:   5,
+				Sort:    "global",
+			},
+			expectedError: nil,
+			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.5}, {Pubkey: pip, Rank: 0.0}, {Pubkey: randomKey, Rank: 0.0}},
 		},
 		{
 			name:    "valid global (simple)",

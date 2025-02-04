@@ -12,16 +12,6 @@ import (
 )
 
 var (
-	DefaultSort string = "global"
-	ValidSorts         = []string{"personalized", "global"}
-
-	DefaultDistance uint64 = 0 // meaning no constrain on the distance
-	MaxDistance     uint64 = 5
-	DefaultLimit    uint64 = 5
-	MaxLimit        uint64 = 1000
-)
-
-var (
 	// parsing errors
 	ErrNilEvent          error = errors.New("nil event pointer")
 	ErrInvalidKind       error = errors.New("invalid kind; we support kinds 5312 to 5314")
@@ -42,6 +32,16 @@ var (
 	ErrKeyNotFound       error = errors.New("pubkey was not found")
 )
 
+var (
+	DefaultSort string = "global"
+	ValidSorts         = []string{"personalized", "global"}
+
+	DefaultDistance int = 0 // meaning no constrain on the distance
+	MaxDistance     int = 5
+	DefaultLimit    int = 5
+	MaxLimit        int = 1000
+)
+
 // The Args structure contains the general input parameters for our service.
 type Args struct {
 	// copied from the request event
@@ -52,8 +52,8 @@ type Args struct {
 	Source   string   `json:"source,omitempty"`
 	Targets  []string `json:"targets,omitempty"`
 	Sort     string   `json:"sort,omitempty"`
-	Distance uint64   `json:"distance,omitempty"`
-	Limit    uint64   `json:"limit,omitempty"`
+	Distance int      `json:"distance,omitempty"`
+	Limit    int      `json:"limit,omitempty"`
 	// RequireProof    bool
 }
 
@@ -117,9 +117,13 @@ func Parse(req *nostr.Event) (*Args, error) {
 			args.Sort = val
 
 		case "distance":
-			d, err := strconv.ParseUint(val, 10, 32)
+			d, err := strconv.Atoi(val)
 			if err != nil {
 				return defaultArgs, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
+			}
+
+			if d < 1 {
+				return defaultArgs, fmt.Errorf("%w: distance must be grater than one", ErrInvalidDistance)
 			}
 
 			if d > MaxDistance {
@@ -128,9 +132,13 @@ func Parse(req *nostr.Event) (*Args, error) {
 			args.Distance = d
 
 		case "limit":
-			l, err := strconv.ParseUint(val, 10, 32)
+			l, err := strconv.Atoi(val)
 			if err != nil {
 				return defaultArgs, fmt.Errorf("%w: limit = %v", ErrBadlyFormattedInt, val)
+			}
+
+			if l < 1 {
+				return defaultArgs, fmt.Errorf("%w: distance must be grater than one", ErrInvalidDistance)
 			}
 
 			if l > MaxLimit {

@@ -45,6 +45,13 @@ func ResponseEvent(res []RankResponse, requestID, requestPubkey string, requestK
 		tags = append(tags, nostr.Tag{"p", requestPubkey})
 	}
 
+	if len(res) >= 1 && requestKind == KindVerifyReputation && requestID == "" {
+		// this is a nasty trick to mantain backwards compatibility with Zapstore,
+		// that should be removed as soon as Zapstore upgreades to the new format for VerifyReputation.
+		// requestID == "" iff REQ is used.
+		res = res[1:]
+	}
+
 	jsonBytes, err := json.Marshal(res)
 	if err != nil {
 		return ErrorEvent(err.Error(), requestID, requestPubkey)
@@ -59,7 +66,7 @@ func ResponseEvent(res []RankResponse, requestID, requestPubkey string, requestK
 	}
 }
 
-// VerifyReputationEvent() returns the relevent-who-follow event from the specified args.
+// VerifyReputationEvent() returns the verify reputation event from the specified args.
 func VerifyReputationEvent(
 	ctx context.Context,
 	DB models.Database,
@@ -67,6 +74,21 @@ func VerifyReputationEvent(
 	args *Args) *nostr.Event {
 
 	res, err := VerifyReputation(ctx, DB, RWS, args)
+	if err != nil {
+		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
+	}
+
+	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
+}
+
+// SortAuthorsEvent() returns the sorted authors event from the specified args.
+func SortAuthorsEvent(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	args *Args) *nostr.Event {
+
+	res, err := SortAuthors(ctx, DB, RWS, args)
 	if err != nil {
 		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}

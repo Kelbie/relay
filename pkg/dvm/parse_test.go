@@ -10,10 +10,11 @@ import (
 
 // pubkeys for testing purposes
 const (
-	fran  string = "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11"
-	odell string = "04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"
-	calle string = "50d94fc2d8580c682b071a542f8b1e31a200b0508bab95a33bef0855df281d63"
-	pip   string = "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"
+	fran      string = "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11"
+	odell     string = "04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"
+	calle     string = "50d94fc2d8580c682b071a542f8b1e31a200b0508bab95a33bef0855df281d63"
+	pip       string = "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"
+	randomKey string = "d5ad3d3115d9fa07500b06ccd0b9605d9888a206acba20a1e2e681ec29109387"
 )
 
 func TestParseArgs(t *testing.T) {

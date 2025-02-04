@@ -60,7 +60,7 @@ func VerifyReputation(
 	// To avoid the possibility of target being in the second group as well, we remove its key from the rankMap.
 	nodeRanks := pairs{{ID: *target, rank: rankMap[*target]}}
 	delete(rankMap, *target)
-	nodeRanks = append(nodeRanks, topPairs(rankMap, int(args.Limit))...)
+	nodeRanks = append(nodeRanks, topPairs(rankMap, args.Limit)...)
 
 	res, err := buildResponse(ctx, DB, nodeRanks)
 	if err != nil {
@@ -83,29 +83,41 @@ func SortAuthors(
 		return nil, fmt.Errorf("SortAuthors: %w", err)
 	}
 
+	args.Limit = min(args.Limit, len(args.Targets))
+
 	IDs, err := DB.NodeIDs(ctx, append(args.Targets, args.Source)...)
 	if err != nil {
 		return nil, fmt.Errorf("SortAuthors: failed to fetch the IDs of source and targets: %w", err)
 	}
 
-	source := IDs[len(IDs)-1]
-	targets := make([]uint32, 0, len(IDs)-1)
+	var sourceID *uint32 = IDs[len(IDs)-1]
+	var targetIDs []uint32
+	var notFound []string
 	for i := 0; i < len(IDs)-1; i++ {
-		// ignore targets that are nil, which happend iff they are not in the database
 		if IDs[i] != nil {
-			targets = append(targets, *IDs[i])
+			targetIDs = append(targetIDs, *IDs[i])
+		} else {
+			notFound = append(notFound, args.Targets[i])
 		}
 	}
 
-	ranks, err := rankNodes(ctx, DB, RWS, targets, args.Sort, source)
+	ranks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Sort, sourceID)
 	if err != nil {
 		return nil, fmt.Errorf("SortAuthors: %w", err)
 	}
 
-	top := topPairs(ranks, int(args.Limit))
+	top := topPairs(ranks, args.Limit)
 	res, err := buildResponse(ctx, DB, top)
 	if err != nil {
 		return nil, fmt.Errorf("SortAuthors: %w", err)
+	}
+
+	var i int
+	for len(res) < args.Limit {
+		// if the response is shorter than `limit`, "pad" it with pubkeys that are not found
+		// as always, the assumption is that, if a key was not found in our DB, it's not reputable
+		res = append(res, RankResponse{Pubkey: notFound[i], Rank: 0.0})
+		i++
 	}
 
 	return res, nil
@@ -296,11 +308,11 @@ func validateVerifyReputation(args *Args) error {
 	}
 
 	if len(args.Targets) != 1 {
-		return fmt.Errorf("%w: exactly one target must be provided for verify-reputation", ErrInvalidTargets)
+		return fmt.Errorf("%w: exactly one target must be provided for VerifyReputation", ErrInvalidTargets)
 	}
 
-	if args.Limit == 0 {
-		return fmt.Errorf("%w: limit must be strictly greater than zero", ErrInvalidLimit)
+	if args.Limit < 1 {
+		return fmt.Errorf("%w: limit must be greater than one", ErrInvalidLimit)
 	}
 
 	return nil
@@ -311,8 +323,8 @@ func validateRecommendFollows(args *Args) error {
 		return ErrNilArgs
 	}
 
-	if args.Limit == 0 {
-		return fmt.Errorf("%w: limit must be strictly greater than zero", ErrInvalidLimit)
+	if args.Limit < 1 {
+		return fmt.Errorf("%w: limit must be  greater than one", ErrInvalidLimit)
 	}
 
 	return nil
@@ -323,12 +335,12 @@ func validateSortAuthors(args *Args) error {
 		return ErrNilArgs
 	}
 
-	if len(args.Targets) == 0 {
-		return fmt.Errorf("%w: at least one target must be provided for sort-authors", ErrInvalidTargets)
+	if len(args.Targets) < 1 {
+		return fmt.Errorf("%w: at least one target must be provided for SortAuthors", ErrInvalidTargets)
 	}
 
-	if args.Limit == 0 {
-		return fmt.Errorf("%w: limit must be strictly greater than zero", ErrInvalidLimit)
+	if args.Limit < 1 {
+		return fmt.Errorf("%w: limit must be greater than one", ErrInvalidLimit)
 	}
 
 	return nil

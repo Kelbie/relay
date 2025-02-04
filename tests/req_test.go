@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"relay/pkg/dvm"
 	"testing"
 	"time"
@@ -36,8 +37,13 @@ func TestREQ_VerifyReputation(t *testing.T) {
 		t.Fatalf("expected exactly one event, got %v", counter)
 	}
 
+	var ranks []dvm.RankResponse
+	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
+		t.Errorf("failed to unmarshal the DVM response content: %v", err)
+	}
+
 	// step 3. checking the response is consistent, meaning each pubkey follows target.
-	if err := CheckResponseIsConsistent(res, fran); err != nil {
+	if err := checkFollowers(ranks, fran); err != nil {
 		t.Fatal(err)
 	}
 }

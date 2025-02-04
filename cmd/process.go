@@ -39,7 +39,7 @@ func ProcessRequest(
 		res = dvm.RecommendFollowsEvent(ctx, DB, RWS, args)
 
 	case dvm.KindSortAuthors:
-		res = &nostr.Event{Content: "This service is coming soon", Kind: args.Kind + 1000}
+		res = dvm.SortAuthorsEvent(ctx, DB, RWS, args)
 
 	default:
 		return fmt.Errorf("%w: %v", dvm.ErrInvalidKind, args.Kind)
