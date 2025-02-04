@@ -19,7 +19,7 @@ func TestVerifyReputation(t *testing.T) {
 		DBType        string
 		RWSType       string
 		args          *Args
-		expectedRes   []RankResponse
+		expectedRes   RankResponses
 		expectedError error
 	}{
 		{
@@ -59,7 +59,7 @@ func TestVerifyReputation(t *testing.T) {
 				Targets: []string{randomKey},
 				Limit:   5,
 			},
-			expectedRes: []RankResponse{{Pubkey: randomKey, Rank: 0.0}},
+			expectedRes: RankResponses{{Pubkey: randomKey, Rank: 0.0}},
 		},
 		{
 			name:    "valid global (simple)",
@@ -72,7 +72,7 @@ func TestVerifyReputation(t *testing.T) {
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.5}, {Pubkey: odell, Rank: 0.5}},
+			expectedRes:   RankResponses{{Pubkey: calle, Rank: 0.5}, {Pubkey: odell, Rank: 0.5}},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -85,7 +85,7 @@ func TestVerifyReputation(t *testing.T) {
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "2", Rank: 0.33333}, {Pubkey: "1", Rank: 0.33333}},
+			expectedRes:   RankResponses{{Pubkey: "2", Rank: 0.33333}, {Pubkey: "1", Rank: 0.33333}},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -98,7 +98,7 @@ func TestVerifyReputation(t *testing.T) {
 				Sort:    "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.45946}, {Pubkey: odell, Rank: 0.54054}},
+			expectedRes:   RankResponses{{Pubkey: calle, Rank: 0.45946}, {Pubkey: odell, Rank: 0.54054}},
 		},
 		{
 			name:    "valid personalized (triangle)",
@@ -111,7 +111,7 @@ func TestVerifyReputation(t *testing.T) {
 				Sort:    "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "2", Rank: 0.280855199}, {Pubkey: "1", Rank: 0.330417881}},
+			expectedRes:   RankResponses{{Pubkey: "2", Rank: 0.280855199}, {Pubkey: "1", Rank: 0.330417881}},
 		},
 	}
 
@@ -142,7 +142,7 @@ func TestRecommendFollows(t *testing.T) {
 		DBType        string
 		RWSType       string
 		args          *Args
-		expectedRes   []RankResponse
+		expectedRes   RankResponses
 		expectedError error
 	}{
 		{
@@ -173,7 +173,7 @@ func TestRecommendFollows(t *testing.T) {
 				Sort:   "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.5}, {Pubkey: odell, Rank: 0.5}},
+			expectedRes:   RankResponses{{Pubkey: calle, Rank: 0.5}, {Pubkey: odell, Rank: 0.5}},
 		},
 		{
 			name:    "valid global",
@@ -185,7 +185,7 @@ func TestRecommendFollows(t *testing.T) {
 				Sort:   "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "2", Rank: 1.0 / 3.0}},
+			expectedRes:   RankResponses{{Pubkey: "2", Rank: 1.0 / 3.0}},
 		},
 		{
 			name:    "valid personalized",
@@ -197,7 +197,7 @@ func TestRecommendFollows(t *testing.T) {
 				Sort:   "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "2", Rank: 0.2809}},
+			expectedRes:   RankResponses{{Pubkey: "2", Rank: 0.2809}},
 		},
 	}
 
@@ -228,7 +228,7 @@ func TestSortAuthors(t *testing.T) {
 		DBType        string
 		RWSType       string
 		args          *Args
-		expectedRes   []RankResponse
+		expectedRes   RankResponses
 		expectedError error
 	}{
 		{
@@ -271,7 +271,7 @@ func TestSortAuthors(t *testing.T) {
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.5}, {Pubkey: pip, Rank: 0.0}, {Pubkey: randomKey, Rank: 0.0}},
+			expectedRes:   RankResponses{{Pubkey: calle, Rank: 0.5}, {Pubkey: pip, Rank: 0.0}, {Pubkey: randomKey, Rank: 0.0}},
 		},
 		{
 			name:    "valid global (simple)",
@@ -284,7 +284,7 @@ func TestSortAuthors(t *testing.T) {
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: calle, Rank: 0.5}, {Pubkey: pip, Rank: 0.0}},
+			expectedRes:   RankResponses{{Pubkey: calle, Rank: 0.5}, {Pubkey: pip, Rank: 0.0}},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -297,7 +297,7 @@ func TestSortAuthors(t *testing.T) {
 				Sort:    "global",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "0", Rank: 0.33333}, {Pubkey: "1", Rank: 0.33333}, {Pubkey: "2", Rank: 0.33333}},
+			expectedRes:   RankResponses{{Pubkey: "0", Rank: 0.33333}, {Pubkey: "1", Rank: 0.33333}, {Pubkey: "2", Rank: 0.33333}},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -310,7 +310,7 @@ func TestSortAuthors(t *testing.T) {
 				Sort:    "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: odell, Rank: 0.540540541}, {Pubkey: calle, Rank: 0.459459459}, {Pubkey: pip, Rank: 0.0}},
+			expectedRes:   RankResponses{{Pubkey: odell, Rank: 0.540540541}, {Pubkey: calle, Rank: 0.459459459}, {Pubkey: pip, Rank: 0.0}},
 		},
 		{
 			name:    "valid personalized (triangle)",
@@ -323,7 +323,7 @@ func TestSortAuthors(t *testing.T) {
 				Sort:    "personalized",
 			},
 			expectedError: nil,
-			expectedRes:   []RankResponse{{Pubkey: "0", Rank: 0.388726919}, {Pubkey: "1", Rank: 0.330417881}, {Pubkey: "2", Rank: 0.280855199}},
+			expectedRes:   RankResponses{{Pubkey: "0", Rank: 0.388726919}, {Pubkey: "1", Rank: 0.330417881}, {Pubkey: "2", Rank: 0.280855199}},
 		},
 	}
 

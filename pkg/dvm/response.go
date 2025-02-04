@@ -18,13 +18,27 @@ type RankResponse struct {
 	Rank   float64 `json:"rank"`
 }
 
+type RankResponses []RankResponse
+
+func (r RankResponses) Unpack() ([]string, []float64) {
+	pubkeys := make([]string, len(r))
+	ranks := make([]float64, len(r))
+
+	for i, res := range r {
+		pubkeys[i] = res.Pubkey
+		ranks[i] = res.Rank
+	}
+
+	return pubkeys, ranks
+}
+
 // VerifyReputation() returns the rank of the target and its highest ranked followers.
 // All ranks use the specified args.Sort algorithm.
 func VerifyReputation(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *Args) ([]RankResponse, error) {
+	args *Args) (RankResponses, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -42,7 +56,7 @@ func VerifyReputation(
 	if target == nil {
 		// if target is not found in our database, we assume it's a low-reputation key. This heuristic is based
 		// on the fact that to be added to our DB, a key requires only one follows from an active node.
-		return []RankResponse{{Pubkey: args.Targets[0], Rank: 0}}, nil
+		return RankResponses{{Pubkey: args.Targets[0], Rank: 0}}, nil
 	}
 
 	followers, err := DB.Followers(ctx, *target)
@@ -74,7 +88,7 @@ func SortAuthors(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *Args) ([]RankResponse, error) {
+	args *Args) (RankResponses, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -128,7 +142,7 @@ func RecommendFollows(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *Args) ([]RankResponse, error) {
+	args *Args) (RankResponses, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -347,11 +361,11 @@ func validateSortAuthors(args *Args) error {
 }
 
 // buildResponse() replaces IDs with pubkeys and returns RankResponses
-func buildResponse(ctx context.Context, DB models.Database, nodeRanks pairs) ([]RankResponse, error) {
+func buildResponse(ctx context.Context, DB models.Database, nodeRanks pairs) (RankResponses, error) {
 	if len(nodeRanks) < 1 {
 		// if nodeRanks is empty, we return an empty response. This can happen for example when calling
 		// SortAuthors and all args.Targets are not present in our DB.
-		return []RankResponse{}, nil
+		return RankResponses{}, nil
 	}
 
 	IDs, ranks := nodeRanks.Unpack()
@@ -360,7 +374,7 @@ func buildResponse(ctx context.Context, DB models.Database, nodeRanks pairs) ([]
 		return nil, fmt.Errorf("%w: buildResponse: failed to convert nodeIDs to pubkeys: %w", ErrComputationFailed, err)
 	}
 
-	res := make([]RankResponse, len(nodeRanks))
+	res := make(RankResponses, len(nodeRanks))
 	for i, pk := range pubkeys {
 		if pk == nil {
 			return nil, fmt.Errorf("%w: buildResponse: %w ID=%d", ErrComputationFailed, models.ErrNodeNotFoundDB, IDs[i])
@@ -457,7 +471,7 @@ func inefficientTopPairs(m models.PagerankMap, limit int) pairs {
 }
 
 // ResponseDistance() returns the L1 distance between two RankResponses.
-func ResponseDistance(res1, res2 []RankResponse) float64 {
+func ResponseDistance(res1, res2 RankResponses) float64 {
 	if len(res1) != len(res2) {
 		return math.MaxFloat64
 	}
