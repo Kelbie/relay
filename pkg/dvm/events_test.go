@@ -32,6 +32,21 @@ func TestResponseEvent(t *testing.T) {
 			},
 		},
 		{
+			name:   "empty res",
+			res:    []RankResponse{},
+			kind:   KindSortAuthors,
+			ID:     "xxx",
+			pubkey: fran,
+			expectedEvent: &nostr.Event{
+				Content: "[]",
+				Kind:    KindSortAuthors + 1000,
+				Tags: nostr.Tags{
+					{"e", "xxx"},
+					{"p", fran},
+				},
+			},
+		},
+		{
 			name:   "valid",
 			res:    []RankResponse{{Pubkey: "abc", Rank: 0.1}, {Pubkey: "123", Rank: 0.2}},
 			kind:   KindSortAuthors,
