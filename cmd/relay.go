@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -43,6 +44,8 @@ func main() {
 
 	log = logger.New(os.Stdout)
 	relay.Log.SetOutput(os.Stdout)
+	nostr.DebugLogger.SetOutput(os.Stdout)
+	nostr.InfoLogger.SetOutput(io.Discard) // discarding info logs
 
 	PrintTitle(log)
 	defer PrintShutdown(log)
