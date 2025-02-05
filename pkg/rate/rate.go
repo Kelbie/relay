@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultFreeTokens int           = 100
+	DefaultFreeTokens int           = 30
 	DefaultInterval   time.Duration = 24 * time.Hour
 )
 
