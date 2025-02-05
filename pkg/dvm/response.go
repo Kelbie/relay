@@ -154,10 +154,10 @@ func RecommendFollows(
 	var ranks models.PagerankMap
 	var err error
 	switch args.Sort {
-	case "global":
+	case "globalPagerank":
 		ranks, err = recommendFollowsGlobal(ctx, DB, RWS, args.Source)
 
-	case "personalized":
+	case "personalizedPagerank":
 		limit := int(min(args.Limit, 30))
 		ranks, err = recommendFollowsPersonalized(ctx, DB, RWS, args.Source, limit)
 
@@ -179,7 +179,7 @@ func RecommendFollows(
 }
 
 // rankNodes() associates a rank to each target by applying the specified algorithm.
-// If the algorithm is personalized, it uses the provided source.
+// If the algorithm is personalizedPagerank, it uses the provided source.
 func rankNodes(
 	ctx context.Context,
 	DB models.Database,
@@ -196,20 +196,20 @@ func rankNodes(
 	var err error
 
 	switch algorithm {
-	case "global":
+	case "globalPagerank":
 		ranks, err = pagerank.Global(ctx, RWS, targets...)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to sort with global pagerank %v", ErrComputationFailed, err)
+			return nil, fmt.Errorf("%w: failed to sort with globalPagerank pagerank %v", ErrComputationFailed, err)
 		}
 
-	case "personalized":
+	case "personalizedPagerank":
 		if source == nil {
 			return nil, fmt.Errorf("source %w", ErrKeyNotFound)
 		}
 
 		pp, err := pagerank.Personalized(ctx, DB, RWS, *source, 100)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to sort with personalized pagerank %v", ErrComputationFailed, err)
+			return nil, fmt.Errorf("%w: failed to sort with personalizedPagerank pagerank %v", ErrComputationFailed, err)
 		}
 
 		ranks = make(models.PagerankMap, len(targets))
@@ -264,7 +264,7 @@ func recommendFollowsGlobal(
 
 	ranks, err := pagerank.Global(ctx, RWS, candidates...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to recommend with global pagerank: %w", err)
+		return nil, fmt.Errorf("failed to recommend with globalPagerank pagerank: %w", err)
 	}
 
 	for _, ID := range avoid {
@@ -306,7 +306,7 @@ func recommendFollowsPersonalized(
 
 	ranks, err := pagerank.Personalized(ctx, DB, RWS, node.ID, uint16(limit))
 	if err != nil {
-		return nil, fmt.Errorf("failed to recommend with personalized pagerank: %w", err)
+		return nil, fmt.Errorf("failed to recommend with personalizedPagerank pagerank: %w", err)
 	}
 
 	for _, ID := range avoid {

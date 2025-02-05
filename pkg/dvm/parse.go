@@ -21,7 +21,7 @@ var (
 	ErrBadlyFormattedInt error = errors.New("badly formatted unsigned integer")
 
 	// value errors
-	ErrInvalidSortOption error = errors.New("sort must be one between 'global', 'personalized'")
+	ErrInvalidSortOption error = errors.New("sort must be one between 'globalPagerank', 'personalizedPagerank'")
 	ErrInvalidTargets    error = errors.New("invalid targets")
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidDistance   error = errors.New("invalid distance")
@@ -33,8 +33,9 @@ var (
 )
 
 var (
-	DefaultSort string = "global"
-	ValidSorts         = []string{"personalized", "global"}
+	// DVM parameters and defaults
+	DefaultSort string = "globalPagerank"
+	ValidSorts         = []string{"globalPagerank", "personalizedPagerank"}
 
 	DefaultDistance int = 0 // meaning no constrain on the distance
 	MaxDistance     int = 5
@@ -42,7 +43,7 @@ var (
 	MaxLimit        int = 1000
 )
 
-// The Args structure contains the general input parameters for our service.
+// The Args structure contains the general input parameters for our services.
 type Args struct {
 	// copied from the request event
 	ID     string
