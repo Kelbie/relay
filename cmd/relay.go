@@ -55,29 +55,29 @@ func main() {
 	secret := env("SK")
 	pubkey, err := nostr.GetPublicKey(secret)
 	if err != nil {
-		panic("failed to get pubkey:" + err.Error())
+		panic("failed to get pubkey: " + err.Error())
 	}
 
 	// initialize relay datastore, for events and white-listing.
 	db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
 	if err := db.Init(); err != nil {
-		panic("failed to initialize database" + err.Error())
+		panic("failed to initialize database: " + err.Error())
 	}
 	log.Info("sqlite database connected")
 
 	if err := RelayManagementInit(ctx, db, relay); err != nil {
-		panic("failed to initialize relay management" + err.Error())
+		panic("failed to initialize relay management: " + err.Error())
 	}
 
 	// initialize redis connection used for computing responses
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
 	if err != nil {
-		panic("redis failed to connect " + err.Error())
+		panic("redis failed to connect: " + err.Error())
 	}
 	RWS, err := redistore.NewRWSConnection(ctx, redis)
 	if err != nil {
-		panic("redis failed to connect" + err.Error())
+		panic("redis failed to connect: " + err.Error())
 	}
 	log.Info("redis connected")
 
