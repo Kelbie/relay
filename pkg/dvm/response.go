@@ -291,10 +291,6 @@ func recommendFollowsPersonalized(
 	case node == nil:
 		return nil, fmt.Errorf("failed to fetch the ID of source: node is nil")
 
-	case node.Status == models.StatusInactive:
-		// if the node is inactive, we don't have reliable data thus we prefer not to give any recommendation
-		return nil, fmt.Errorf("we don't have reliable data for the source %s", source)
-
 	default:
 		follows, err := DB.Follows(ctx, node.ID)
 		if err != nil {
