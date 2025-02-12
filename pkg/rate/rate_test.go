@@ -40,7 +40,7 @@ func TestBucket(t *testing.T) {
 				tokens:  10,
 				lastReq: time.Now().Add(-DefaultInterval),
 			},
-			cost:           69,
+			cost:           DefaultFreeTokens,
 			expectedReject: false,
 		},
 	}
