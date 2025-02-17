@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"relay/pkg/eventstore"
 
-	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
 	"github.com/nbd-wtf/go-nostr/nip86"
 )
@@ -11,7 +12,7 @@ import (
 // RelayManagementInit() initializes the NIP-86 relay management API.
 func RelayManagementInit(
 	ctx context.Context,
-	db *sqlite3.SQLite3Backend,
+	db *eventstore.Store,
 	relay *khatru.Relay) error {
 
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS authorized_keys(
@@ -33,9 +34,19 @@ func RelayManagementInit(
 	)
 
 	relay.ManagementAPI.ListAllowedPubKeys = func(ctx context.Context) ([]nip86.PubKeyReason, error) {
+		rows, err := db.QueryContext(ctx, "SELECT * FROM authorized_keys")
+		if err != nil {
+			return nil, fmt.Errorf("failed to lookup authorized keys: %w", err)
+		}
+
 		var reasons []nip86.PubKeyReason
-		if err := db.Select(&reasons, "SELECT pubkey, reason FROM authorized_keys"); err != nil {
-			return nil, err
+		for rows.Next() {
+			var pubkey, reason string
+			if err := rows.Scan(&pubkey, &reason); err != nil {
+				return nil, fmt.Errorf("failed to lookup authorized keys: %w", err)
+			}
+
+			reasons = append(reasons, nip86.PubKeyReason{PubKey: pubkey, Reason: reason})
 		}
 
 		return reasons, nil

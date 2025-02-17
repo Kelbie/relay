@@ -9,14 +9,13 @@ import (
 	"os"
 	"os/signal"
 	"relay/pkg/dvm"
+	"relay/pkg/eventstore"
 	"relay/pkg/rate"
 	"relay/pkg/req"
 	"strings"
 	"sync/atomic"
 	"syscall"
 
-	"github.com/fiatjaf/eventstore"
-	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/khatru"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/nbd-wtf/go-nostr"
@@ -29,6 +28,7 @@ import (
 var env func(k string, fallback ...string) (v string)
 var log *logger.Aggregate
 var requestCounter = &atomic.Uint32{}
+var db *eventstore.Store
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -59,8 +59,8 @@ func main() {
 	}
 
 	// initialize relay datastore, for events and white-listing.
-	db := &sqlite3.SQLite3Backend{DatabaseURL: "relay.sqlite"}
-	if err := db.Init(); err != nil {
+	db, err = eventstore.New("events.sqlite")
+	if err != nil {
 		panic("failed to initialize database: " + err.Error())
 	}
 	log.Info("sqlite database connected")
@@ -75,6 +75,7 @@ func main() {
 	if err != nil {
 		panic("redis failed to connect: " + err.Error())
 	}
+
 	RWS, err := redistore.NewRWSConnection(ctx, redis)
 	if err != nil {
 		panic("redis failed to connect: " + err.Error())
@@ -94,10 +95,11 @@ func main() {
 		// accept all events from authorized pubkeys
 		pubkeyReasons, err := relay.ManagementAPI.ListAllowedPubKeys(ctx)
 		if err != nil {
-			return true, "failed to fetch list of authorized pubkeys"
+			return true, err.Error()
 		}
-		for _, PR := range pubkeyReasons {
-			if event.PubKey == PR.PubKey {
+
+		for _, pr := range pubkeyReasons {
+			if event.PubKey == pr.PubKey {
 				return false, ""
 			}
 		}
@@ -107,7 +109,7 @@ func main() {
 		return bucket.Reject(1)
 	})
 
-	relay.StoreEvent = append(relay.StoreEvent, db.SaveEvent, func(ctx context.Context, event *nostr.Event) error {
+	relay.StoreEvent = append(relay.StoreEvent, db.Save, func(ctx context.Context, event *nostr.Event) error {
 		args, parsingErr := dvm.Parse(event)
 		err = ProcessRequest(ctx, DB, RWS, args, parsingErr, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
@@ -115,9 +117,7 @@ func main() {
 			}
 
 			relay.BroadcastEvent(res)
-			err := db.SaveEvent(ctx, res)
-			if err != nil && !errors.Is(err, eventstore.ErrDupEvent) {
-				// we don't care if the event is a duplicate
+			if err := db.Save(ctx, res); err != nil {
 				return fmt.Errorf("error saving response eventID: %v, %v", res.ID, err)
 			}
 
@@ -130,10 +130,12 @@ func main() {
 		}
 		return nil
 	})
-	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent)
-	relay.QueryEvents = append(relay.QueryEvents, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	relay.DeleteEvent = append(relay.DeleteEvent, func(ctx context.Context, event *nostr.Event) error {
+		return db.Delete(ctx, event.ID)
+	})
+	relay.QueryEvents = append(relay.QueryEvents, QueryNoSearch, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 		if filter.Search == "" {
-			return db.QueryEvents(ctx, filter)
+			return nil, nil
 		}
 
 		args, err := req.Parse(&filter)
@@ -148,13 +150,11 @@ func main() {
 
 		err = ProcessRequest(ctx, DB, RWS, args, err, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
-				return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+				return fmt.Errorf("failed to sign eventID %v: %v", res.ID, err)
 			}
 
-			err := db.SaveEvent(ctx, res)
-			if err != nil && !errors.Is(err, eventstore.ErrDupEvent) {
-				// we don't care if the event is a duplicate
-				log.Error("error saving response eventID: %v, %v", res.ID, err)
+			if err := db.Save(ctx, res); err != nil {
+				log.Error("failed to save eventID: %v, %v", res.ID, err)
 			}
 
 			ch <- res
@@ -163,7 +163,7 @@ func main() {
 
 		if err != nil {
 			log.Error("error processing event: %v", err)
-			return nil, fmt.Errorf("error processing event: %v", err)
+			return nil, fmt.Errorf("error processing event: %w", err)
 		}
 		return ch, nil
 	})
@@ -184,6 +184,29 @@ func main() {
 }
 
 // ---------------------------------HELPERS-------------------------------------
+
+// QueryNoSearch() simply translates the slice of events returned by db.Query
+// into a channel, making it compatible with Khatru.
+func QueryNoSearch(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+
+	if filter.Search != "" {
+		return nil, nil
+	}
+
+	events, err := db.Query(ctx, &filter)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan *nostr.Event, len(events))
+	defer close(ch)
+
+	for _, e := range events {
+		ch <- &e
+	}
+
+	return ch, nil
+}
 
 func RejectNonDVMs(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
 	if event.Kind < 5312 || event.Kind > 5314 {

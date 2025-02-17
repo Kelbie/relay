@@ -5,7 +5,6 @@ go 1.23.3
 replace github.com/vertex-lab/crawler => ../crawler
 
 require (
-	github.com/fiatjaf/eventstore v0.15.0
 	github.com/fiatjaf/khatru v0.15.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.24
@@ -16,7 +15,6 @@ require (
 )
 
 require (
-	fiatjaf.com/lib v0.2.0 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
@@ -29,7 +27,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fasthttp/websocket v1.5.7 // indirect
-	github.com/jmoiron/sqlx v1.4.0 // indirect
+	github.com/fiatjaf/eventstore v0.15.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
