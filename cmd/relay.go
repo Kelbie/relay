@@ -88,7 +88,7 @@ func main() {
 	relay.Info.Software = "Vertex Relay based on Khatru"
 	relay.Info.Version = "0.0.1"
 	relay.Info.PubKey = pubkey
-	relay.Info.SupportedNIPs = []int{11, 42, 86, 90}
+	relay.Info.SupportedNIPs = []any{11, 42, 86, 90}
 
 	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
 		// accept all events from authorized pubkeys
