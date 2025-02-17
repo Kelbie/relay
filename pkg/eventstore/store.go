@@ -15,12 +15,12 @@ import (
 )
 
 var (
+	ErrFilterIsNil    = errors.New("filter is nil")
 	ErrTooManyIDs     = errors.New("too many IDs in filter")
 	ErrTooManyAuthors = errors.New("too many authors in filter")
 	ErrTooManyKinds   = errors.New("too many kinds in filter")
 	ErrTooManyTags    = errors.New("too many tags in filter")
 	ErrEmptyFilter    = errors.New("filter must specify at least one ID, kind, author, tag, or time range")
-	ErrInvalidLimit   = errors.New("filter's limit must be strictly greater than zero")
 
 	// this is used to identify internal query errors, and should not be returned to the client that sent a filter
 	ErrInternalQuery = errors.New("internal query error")
@@ -31,7 +31,9 @@ type QueryLimits struct {
 	maxKinds   int
 	maxAuthors int
 	maxTags    int
-	maxLimit   int
+
+	defaultLimit int
+	maxLimit     int
 }
 
 // NewQueryLimits() returns a default query limits struct.
@@ -41,7 +43,9 @@ func NewQueryLimits() QueryLimits {
 		maxKinds:   10,
 		maxAuthors: 100,
 		maxTags:    5,
-		maxLimit:   50, // the maximum number of events returned per query (using a filter)
+
+		defaultLimit: 10,
+		maxLimit:     50, // the maximum number of events returned per query (using a filter)
 	}
 }
 
@@ -85,18 +89,18 @@ var schema = `CREATE TABLE IF NOT EXISTS events (
 		tokenize = 'trigram',
 	  );
 
-	  CREATE TRIGGER IF NOT EXISTS profiles_ai AFTER INSERT ON events
+	CREATE TRIGGER IF NOT EXISTS profiles_ai AFTER INSERT ON events
 	  WHEN NEW.kind = 0
 	  BEGIN
 	  INSERT INTO profiles_fts (id, pubkey, name, display_name, about, website, nip05)
 	  VALUES (
 	  	NEW.id,
 	  	NEW.pubkey,
-	  	json_extract(NEW.content, '$.name'),
-	  	COALESCE(json_extract(NEW.content, '$.display_name'), json_extract(NEW.content, '$.displayName')),
-	  	json_extract(NEW.content, '$.about'),
-	  	json_extract(NEW.content, '$.website'),
-	  	json_extract(NEW.content, '$.nip05')
+	  	NEW.content ->> '$.name',
+	  	COALESCE( NEW.content ->> '$.display_name', NEW.content ->> '$.displayName'),
+	  	NEW.content ->> '$.about',
+	  	NEW.content ->> '$.website',
+	  	NEW.content ->> '$.nip05'
 	  );
 	  END;
 
@@ -243,7 +247,7 @@ func (s *Store) Query(ctx context.Context, filter *nostr.Filter) ([]nostr.Event,
 
 func (s *Store) validate(filter *nostr.Filter) error {
 	if filter == nil {
-		return fmt.Errorf("filter is nil")
+		return ErrFilterIsNil
 	}
 
 	IDs := len(filter.IDs)
@@ -270,13 +274,14 @@ func (s *Store) validate(filter *nostr.Filter) error {
 		return ErrEmptyFilter
 	}
 
-	if filter.Limit < 1 {
-		return fmt.Errorf("%w: limit = %d", ErrInvalidLimit, filter.Limit)
+	if filter.Limit > s.maxLimit {
+		// overwrite the limit with the maximum allowed
+		filter.Limit = s.maxLimit
 	}
 
-	if filter.Limit > s.maxLimit {
-		// overwrite the limit in the filter
-		filter.Limit = s.maxLimit
+	if filter.Limit < 1 {
+		// overwrite the limit with the default value
+		filter.Limit = s.defaultLimit
 	}
 
 	return nil
@@ -326,7 +331,14 @@ func buildQuery(filter *nostr.Filter) (string, []any) {
 				continue
 			}
 
-			tagCond = append(tagCond, "EXISTS ( SELECT 1 FROM json_each(tags, '$."+key+"') WHERE json_each.value IN "+ValueList(len(vals))+" )")
+			tagCond = append(tagCond,
+				`EXISTS (
+					SELECT 1 FROM json_each(tags) 
+					WHERE json_each.value ->> 0 = ? 
+					AND json_each.value ->> 1 IN `+ValueList(len(vals))+
+					` )`)
+
+			args = append(args, key)
 			for _, val := range vals {
 				args = append(args, val)
 			}

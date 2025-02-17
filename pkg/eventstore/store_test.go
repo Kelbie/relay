@@ -2,6 +2,7 @@ package eventstore
 
 import (
 	"context"
+	"errors"
 	"os"
 	"reflect"
 	"testing"
@@ -219,34 +220,94 @@ func TestReplace(t *testing.T) {
 	}
 }
 
-// This test can fail because iterating over the filter.Tags (nostr.TagMap)
-// doesn't preserve the order. Just run it again.
-func TestBuildQuery(t *testing.T) {
-	until := nostr.Timestamp(100)
-	since := nostr.Timestamp(1000)
+var eventWithTags = nostr.Event{
+	ID:        "a124079f5513bd4ffcac887545390a7426e289755c7349d9ccddcda5834d3062",
+	PubKey:    "3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681",
+	Kind:      3,
+	CreatedAt: 1737501677,
+	Tags: nostr.Tags{
+		{"p", "3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"},
+		{"e", "xxxxx"},
+	},
+}
 
-	filter := &nostr.Filter{
-		IDs:     []string{"a", "b", "c"},
-		Kinds:   []int{0, 1, 2, 3, 4},
-		Authors: []string{"pip", "calle", "fran"},
-		Tags: nostr.TagMap{
-			"e": {"id1", "id2", "id3"},
-			"p": {"pk1", "pk2"},
+func TestQuery(t *testing.T) {
+	ctx := context.Background()
+	const URL = "test.sqlite"
+
+	store, err := New(URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(URL)
+
+	if err := store.Save(ctx, &eventWithTags); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		name           string
+		filter         *nostr.Filter
+		expectedErr    error
+		expectedEvents []nostr.Event
+	}{
+		{
+			name:        "nil filter",
+			filter:      nil,
+			expectedErr: ErrFilterIsNil,
 		},
-		Until: &until,
-		Since: &since,
-		Limit: 69,
+		{
+			name:        "empty filter",
+			filter:      &nostr.Filter{},
+			expectedErr: ErrEmptyFilter,
+		},
+		{
+			name:           "ID filter",
+			filter:         &nostr.Filter{IDs: []string{eventWithTags.ID}},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
+		{
+			name:           "Author filter",
+			filter:         &nostr.Filter{Authors: []string{eventWithTags.PubKey}},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
+		{
+			name:           "Kind filter",
+			filter:         &nostr.Filter{Kinds: []int{eventWithTags.Kind}},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
+		{
+			name:           "p Tag filter",
+			filter:         &nostr.Filter{Tags: nostr.TagMap{"p": {"3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"}}},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
+		{
+			name:           "e Tag filter",
+			filter:         &nostr.Filter{Tags: nostr.TagMap{"e": {"xxxxx"}}},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
+		{
+			name:           "since filter",
+			filter:         &nostr.Filter{Since: &eventWithTags.CreatedAt},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
+		{
+			name:           "until filter",
+			filter:         &nostr.Filter{Until: &eventWithTags.CreatedAt},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
 	}
 
-	expectedQuery := "SELECT id, pubkey, created_at, kind, tags, content, sig FROM events WHERE id IN (?,?,?) AND kind IN (?,?,?,?,?) AND pubkey IN (?,?,?) AND created_at <= ? AND created_at >= ? AND ( EXISTS ( SELECT 1 FROM json_each(tags, '$.e') WHERE json_each.value IN (?,?,?) ) OR EXISTS ( SELECT 1 FROM json_each(tags, '$.p') WHERE json_each.value IN (?,?) ) ) ORDER BY created_at DESC, id LIMIT ?"
-	expectedArgs := []any{"a", "b", "c", 0, 1, 2, 3, 4, "pip", "calle", "fran", until.Time().Unix(), since.Time().Unix(), "id1", "id2", "id3", "pk1", "pk2", 69}
-	query, args := buildQuery(filter)
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			events, err := store.Query(ctx, test.filter)
+			if !errors.Is(err, test.expectedErr) {
+				t.Fatalf("expected error %v, got %v", test.expectedErr, err)
+			}
 
-	if query != expectedQuery {
-		t.Errorf("expected query %v,\n got %v", expectedQuery, query)
-	}
-
-	if !reflect.DeepEqual(args, expectedArgs) {
-		t.Errorf("expected args %v,\n got %v", expectedArgs, args)
+			if !reflect.DeepEqual(events, test.expectedEvents) {
+				t.Fatalf("expected events %v,\n got %v", test.expectedEvents, events)
+			}
+		})
 	}
 }

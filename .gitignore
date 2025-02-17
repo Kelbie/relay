@@ -1,5 +1,5 @@
 **/*.env
-relay.sqlite
+**/*.sqlite
 tmp/
 
 # Ignore all log files
