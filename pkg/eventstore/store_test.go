@@ -219,6 +219,8 @@ func TestReplace(t *testing.T) {
 	}
 }
 
+// This test can fail because iterating over the filter.Tags (nostr.TagMap)
+// doesn't preserve the order. Just run it again.
 func TestBuildQuery(t *testing.T) {
 	until := nostr.Timestamp(100)
 	since := nostr.Timestamp(1000)
@@ -236,7 +238,15 @@ func TestBuildQuery(t *testing.T) {
 		Limit: 69,
 	}
 
-	query, params := buildQuery(filter)
-	t.Errorf("query:\n %v", query)
-	t.Errorf("params:\n %v", params)
+	expectedQuery := "SELECT id, pubkey, created_at, kind, tags, content, sig FROM events WHERE id IN (?,?,?) AND kind IN (?,?,?,?,?) AND pubkey IN (?,?,?) AND created_at <= ? AND created_at >= ? AND ( EXISTS ( SELECT 1 FROM json_each(tags, '$.e') WHERE json_each.value IN (?,?,?) ) OR EXISTS ( SELECT 1 FROM json_each(tags, '$.p') WHERE json_each.value IN (?,?) ) ) ORDER BY created_at DESC, id LIMIT ?"
+	expectedArgs := []any{"a", "b", "c", 0, 1, 2, 3, 4, "pip", "calle", "fran", until.Time().Unix(), since.Time().Unix(), "id1", "id2", "id3", "pk1", "pk2", 69}
+	query, args := buildQuery(filter)
+
+	if query != expectedQuery {
+		t.Errorf("expected query %v,\n got %v", expectedQuery, query)
+	}
+
+	if !reflect.DeepEqual(args, expectedArgs) {
+		t.Errorf("expected args %v,\n got %v", expectedArgs, args)
+	}
 }

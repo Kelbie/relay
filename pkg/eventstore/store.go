@@ -21,6 +21,9 @@ var (
 	ErrTooManyTags    = errors.New("too many tags in filter")
 	ErrEmptyFilter    = errors.New("filter must specify at least one ID, kind, author, tag, or time range")
 	ErrInvalidLimit   = errors.New("filter's limit must be strictly greater than zero")
+
+	// this is used to identify internal query errors, and should not be returned to the client that sent a filter
+	ErrInternalQuery = errors.New("internal query error")
 )
 
 type QueryLimits struct {
@@ -34,11 +37,11 @@ type QueryLimits struct {
 // NewQueryLimits() returns a default query limits struct.
 func NewQueryLimits() QueryLimits {
 	return QueryLimits{
-		maxIDs:     500,
+		maxIDs:     100,
 		maxKinds:   10,
-		maxAuthors: 500,
-		maxTags:    10,
-		maxLimit:   100, // the maximum number of events returned per query (using a filter)
+		maxAuthors: 100,
+		maxTags:    5,
+		maxLimit:   50, // the maximum number of events returned per query (using a filter)
 	}
 }
 
@@ -103,7 +106,7 @@ var schema = `CREATE TABLE IF NOT EXISTS events (
 	  DELETE FROM profiles_fts WHERE id = OLD.id;
 	END;`
 
-// New() returns a new EventStore with default QueryLimits.
+// New() returns a new Store with default QueryLimits.
 func New(DatabaseURL string) (*Store, error) {
 	var s = &Store{QueryLimits: NewQueryLimits()}
 	var err error
@@ -198,6 +201,46 @@ func (s *Store) Replace(ctx context.Context, event *nostr.Event) error {
 	return nil
 }
 
+// Query() queries the database using the provided nostr.Filter.
+// The error it returns is part of one of these three categories:
+//
+// - the filter is invalid (e.g. too many IDs)
+//
+// - the query failed
+//
+// - scanning a row into an event failed
+//
+// In the first two cases, the error should be returned to the client and logged.
+// In the third case, the error should only be logged.
+func (s *Store) Query(ctx context.Context, filter nostr.Filter) ([]nostr.Event, error) {
+	if err := s.validate(&filter); err != nil {
+		return nil, err
+	}
+
+	query, args := buildQuery(filter)
+	rows, err := s.DB.QueryContext(ctx, query, args...)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to fetch events with query %s: %w", query, err)
+	}
+	defer rows.Close()
+
+	var events []nostr.Event
+	for rows.Next() {
+		var event nostr.Event
+		err = rows.Scan(&event.ID, &event.PubKey, &event.CreatedAt, &event.Kind, &event.Tags, &event.Content, &event.Sig)
+
+		if err != nil {
+			// if an error occurs during the scan, it means we have problems with our database.
+			// we should return the events found so far to the client, but no error, which should just be logged.
+			return events, fmt.Errorf("%w: %w", ErrInternalQuery, err)
+		}
+
+		events = append(events, event)
+	}
+
+	return events, nil
+}
+
 func (s *Store) validate(filter *nostr.Filter) error {
 	IDs := len(filter.IDs)
 	if IDs > s.maxIDs {
@@ -235,48 +278,41 @@ func (s *Store) validate(filter *nostr.Filter) error {
 	return nil
 }
 
-// The function valueList() returns n question marks separated by commas and
-// enclosed by parenthesis for SQL value lists in queries. e.g. valueList(4) = "(?,?,?,?)"
-func valueList(n int) string {
-	if n < 1 {
-		return ""
-	}
-	return "(?" + strings.Repeat(",?", n-1) + ")"
-}
-
+// The function buildQuery translates a nostr.Filter into a SQL query and a list
+// of arguments filling the '?' of the former.
 func buildQuery(filter nostr.Filter) (string, []any) {
 	var conditions []string
-	var params []any
+	var args []any
 
 	if len(filter.IDs) > 0 {
-		conditions = append(conditions, "id IN "+valueList(len(filter.IDs)))
+		conditions = append(conditions, "id IN "+ValueList(len(filter.IDs)))
 		for _, ID := range filter.IDs {
-			params = append(params, ID)
+			args = append(args, ID)
 		}
 	}
 
 	if len(filter.Kinds) > 0 {
-		conditions = append(conditions, "kind IN "+valueList(len(filter.Kinds)))
+		conditions = append(conditions, "kind IN "+ValueList(len(filter.Kinds)))
 		for _, kind := range filter.Kinds {
-			params = append(params, kind)
+			args = append(args, kind)
 		}
 	}
 
 	if len(filter.Authors) > 0 {
-		conditions = append(conditions, "pubkey IN "+valueList(len(filter.Authors)))
+		conditions = append(conditions, "pubkey IN "+ValueList(len(filter.Authors)))
 		for _, author := range filter.Authors {
-			params = append(params, author)
+			args = append(args, author)
 		}
 	}
 
 	if filter.Until != nil {
 		conditions = append(conditions, "created_at <= ?")
-		params = append(params, filter.Until.Time().Unix())
+		args = append(args, filter.Until.Time().Unix())
 	}
 
 	if filter.Since != nil {
 		conditions = append(conditions, "created_at >= ?")
-		params = append(params, filter.Since.Time().Unix())
+		args = append(args, filter.Since.Time().Unix())
 	}
 
 	if len(filter.Tags) > 0 {
@@ -286,27 +322,27 @@ func buildQuery(filter nostr.Filter) (string, []any) {
 				continue
 			}
 
-			tagCond = append(tagCond, "json_extract(tags, '$."+key+"') IN "+valueList((len(vals))))
+			tagCond = append(tagCond, "EXISTS ( SELECT 1 FROM json_each(tags, '$."+key+"') WHERE json_each.value IN "+ValueList(len(vals))+" )")
 			for _, val := range vals {
-				params = append(params, val)
+				args = append(args, val)
 			}
 		}
 
 		// tag conditions are OR-ed together
-		conditions = append(conditions, "("+strings.Join(tagCond, " OR ")+")")
+		conditions = append(conditions, "( "+strings.Join(tagCond, " OR ")+" )")
 	}
 
-	params = append(params, filter.Limit)
+	args = append(args, filter.Limit)
 	query := "SELECT id, pubkey, created_at, kind, tags, content, sig FROM events WHERE " +
 		strings.Join(conditions, " AND ") + " ORDER BY created_at DESC, id LIMIT ?"
 
-	return query, params
+	return query, args
 }
 
-func (s *Store) Query(ctx context.Context, filter nostr.Filter) ([]nostr.Event, error) {
-	if err := s.validate(&filter); err != nil {
-		return nil, err
-	}
-
-	return nil, nil
+// ValueList() returns n question marks separated by commas and
+// enclosed by parenthesis for SQL value lists in queries. e.g. ValueList(4) = "(?,?,?,?)".
+//
+// WARNING: It panics if n < 1.
+func ValueList(n int) string {
+	return "(?" + strings.Repeat(",?", n-1) + ")"
 }
