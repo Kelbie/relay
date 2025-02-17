@@ -226,8 +226,8 @@ var eventWithTags = nostr.Event{
 	Kind:      3,
 	CreatedAt: 1737501677,
 	Tags: nostr.Tags{
-		{"p", "3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"},
-		{"e", "xxxxx"},
+		{"p", "value"},
+		{"e", "value"},
 	},
 }
 
@@ -278,12 +278,17 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:           "p Tag filter",
-			filter:         &nostr.Filter{Tags: nostr.TagMap{"p": {"3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"}}},
+			filter:         &nostr.Filter{Tags: nostr.TagMap{"p": {"value"}}},
 			expectedEvents: []nostr.Event{eventWithTags},
 		},
 		{
 			name:           "e Tag filter",
-			filter:         &nostr.Filter{Tags: nostr.TagMap{"e": {"xxxxx"}}},
+			filter:         &nostr.Filter{Tags: nostr.TagMap{"e": {"value"}}},
+			expectedEvents: []nostr.Event{eventWithTags},
+		},
+		{
+			name:           "multiple Tags filter",
+			filter:         &nostr.Filter{Tags: nostr.TagMap{"e": {"value"}, "x": {"idk"}}},
 			expectedEvents: []nostr.Event{eventWithTags},
 		},
 		{
