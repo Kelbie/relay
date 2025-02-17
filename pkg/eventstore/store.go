@@ -232,7 +232,7 @@ func (s *Store) Query(ctx context.Context, filter nostr.Filter) ([]nostr.Event, 
 		if err != nil {
 			// if an error occurs during the scan, it means we have problems with our database.
 			// we should return the events found so far to the client, but no error, which should just be logged.
-			return events, fmt.Errorf("%w: %w", ErrInternalQuery, err)
+			return events, fmt.Errorf("%w: failed to scan event row: %w", ErrInternalQuery, err)
 		}
 
 		events = append(events, event)
