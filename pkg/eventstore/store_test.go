@@ -225,7 +225,7 @@ func TestBuildQuery(t *testing.T) {
 	until := nostr.Timestamp(100)
 	since := nostr.Timestamp(1000)
 
-	filter := nostr.Filter{
+	filter := &nostr.Filter{
 		IDs:     []string{"a", "b", "c"},
 		Kinds:   []int{0, 1, 2, 3, 4},
 		Authors: []string{"pip", "calle", "fran"},

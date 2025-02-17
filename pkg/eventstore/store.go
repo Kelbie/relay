@@ -55,7 +55,7 @@ type Profile struct {
 	ID          string
 	Pubkey      string
 	Name        string
-	DisplayName string `db:"display_name"`
+	DisplayName string
 	About       string
 	Website     string
 	Nip05       string
@@ -212,8 +212,8 @@ func (s *Store) Replace(ctx context.Context, event *nostr.Event) error {
 //
 // In the first two cases, the error should be returned to the client and logged.
 // In the third case, the error should only be logged.
-func (s *Store) Query(ctx context.Context, filter nostr.Filter) ([]nostr.Event, error) {
-	if err := s.validate(&filter); err != nil {
+func (s *Store) Query(ctx context.Context, filter *nostr.Filter) ([]nostr.Event, error) {
+	if err := s.validate(filter); err != nil {
 		return nil, err
 	}
 
@@ -242,6 +242,10 @@ func (s *Store) Query(ctx context.Context, filter nostr.Filter) ([]nostr.Event, 
 }
 
 func (s *Store) validate(filter *nostr.Filter) error {
+	if filter == nil {
+		return fmt.Errorf("filter is nil")
+	}
+
 	IDs := len(filter.IDs)
 	if IDs > s.maxIDs {
 		return fmt.Errorf("%w: max %d, requested %d", ErrTooManyIDs, s.maxIDs, IDs)
@@ -280,7 +284,7 @@ func (s *Store) validate(filter *nostr.Filter) error {
 
 // The function buildQuery translates a nostr.Filter into a SQL query and a list
 // of arguments filling the '?' of the former.
-func buildQuery(filter nostr.Filter) (string, []any) {
+func buildQuery(filter *nostr.Filter) (string, []any) {
 	var conditions []string
 	var args []any
 
