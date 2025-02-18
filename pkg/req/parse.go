@@ -46,10 +46,12 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 		return defaultArgs, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
 	}
 
-	// parse source key
-	args.Source, err = dvm.ParseKey(args.Source)
-	if err != nil {
-		return defaultArgs, err
+	// parse source key if provided
+	if args.Source != "" {
+		args.Source, err = dvm.ParseKey(args.Source)
+		if err != nil {
+			return defaultArgs, err
+		}
 	}
 
 	// parse targets in place
