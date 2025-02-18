@@ -3,8 +3,9 @@ package req
 import (
 	"errors"
 	"reflect"
-	"relay/pkg/dvm"
 	"testing"
+
+	"github.com/vertex-lab/relay/pkg/dvm"
 
 	"github.com/nbd-wtf/go-nostr"
 )

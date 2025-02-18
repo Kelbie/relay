@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"relay/pkg/eventstore"
+
+	"github.com/vertex-lab/relay/pkg/eventstore"
 
 	"github.com/fiatjaf/khatru"
 	"github.com/nbd-wtf/go-nostr/nip86"

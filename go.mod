@@ -1,4 +1,4 @@
-module relay
+module github.com/vertex-lab/relay
 
 go 1.23.3
 

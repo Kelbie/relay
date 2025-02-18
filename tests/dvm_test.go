@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"relay/pkg/dvm"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/vertex-lab/relay/pkg/dvm"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/crawler/pkg/crawler"

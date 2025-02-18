@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"relay/pkg/dvm"
 	"slices"
+
+	"github.com/vertex-lab/relay/pkg/dvm"
 
 	"github.com/nbd-wtf/go-nostr"
 )

@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"relay/pkg/dvm"
+
+	"github.com/vertex-lab/relay/pkg/dvm"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/crawler/pkg/models"

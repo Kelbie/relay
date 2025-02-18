@@ -8,13 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"relay/pkg/dvm"
-	"relay/pkg/eventstore"
-	"relay/pkg/rate"
-	"relay/pkg/req"
 	"strings"
 	"sync/atomic"
 	"syscall"
+
+	"github.com/vertex-lab/relay/pkg/dvm"
+	"github.com/vertex-lab/relay/pkg/eventstore"
+	"github.com/vertex-lab/relay/pkg/rate"
+	"github.com/vertex-lab/relay/pkg/req"
 
 	"github.com/fiatjaf/khatru"
 	_ "github.com/joho/godotenv/autoload"

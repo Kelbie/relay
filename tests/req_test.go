@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"relay/pkg/dvm"
 	"testing"
 	"time"
+
+	"github.com/vertex-lab/relay/pkg/dvm"
 
 	"github.com/nbd-wtf/go-nostr"
 )
