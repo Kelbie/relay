@@ -44,8 +44,9 @@ func NewQueryLimits() QueryLimits {
 		maxAuthors: 100,
 		maxTags:    5,
 
+		// the default and maximum number of events returned per query
 		defaultLimit: 10,
-		maxLimit:     50, // the maximum number of events returned per query (using a filter)
+		maxLimit:     50,
 	}
 }
 
@@ -223,7 +224,11 @@ func (s *Store) Query(ctx context.Context, filter *nostr.Filter) ([]nostr.Event,
 
 	query, args := buildQuery(filter)
 	rows, err := s.DB.QueryContext(ctx, query, args...)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+
+	if err != nil {
 		return nil, fmt.Errorf("failed to fetch events with query %s: %w", query, err)
 	}
 	defer rows.Close()
@@ -240,6 +245,10 @@ func (s *Store) Query(ctx context.Context, filter *nostr.Filter) ([]nostr.Event,
 		}
 
 		events = append(events, event)
+	}
+
+	if err := rows.Err(); err != nil {
+		return events, fmt.Errorf("%w: failed to scan event row: %w", ErrInternalQuery, err)
 	}
 
 	return events, nil
