@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/vertex-lab/relay/pkg/dvm"
+	"github.com/vertex-lab/relay/pkg/eventstore"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/crawler/pkg/models"
@@ -16,12 +17,12 @@ func ProcessRequest(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
+	eventstore *eventstore.Store,
 	args *dvm.Args,
 	parsingErr error,
 	responseHandler func(context.Context, *nostr.Event) error) error {
 
 	if args == nil {
-		log.Error("error processing request after parsing: %v", dvm.ErrNilArgs)
 		return dvm.ErrNilArgs
 	}
 
@@ -41,6 +42,9 @@ func ProcessRequest(
 
 	case dvm.KindSortAuthors:
 		res = dvm.SortAuthorsEvent(ctx, DB, RWS, args)
+
+	case dvm.KindSearchAuthors:
+		res = dvm.SearchAuthorsEvent(ctx, DB, RWS, eventstore, args)
 
 	default:
 		return fmt.Errorf("%w: %v", dvm.ErrInvalidKind, args.Kind)

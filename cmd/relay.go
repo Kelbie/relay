@@ -60,7 +60,7 @@ func main() {
 	}
 
 	// initialize relay datastore, for events and white-listing.
-	db, err = eventstore.New("events.sqlite")
+	db, err = eventstore.New(env("SQLITE_URL"))
 	if err != nil {
 		panic("failed to initialize database: " + err.Error())
 	}
@@ -112,7 +112,7 @@ func main() {
 
 	relay.StoreEvent = append(relay.StoreEvent, db.Save, func(ctx context.Context, event *nostr.Event) error {
 		args, parsingErr := dvm.Parse(event)
-		err = ProcessRequest(ctx, DB, RWS, args, parsingErr, func(ctx context.Context, res *nostr.Event) error {
+		err = ProcessRequest(ctx, DB, RWS, db, args, parsingErr, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
 				return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
 			}
@@ -149,7 +149,7 @@ func main() {
 		ch := make(chan *nostr.Event, 1)
 		defer close(ch)
 
-		err = ProcessRequest(ctx, DB, RWS, args, err, func(ctx context.Context, res *nostr.Event) error {
+		err = ProcessRequest(ctx, DB, RWS, db, args, err, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
 				return fmt.Errorf("failed to sign eventID %v: %v", res.ID, err)
 			}
@@ -210,7 +210,7 @@ func QueryNoSearch(ctx context.Context, filter nostr.Filter) (chan *nostr.Event,
 }
 
 func RejectNonDVMs(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
-	if event.Kind < 5312 || event.Kind > 5314 {
+	if event.Kind < 5312 || event.Kind > 5315 {
 		return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
 	}
 	return false, ""

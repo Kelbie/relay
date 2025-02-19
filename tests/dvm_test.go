@@ -19,6 +19,7 @@ import (
 var (
 	// pubkeys for testing
 	jack      string = "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
+	mallers   string = "c4eabae1be3cf657bc1855ee05e69de9f059cb7a059227168b80b89761cbc4e0"
 	damus     string = "3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"
 	jb55      string = "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"
 	snowden   string = "84dee6e676e5bb67b4ad4e042cf70cbd8681155db535942fcc6a0533858a7240"
@@ -179,6 +180,58 @@ func TestDVM_RecommendFollows(t *testing.T) {
 		}
 		t.Errorf("expected:")
 		for i, pk := range expectedRecommendations {
+			t.Errorf("%d) %s", i, pk)
+		}
+	}
+}
+
+func TestDVM_SearchAuthors(t *testing.T) {
+	// step 1. publishing a DVM request
+	req := &nostr.Event{
+		Kind: dvm.KindSearchAuthors,
+		Tags: nostr.Tags{
+			{"param", "search", "jack"},
+			{"param", "limit", "2"},
+		},
+	}
+
+	sk := nostr.GeneratePrivateKey()
+	pk, err := nostr.GetPublicKey(sk)
+	if err != nil {
+		t.Fatalf("failed to get pk from sk: %v", err)
+	}
+
+	if err := req.Sign(sk); err != nil {
+		t.Fatalf("failed to sign: %v", err)
+	}
+
+	expectedJacks := []string{jack, mallers}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}}
+	expectedKind := req.Kind + 1000
+
+	res, err := dvmResponse(req, localhost)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := checkFormat(res, expectedKind, expectedTags); err != nil {
+		t.Errorf("the format of the response is wrong: %v", err)
+	}
+
+	var ranks dvm.RankResponses
+	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
+		t.Errorf("failed to unmarshal the DVM response content: %v", err)
+	}
+
+	jacks, _ := ranks.Unpack()
+	if !reflect.DeepEqual(jacks, expectedJacks) {
+		t.Errorf("the search results don't match the expected ones")
+		t.Errorf("result:")
+		for i, pk := range jacks {
+			t.Errorf("%d) %s", i, pk)
+		}
+		t.Errorf("expected:")
+		for i, pk := range expectedJacks {
 			t.Errorf("%d) %s", i, pk)
 		}
 	}

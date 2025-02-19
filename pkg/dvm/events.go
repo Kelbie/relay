@@ -7,6 +7,7 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/crawler/pkg/models"
+	"github.com/vertex-lab/relay/pkg/eventstore"
 )
 
 var (
@@ -14,6 +15,7 @@ var (
 	KindVerifyReputation int = 5312
 	KindRecommendFollows int = 5313
 	KindSortAuthors      int = 5314
+	KindSearchAuthors    int = 5315
 	KindDVMError         int = 7000
 )
 
@@ -104,6 +106,22 @@ func RecommendFollowsEvent(
 	args *Args) *nostr.Event {
 
 	res, err := RecommendFollows(ctx, DB, RWS, args)
+	if err != nil {
+		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
+	}
+
+	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
+}
+
+// SearchAuthorsEvent() returns the sorted authors event from the specified args.
+func SearchAuthorsEvent(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	eventStore *eventstore.Store,
+	args *Args) *nostr.Event {
+
+	res, err := SearchAuthors(ctx, DB, RWS, eventStore, args)
 	if err != nil {
 		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}
