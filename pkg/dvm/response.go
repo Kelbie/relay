@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/vertex-lab/crawler/pkg/models"
 	"github.com/vertex-lab/crawler/pkg/pagerank"
+	"github.com/vertex-lab/relay/pkg/eventstore"
 )
 
 // RankResponse (for type) returns the rank for the requested pubkey.
@@ -34,6 +35,7 @@ func (r RankResponses) Unpack() ([]string, []float64) {
 
 // VerifyReputation() returns the rank of the target and its highest ranked followers.
 // All ranks use the specified args.Sort algorithm.
+// For more info read: https://vertexlab.io/docs/nips/verify-reputation-dvm/
 func VerifyReputation(
 	ctx context.Context,
 	DB models.Database,
@@ -84,6 +86,9 @@ func VerifyReputation(
 	return res, nil
 }
 
+// SortAuthors() returns the rank of each specified target.
+// All ranks use the specified args.Sort algorithm.
+// For more info read: https://vertexlab.io/docs/nips/sort-authors-dvm/
 func SortAuthors(
 	ctx context.Context,
 	DB models.Database,
@@ -137,7 +142,59 @@ func SortAuthors(
 	return res, nil
 }
 
-// RecommendFollows() uses the specified args.Sort algorithm to provide a list of recommendations to args.Source
+// SearchAuthors() returns the top ranked pubkeys whose kind:0s contain the provided string.
+// All ranks use the specified args.Sort algorithm.
+// For more info read:
+func SearchAuthors(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	eventStore *eventstore.Store,
+	args *Args) (RankResponses, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := validateSearchAuthors(args); err != nil {
+		return nil, fmt.Errorf("SearchAuthors: %w", err)
+	}
+
+	pubkeys, err := searchAuthors(ctx, eventStore, args.Search)
+	if err != nil {
+		return nil, fmt.Errorf("SearchAuthors: %w", err)
+	}
+
+	IDs, err := DB.NodeIDs(ctx, append(pubkeys, args.Source)...)
+	if err != nil {
+		return nil, fmt.Errorf("SearchAuthors: failed to fetch the IDs of search results: %w", err)
+	}
+
+	var sourceID *uint32 = IDs[len(IDs)-1]
+	targetIDs := make([]uint32, 0, len(IDs)-1)
+	for i := 0; i < len(IDs)-1; i++ {
+		if IDs[i] != nil {
+			// TODO; We should log if the search returns pubkeys that aren't found in redis.
+			targetIDs = append(targetIDs, *IDs[i])
+		}
+	}
+
+	ranks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Sort, sourceID)
+	if err != nil {
+		return nil, fmt.Errorf("SearchAuthors: %w", err)
+	}
+
+	top := topPairs(ranks, args.Limit)
+	res, err := buildResponse(ctx, DB, top)
+	if err != nil {
+		return nil, fmt.Errorf("SortAuthors: %w", err)
+	}
+
+	return res, nil
+}
+
+// RecommendFollows() uses the specified args.Sort algorithm to return a list of recommendations for args.Source.
+// The recommended pubkeys are the highest ranked, excluding args.Source and its follows (if any).
+// For more info read: https://vertexlab.io/docs/nips/recommend-follows-dvm/
 func RecommendFollows(
 	ctx context.Context,
 	DB models.Database,
@@ -176,6 +233,49 @@ func RecommendFollows(
 	}
 
 	return res, nil
+}
+
+// The function searchAuthors() performs full text seach on the profiles (kind:0s) using the specified search term.
+func searchAuthors(ctx context.Context, eventStore *eventstore.Store, search string) (pubkeys []string, err error) {
+	search = strings.TrimSpace(search)
+
+	var name, displayName, about, website, nip05 float64 // the weights for the query
+	switch {
+	case strings.Contains(search, "@"):
+		// if search contains '@', the user is probably searching using a nip05
+		name, displayName, about, website, nip05 = 3.0, 3.0, 3.0, 3.0, 10.0
+
+	default:
+		name, displayName, about, website, nip05 = 10.0, 10.0, 3.0, 1.0, 1.0
+	}
+
+	query := `SELECT pubkey 
+		FROM profiles_fts 
+		WHERE profiles_fts MATCH ? 
+		ORDER BY bm25(profiles_fts, ?, ?, ?, ?, ?)
+		LIMIT 200;`
+	args := []any{search, name, displayName, about, website, nip05}
+
+	rows, err := eventStore.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query the database: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var pubkey string
+		if err = rows.Scan(&pubkey); err != nil {
+			return nil, fmt.Errorf("failed to scan the results of the query: %w", err)
+		}
+
+		pubkeys = append(pubkeys, pubkey)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan the results of the query: %w", err)
+	}
+
+	return pubkeys, nil
 }
 
 // rankNodes() associates a rank to each target by applying the specified algorithm.
@@ -356,6 +456,26 @@ func validateSortAuthors(args *Args) error {
 	return nil
 }
 
+func validateSearchAuthors(args *Args) error {
+	if args == nil {
+		return ErrNilArgs
+	}
+
+	if len(args.Search) == 0 {
+		return fmt.Errorf("%w: the search parameter should not be empty for SearchAuthors", ErrInvalidSearch)
+	}
+
+	if len(args.Targets) != 0 {
+		return fmt.Errorf("%w: no targets need to be provided for SearchAuthors", ErrInvalidTargets)
+	}
+
+	if args.Limit < 1 {
+		return fmt.Errorf("%w: limit must be greater than one", ErrInvalidLimit)
+	}
+
+	return nil
+}
+
 // buildResponse() replaces IDs with pubkeys and returns RankResponses
 func buildResponse(ctx context.Context, DB models.Database, nodeRanks pairs) (RankResponses, error) {
 	if len(nodeRanks) < 1 {
@@ -448,43 +568,4 @@ func topPairs(m models.PagerankMap, limit int) pairs {
 
 	sort.Sort(pairs)
 	return pairs
-}
-
-// inefficientTopPairs() is only used to test topPairs by comparing their results.
-func inefficientTopPairs(m models.PagerankMap, limit int) pairs {
-	l := min(limit, len(m))
-	if l < 1 {
-		return nil
-	}
-
-	pairs := make(pairs, 0, len(m))
-	for ID, rank := range m {
-		pairs = append(pairs, pair{ID: ID, rank: rank})
-	}
-
-	sort.Sort(pairs)
-	return pairs[:l]
-}
-
-// ResponseDistance() returns the L1 distance between two RankResponses.
-func ResponseDistance(res1, res2 RankResponses) float64 {
-	if len(res1) != len(res2) {
-		return math.MaxFloat64
-	}
-
-	// sort the responses in lexicographic order of the keys before comparing
-	sort.Slice(res1, func(i, j int) bool { return res1[i].Pubkey > res1[j].Pubkey })
-	sort.Slice(res2, func(i, j int) bool { return res2[i].Pubkey > res2[j].Pubkey })
-
-	var distance float64
-	for i := range res1 {
-		if res1[i].Pubkey != res2[i].Pubkey {
-			// if the keys are different, the two responses are incomparable
-			return math.MaxFloat64
-		}
-
-		distance += math.Abs(res1[i].Rank - res2[i].Rank)
-	}
-
-	return distance
 }

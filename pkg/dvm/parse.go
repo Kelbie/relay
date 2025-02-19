@@ -25,6 +25,7 @@ var (
 	ErrInvalidTargets    error = errors.New("invalid targets")
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidDistance   error = errors.New("invalid distance")
+	ErrInvalidSearch     error = errors.New("invalid search")
 
 	// internal system errors
 	ErrComputationFailed error = errors.New("DVM computation failed")
@@ -48,11 +49,14 @@ type Args struct {
 	Pubkey string
 	Kind   int
 
+	// used by all DVMs
 	Source  string   `json:"source,omitempty"`
 	Targets []string `json:"targets,omitempty"`
 	Sort    string   `json:"sort,omitempty"`
 	Limit   int      `json:"limit,omitempty"`
-	// RequireProof    bool
+
+	// used by SearchAuthors
+	Search string `json:"search,omitempty"`
 }
 
 // NewArgs() returns an Args struct with default arguments.
@@ -127,6 +131,9 @@ func Parse(req *nostr.Event) (*Args, error) {
 				return defaultArgs, fmt.Errorf("%w: limit must be smaller than %v", ErrInvalidLimit, MaxLimit)
 			}
 			args.Limit = l
+
+		case "search":
+			args.Search = val
 
 		default:
 			return defaultArgs, fmt.Errorf("%w: got %v", ErrUnknownParameter, key)

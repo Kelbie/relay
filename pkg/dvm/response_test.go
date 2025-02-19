@@ -3,13 +3,16 @@ package dvm
 import (
 	"context"
 	"errors"
+	"math"
 	"math/rand/v2"
 	"reflect"
+	"sort"
 	"testing"
 
 	mockdb "github.com/vertex-lab/crawler/pkg/database/mock"
 	"github.com/vertex-lab/crawler/pkg/models"
 	mockstore "github.com/vertex-lab/crawler/pkg/store/mock"
+	"github.com/vertex-lab/relay/pkg/eventstore"
 )
 
 func TestVerifyReputation(t *testing.T) {
@@ -347,6 +350,101 @@ func TestSortAuthors(t *testing.T) {
 	}
 }
 
+func TestSearchAuthors(t *testing.T) {
+	const maxDist float64 = 0.002
+	testCases := []struct {
+		name          string
+		DBType        string
+		RWSType       string
+		args          *Args
+		expectedRes   RankResponses
+		expectedError error
+	}{
+		{
+			name:          "nil args",
+			DBType:        "simple-with-pks",
+			RWSType:       "one-node0",
+			args:          nil,
+			expectedError: ErrNilArgs,
+		},
+		{
+			name:          "empty search",
+			DBType:        "simple-with-pks",
+			RWSType:       "simple",
+			args:          &Args{},
+			expectedError: ErrInvalidSearch,
+		},
+		{
+			name:    "non-empty targets",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Search:  "idk",
+				Targets: []string{fran},
+				Limit:   5,
+			},
+			expectedError: ErrInvalidTargets,
+		},
+		{
+			name:    "args limit is zero",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Search: "idk",
+				Limit:  0,
+			},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:    "valid global",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Search: "pip",
+				Sort:   "globalPagerank",
+				Limit:  5,
+			},
+			expectedRes: RankResponses{{Pubkey: pip, Rank: 0.0}},
+		},
+		{
+			name:    "valid personalized (simple)",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Source: odell,
+				Search: "pip",
+				Sort:   "personalizedPagerank",
+				Limit:  5,
+			},
+			expectedRes: RankResponses{{Pubkey: pip, Rank: 0.0}},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			DB := mockdb.SetupDB(test.DBType)
+			RWS := mockstore.SetupRWS(test.RWSType)
+			eventStore, err := eventstore.New("test.sqlite")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			res, err := SearchAuthors(ctx, DB, RWS, eventStore, test.args)
+
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("SearchAuthors: expected error %v, got %v", test.expectedError, err)
+			}
+
+			dist := ResponseDistance(res, test.expectedRes)
+			if dist > maxDist {
+				t.Errorf("SearchAuthors: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected response %v, got %v", test.expectedRes, res)
+			}
+		})
+	}
+}
+
 func TestTopPairs(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		testCases := []struct {
@@ -491,4 +589,45 @@ func BenchmarkInefficientTopPairs(b *testing.B) {
 			}
 		})
 	}
+}
+
+// ------------------------------------HELPERS----------------------------------
+
+// inefficientTopPairs() is only used to test topPairs by comparing their results.
+func inefficientTopPairs(m models.PagerankMap, limit int) pairs {
+	l := min(limit, len(m))
+	if l < 1 {
+		return nil
+	}
+
+	pairs := make(pairs, 0, len(m))
+	for ID, rank := range m {
+		pairs = append(pairs, pair{ID: ID, rank: rank})
+	}
+
+	sort.Sort(pairs)
+	return pairs[:l]
+}
+
+// ResponseDistance() returns the L1 distance between two RankResponses.
+func ResponseDistance(res1, res2 RankResponses) float64 {
+	if len(res1) != len(res2) {
+		return math.MaxFloat64
+	}
+
+	// sort the responses in lexicographic order of the keys before comparing
+	sort.Slice(res1, func(i, j int) bool { return res1[i].Pubkey > res1[j].Pubkey })
+	sort.Slice(res2, func(i, j int) bool { return res2[i].Pubkey > res2[j].Pubkey })
+
+	var distance float64
+	for i := range res1 {
+		if res1[i].Pubkey != res2[i].Pubkey {
+			// if the keys are different, the two responses are incomparable
+			return math.MaxFloat64
+		}
+
+		distance += math.Abs(res1[i].Rank - res2[i].Rank)
+	}
+
+	return distance
 }
