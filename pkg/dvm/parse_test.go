@@ -36,16 +36,16 @@ func TestParseArgs(t *testing.T) {
 				PubKey: fran,
 				Kind:   KindVerifyReputation,
 			},
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
-			expectedError: nil,
+			expectedArgs: NewArgs("", fran, KindVerifyReputation),
 		},
 		{
 			name: "invalid kind",
 			req: &nostr.Event{
+				ID:     "xxx",
 				PubKey: fran,
 				Kind:   43223,
 			},
-			expectedArgs:  nil,
+			expectedArgs:  NewArgs("xxx", fran, 43223),
 			expectedError: ErrInvalidKind,
 		},
 		{
@@ -153,7 +153,6 @@ func TestParseArgs(t *testing.T) {
 				Sort:    "globalPagerank",
 				Limit:   DefaultLimit,
 			},
-			expectedError: nil,
 		},
 		{
 			name: "valid recommended follows",
@@ -172,7 +171,6 @@ func TestParseArgs(t *testing.T) {
 				Sort:    "personalizedPagerank",
 				Limit:   DefaultLimit,
 			},
-			expectedError: nil,
 		},
 		{
 			name: "valid sort authors",
@@ -183,55 +181,37 @@ func TestParseArgs(t *testing.T) {
 					{"param", "target", fran},
 					{"param", "target", pip},
 					{"param", "target", calle},
+					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
 				},
 			},
 			expectedArgs: &Args{
 				Kind:    KindSortAuthors,
 				Pubkey:  pip,
 				Source:  pip,
-				Targets: []string{fran, pip, calle},
+				Targets: []string{fran, pip, calle, "47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
 				Sort:    "globalPagerank",
 				Limit:   DefaultLimit,
 			},
-			expectedError: nil,
 		},
 		{
-			name: "valid impersonator detection pk",
+			name: "valid search authors",
 			req: &nostr.Event{
-				Kind:   KindVerifyReputation,
+				Kind:   KindSearchAuthors,
 				PubKey: pip,
 				Tags: nostr.Tags{
-					{"param", "target", fran},
+					{"param", "search", "hello"},
+					{"param", "sort", "personalizedPagerank"},
 				},
 			},
 			expectedArgs: &Args{
-				Kind:    KindVerifyReputation,
+				Kind:    KindSearchAuthors,
 				Pubkey:  pip,
 				Source:  pip,
-				Targets: []string{fran},
-				Sort:    "globalPagerank",
+				Targets: nil,
+				Sort:    "personalizedPagerank",
 				Limit:   DefaultLimit,
+				Search:  "hello",
 			},
-			expectedError: nil,
-		},
-		{
-			name: "valid impersonator detection npub",
-			req: &nostr.Event{
-				Kind:   KindVerifyReputation,
-				PubKey: pip,
-				Tags: nostr.Tags{
-					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
-				},
-			},
-			expectedArgs: &Args{
-				Kind:    KindVerifyReputation,
-				Pubkey:  pip,
-				Source:  pip,
-				Targets: []string{"47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
-				Sort:    "globalPagerank",
-				Limit:   DefaultLimit,
-			},
-			expectedError: nil,
 		},
 	}
 

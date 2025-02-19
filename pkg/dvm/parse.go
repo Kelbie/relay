@@ -79,12 +79,12 @@ func Parse(req *nostr.Event) (*Args, error) {
 		return nil, ErrNilEvent
 	}
 
-	if req.Kind < 5312 || req.Kind > 5314 {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidKind, req.Kind)
-	}
-
 	var defaultArgs = NewArgs(req.ID, req.PubKey, req.Kind)
 	var args = *defaultArgs // this copy will be returned if no errors occur.
+
+	if req.Kind < 5312 || req.Kind > 5315 {
+		return defaultArgs, fmt.Errorf("%w: %v", ErrInvalidKind, req.Kind)
+	}
 
 	for _, tag := range req.Tags {
 		if len(tag) < 3 {
