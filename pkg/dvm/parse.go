@@ -37,10 +37,8 @@ var (
 	DefaultSort string = "globalPagerank"
 	ValidSorts         = []string{"globalPagerank", "personalizedPagerank"}
 
-	DefaultDistance int = 0 // meaning no constrain on the distance
-	MaxDistance     int = 5
-	DefaultLimit    int = 5
-	MaxLimit        int = 1000
+	DefaultLimit int = 5
+	MaxLimit     int = 1000
 )
 
 // The Args structure contains the general input parameters for our services.
@@ -50,11 +48,10 @@ type Args struct {
 	Pubkey string
 	Kind   int
 
-	Source   string   `json:"source,omitempty"`
-	Targets  []string `json:"targets,omitempty"`
-	Sort     string   `json:"sort,omitempty"`
-	Distance int      `json:"distance,omitempty"`
-	Limit    int      `json:"limit,omitempty"`
+	Source  string   `json:"source,omitempty"`
+	Targets []string `json:"targets,omitempty"`
+	Sort    string   `json:"sort,omitempty"`
+	Limit   int      `json:"limit,omitempty"`
 	// RequireProof    bool
 }
 
@@ -65,10 +62,9 @@ func NewArgs(ID, Pubkey string, Kind int) *Args {
 		Kind:   Kind,
 		Pubkey: Pubkey,
 
-		Source:   Pubkey,
-		Sort:     DefaultSort,
-		Distance: DefaultDistance,
-		Limit:    DefaultLimit,
+		Source: Pubkey,
+		Sort:   DefaultSort,
+		Limit:  DefaultLimit,
 	}
 }
 
@@ -116,21 +112,6 @@ func Parse(req *nostr.Event) (*Args, error) {
 				return defaultArgs, fmt.Errorf("%w: %v", ErrInvalidSortOption, val)
 			}
 			args.Sort = val
-
-		case "distance":
-			d, err := strconv.Atoi(val)
-			if err != nil {
-				return defaultArgs, fmt.Errorf("%w: distance = %v", ErrBadlyFormattedInt, val)
-			}
-
-			if d < 1 {
-				return defaultArgs, fmt.Errorf("%w: distance must be grater than one", ErrInvalidDistance)
-			}
-
-			if d > MaxDistance {
-				return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", ErrInvalidDistance, MaxDistance)
-			}
-			args.Distance = d
 
 		case "limit":
 			l, err := strconv.Atoi(val)

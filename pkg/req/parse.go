@@ -70,10 +70,6 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 		return defaultArgs, fmt.Errorf("%w: %v", dvm.ErrInvalidSortOption, args.Sort)
 	}
 
-	if args.Distance > dvm.MaxDistance {
-		return defaultArgs, fmt.Errorf("%w: distance must be smaller than %v", dvm.ErrInvalidDistance, dvm.MaxDistance)
-	}
-
 	if args.Limit > dvm.MaxLimit {
 		return defaultArgs, fmt.Errorf("%w: limit must be smaller than %v", dvm.ErrInvalidLimit, dvm.MaxLimit)
 	}

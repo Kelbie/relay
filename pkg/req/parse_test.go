@@ -101,17 +101,6 @@ func TestParse(t *testing.T) {
 			expectedError: dvm.ErrInvalidLimit,
 		},
 		{
-			name: "invalid distance",
-			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
-				Search: `{
-					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
-					"distance": 69
-				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
-			expectedError: dvm.ErrInvalidDistance,
-		},
-		{
 			name: "valid",
 			filter: &nostr.Filter{
 				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
@@ -121,12 +110,11 @@ func TestParse(t *testing.T) {
 					"limit": 100
 				}`},
 			expectedArgs: &dvm.Args{
-				Kind:     dvm.KindVerifyReputation,
-				Source:   fran,
-				Targets:  []string{odell, pip},
-				Sort:     dvm.DefaultSort,
-				Distance: dvm.DefaultDistance,
-				Limit:    100,
+				Kind:    dvm.KindVerifyReputation,
+				Source:  fran,
+				Targets: []string{odell, pip},
+				Sort:    dvm.DefaultSort,
+				Limit:   100,
 			},
 		},
 	}
