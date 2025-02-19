@@ -1,4 +1,4 @@
-// The dvm package handles parsing the request events, and responding with the appropriate events/errors.
+// The dvm package handles parsing the DVM requests, and responding with the appropriate DVM response / DVM error.
 package dvm
 
 import (

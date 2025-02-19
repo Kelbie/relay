@@ -1,3 +1,4 @@
+// The rate package implemente a simple bucket-rate-limiting with refill.
 package rate
 
 import (
@@ -45,7 +46,7 @@ func (b *Bucket) Reject(cost int) (reject bool, msg string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// refill every 24 hours
+	// refill every interval
 	if time.Since(b.lastReq) >= DefaultInterval {
 		b.tokens = DefaultFreeTokens
 	}
