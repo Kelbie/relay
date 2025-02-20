@@ -246,15 +246,22 @@ func searchAuthors(ctx context.Context, eventStore *eventstore.Store, search str
 		name, displayName, about, website, nip05 = 3.0, 3.0, 3.0, 3.0, 10.0
 
 	default:
-		name, displayName, about, website, nip05 = 10.0, 10.0, 5.0, 1.0, 1.0
+		name, displayName, about, website, nip05 = 10.0, 10.0, 2.0, 1.0, 1.0
 	}
 
-	query := `SELECT pubkey 
-		FROM profiles_fts 
-		WHERE profiles_fts MATCH ? 
-		ORDER BY bm25(profiles_fts, 0.0, 0.0, ?, ?, ?, ?, ?)
-		LIMIT 50;`
-	args := []any{search, name, displayName, about, website, nip05}
+	query := `
+	WITH scored_pubkeys AS (
+		SELECT 
+		  pubkey, 
+		  bm25(profiles_fts, 0.0, 0.0, ?, ?, ?, ?, ?) AS score
+		FROM profiles_fts
+		WHERE profiles_fts MATCH ?
+	  )
+	  SELECT pubkey
+	  FROM scored_pubkeys
+	  WHERE score < -9.0
+	  ORDER BY score;`
+	args := []any{name, displayName, about, website, nip05, search}
 
 	rows, err := eventStore.DB.QueryContext(ctx, query, args...)
 	if err != nil {

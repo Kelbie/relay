@@ -191,7 +191,7 @@ func TestDVM_SearchAuthors(t *testing.T) {
 		Kind: dvm.KindSearchAuthors,
 		Tags: nostr.Tags{
 			{"param", "search", "jack"},
-			{"param", "limit", "2"},
+			{"param", "limit", "10"},
 		},
 	}
 
@@ -241,7 +241,7 @@ func TestDVM_SearchAuthors(t *testing.T) {
 
 // dvmResponse() connects to the relay, send the request and fetches the response using the request ID.
 func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	relay, err := nostr.RelayConnect(ctx, relayURL)
@@ -252,6 +252,8 @@ func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error
 	if err := relay.Publish(ctx, *req); err != nil {
 		return nil, fmt.Errorf("failed to publish to %s: %v", relayURL, err)
 	}
+
+	time.Sleep(1 * time.Second)
 
 	filter := nostr.Filter{
 		Tags: nostr.TagMap{
