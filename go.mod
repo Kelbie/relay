@@ -42,5 +42,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.51.0 // indirect
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
+	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
 )
