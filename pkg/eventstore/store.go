@@ -66,14 +66,16 @@ type Profile struct {
 	Nip05       string
 }
 
-var schema = `CREATE TABLE IF NOT EXISTS events (
+var schema = `
+	CREATE TABLE IF NOT EXISTS events (
        id TEXT PRIMARY KEY,
        pubkey TEXT NOT NULL,
        created_at INTEGER NOT NULL,
        kind INTEGER NOT NULL,
        tags JSONB NOT NULL,
        content TEXT NOT NULL,
-       sig TEXT NOT NULL);
+       sig TEXT NOT NULL
+	);
 
 	CREATE INDEX IF NOT EXISTS pubkey_idx ON events(pubkey);
 	CREATE INDEX IF NOT EXISTS time_idx ON events(created_at DESC);
@@ -155,9 +157,10 @@ func (s *Store) Delete(ctx context.Context, eventID string) error {
 }
 
 // Replace() is meant to be used for replaceable events. If that's not the case, use Save().
+// This method returns whether the `event` has been saved, and an error.
 // - if there are no stored events with kind = event.Kind, pubkey = event.PubKey, then saves `event`.
 // - if there is a stored event with kind = event.Kind, pubkey = event.PubKey, replace it with `event` only if the latter is strictly newer.
-func (s *Store) Replace(ctx context.Context, event *nostr.Event) error {
+func (s *Store) Replace(ctx context.Context, event *nostr.Event) (bool, error) {
 	var oldID string
 	var oldCreatedAt nostr.Timestamp
 	row := s.DB.QueryRowContext(ctx, "SELECT id, created_at FROM events WHERE kind = $1 AND pubkey = $2", event.Kind, event.PubKey)
@@ -165,26 +168,26 @@ func (s *Store) Replace(ctx context.Context, event *nostr.Event) error {
 
 	if errors.Is(err, sql.ErrNoRows) {
 		// if there are no events for that kind for that pubkey, then save
-		return s.Save(ctx, event)
+		return true, s.Save(ctx, event)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to query for old events: %w", err)
+		return false, fmt.Errorf("failed to query for old events: %w", err)
 	}
 
 	if oldCreatedAt >= event.CreatedAt {
 		// if the event is not newer, then don't replace
-		return nil
+		return false, nil
 	}
 
 	tags, err := json.Marshal(event.Tags)
 	if err != nil {
-		return fmt.Errorf("failed to marshal the tags: %w", err)
+		return false, fmt.Errorf("failed to marshal the tags: %w", err)
 	}
 
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to initiate the transaction: %w", err)
+		return false, fmt.Errorf("failed to initiate the transaction: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -192,18 +195,18 @@ func (s *Store) Replace(ctx context.Context, event *nostr.Event) error {
 	VALUES ($1, $2, $3, $4, $5, $6, $7)`, event.ID, event.PubKey, event.CreatedAt, event.Kind, tags, event.Content, event.Sig)
 
 	if err != nil {
-		return fmt.Errorf("failed to save event with ID %s: %w", event.ID, err)
+		return false, fmt.Errorf("failed to save event with ID %s: %w", event.ID, err)
 	}
 
 	if _, err = tx.ExecContext(ctx, "DELETE FROM events WHERE id = $1", oldID); err != nil {
-		return fmt.Errorf("failed to delete old event with ID %s: %w", oldID, err)
+		return false, fmt.Errorf("failed to delete old event with ID %s: %w", oldID, err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to replace event %s with event %s: %w", oldID, event.ID, err)
+		return false, fmt.Errorf("failed to replace event %s with event %s: %w", oldID, event.ID, err)
 	}
 
-	return nil
+	return true, nil
 }
 
 // Query() queries the database using the provided nostr.Filter.

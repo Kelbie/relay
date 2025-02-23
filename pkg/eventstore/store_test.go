@@ -129,22 +129,22 @@ var event100 = nostr.Event{ID: "aaa", Kind: 0, PubKey: "key", CreatedAt: 100, Si
 
 func TestReplace(t *testing.T) {
 	testCases := []struct {
-		name        string
-		storedEvent nostr.Event
-		newEvent    nostr.Event
-		replaced    bool
+		name           string
+		storedEvent    nostr.Event
+		newEvent       nostr.Event
+		expectedStored bool
 	}{
 		{
-			name:        "no replace (event is not newer)",
-			storedEvent: event100,
-			newEvent:    event10,
-			replaced:    false,
+			name:           "no replace (event is not newer)",
+			storedEvent:    event100,
+			newEvent:       event10,
+			expectedStored: false,
 		},
 		{
-			name:        "valid replace (event is newer)",
-			storedEvent: event10,
-			newEvent:    event100,
-			replaced:    true,
+			name:           "valid replace (event is newer)",
+			storedEvent:    event10,
+			newEvent:       event100,
+			expectedStored: true,
 		},
 	}
 
@@ -163,11 +163,16 @@ func TestReplace(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err = store.Replace(ctx, &test.newEvent); err != nil {
+			stored, err := store.Replace(ctx, &test.newEvent)
+			if err != nil {
 				t.Fatal(err)
 			}
 
-			switch test.replaced {
+			if stored != test.expectedStored {
+				t.Fatalf("expected stored %v, got %v", test.expectedStored, stored)
+			}
+
+			switch stored {
 			case true:
 				// check newEvent has been saved
 				var event nostr.Event
