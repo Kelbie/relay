@@ -180,14 +180,23 @@ func (s *Store) Replace(ctx context.Context, event *nostr.Event) (bool, error) {
 		return false, nil
 	}
 
+	if err = s.ForceReplace(ctx, event, oldID); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// ForceReplace() replaces the event whose ID is `oldID` with `event`, no question asked.
+func (s *Store) ForceReplace(ctx context.Context, event *nostr.Event, oldID string) error {
 	tags, err := json.Marshal(event.Tags)
 	if err != nil {
-		return false, fmt.Errorf("failed to marshal the tags: %w", err)
+		return fmt.Errorf("failed to marshal the tags: %w", err)
 	}
 
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return false, fmt.Errorf("failed to initiate the transaction: %w", err)
+		return fmt.Errorf("failed to initiate the transaction: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -195,18 +204,18 @@ func (s *Store) Replace(ctx context.Context, event *nostr.Event) (bool, error) {
 	VALUES ($1, $2, $3, $4, $5, $6, $7)`, event.ID, event.PubKey, event.CreatedAt, event.Kind, tags, event.Content, event.Sig)
 
 	if err != nil {
-		return false, fmt.Errorf("failed to save event with ID %s: %w", event.ID, err)
+		return fmt.Errorf("failed to save event with ID %s: %w", event.ID, err)
 	}
 
 	if _, err = tx.ExecContext(ctx, "DELETE FROM events WHERE id = $1", oldID); err != nil {
-		return false, fmt.Errorf("failed to delete old event with ID %s: %w", oldID, err)
+		return fmt.Errorf("failed to delete old event with ID %s: %w", oldID, err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("failed to replace event %s with event %s: %w", oldID, event.ID, err)
+		return fmt.Errorf("failed to replace event %s with event %s: %w", oldID, event.ID, err)
 	}
 
-	return true, nil
+	return nil
 }
 
 // Query() queries the database using the provided nostr.Filter.
