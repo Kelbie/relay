@@ -30,8 +30,9 @@ var (
 	randomKey string = "d5ad3d3115d9fa07500b06ccd0b9605d9888a206acba20a1e2e681ec29109387"
 
 	// relay URLs
-	vertexURL string = "wss://relay.vertexlab.io"
-	localhost string = "http://localhost:3334"
+	vertexURL     string = "wss://relay.vertexlab.io"
+	localhost     string = "http://localhost:3334"
+	defaultRelays        = []string{"wss://relay.primal.net", "wss://relay.nostr.band", "wss://relay.damus.io"}
 )
 
 func TestDVM_VerifyReputation(t *testing.T) {
@@ -139,6 +140,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 		Kind: dvm.KindRecommendFollows,
 		Tags: nostr.Tags{
 			{"param", "source", randomKey},
+			{"param", "limit", "4"},
 		},
 	}
 
@@ -153,7 +155,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 	}
 
 	// this list is dependent on the specific database
-	expectedRecommendations := []string{damus, jack, jb55, snowden, odell}
+	expectedRecommendations := []string{damus, jack, jb55, snowden}
 	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}}
 	expectedKind := req.Kind + 1000
 
@@ -191,7 +193,7 @@ func TestDVM_SearchAuthors(t *testing.T) {
 		Kind: dvm.KindSearchAuthors,
 		Tags: nostr.Tags{
 			{"param", "search", "jack"},
-			{"param", "limit", "10"},
+			{"param", "limit", "2"},
 		},
 	}
 
@@ -256,13 +258,18 @@ func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error
 	time.Sleep(1 * time.Second)
 
 	filter := nostr.Filter{
+		Kinds: []int{req.Kind + 1000},
 		Tags: nostr.TagMap{
 			"e": {req.ID},
 		},
 	}
 
-	var counter int
 	ch, err := relay.QueryEvents(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var counter int
 	for event := range ch {
 		res = event
 		counter++
@@ -297,7 +304,7 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 
 	// getting only the newest follow list for each pubkey.
 	newest := make(map[string]*nostr.Event, len(pubkeys))
-	for event := range pool.SubManyEose(ctx, crawler.Relays, filter) {
+	for event := range pool.SubManyEose(ctx, defaultRelays, filter) {
 
 		if _, exists := newest[event.PubKey]; !exists {
 			newest[event.PubKey] = event.Event
