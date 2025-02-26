@@ -355,7 +355,8 @@ func buildQuery(filter *nostr.Filter) (string, []any) {
 			tagCond = append(tagCond,
 				`EXISTS (
 					SELECT 1 FROM json_each(tags) 
-					WHERE json_each.value ->> 0 = ? 
+					WHERE json_valid(tags)
+					AND json_each.value ->> 0 = ? 
 					AND json_each.value ->> 1 IN `+ValueList(len(vals))+
 					` )`)
 
