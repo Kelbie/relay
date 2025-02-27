@@ -175,7 +175,7 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid sort authors",
 			req: &nostr.Event{
-				Kind:   KindSortAuthors,
+				Kind:   KindSortProfiles,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "target", fran},
@@ -185,7 +185,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs: &Args{
-				Kind:    KindSortAuthors,
+				Kind:    KindSortProfiles,
 				Pubkey:  pip,
 				Source:  pip,
 				Targets: []string{fran, pip, calle, "47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
@@ -196,7 +196,7 @@ func TestParseArgs(t *testing.T) {
 		{
 			name: "valid search authors",
 			req: &nostr.Event{
-				Kind:   KindSearchAuthors,
+				Kind:   KindSearchProfiles,
 				PubKey: pip,
 				Tags: nostr.Tags{
 					{"param", "search", "hello"},
@@ -204,7 +204,7 @@ func TestParseArgs(t *testing.T) {
 				},
 			},
 			expectedArgs: &Args{
-				Kind:    KindSearchAuthors,
+				Kind:    KindSearchProfiles,
 				Pubkey:  pip,
 				Source:  pip,
 				Targets: nil,

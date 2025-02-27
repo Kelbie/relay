@@ -40,11 +40,11 @@ func ProcessRequest(
 	case dvm.KindRecommendFollows:
 		res = dvm.RecommendFollowsEvent(ctx, DB, RWS, args)
 
-	case dvm.KindSortAuthors:
-		res = dvm.SortAuthorsEvent(ctx, DB, RWS, args)
+	case dvm.KindSortProfiles:
+		res = dvm.SortProfilesEvent(ctx, DB, RWS, args)
 
-	case dvm.KindSearchAuthors:
-		res = dvm.SearchAuthorsEvent(ctx, DB, RWS, eventstore, args)
+	case dvm.KindSearchProfiles:
+		res = dvm.SearchProfilesEvent(ctx, DB, RWS, eventstore, args)
 
 	default:
 		return fmt.Errorf("%w: %v", dvm.ErrInvalidKind, args.Kind)

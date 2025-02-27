@@ -19,12 +19,12 @@ func TestResponseEvent(t *testing.T) {
 		{
 			name:   "nil res",
 			res:    nil,
-			kind:   KindSortAuthors,
+			kind:   KindSortProfiles,
 			ID:     "xxx",
 			pubkey: fran,
 			expectedEvent: &nostr.Event{
 				Content: "null",
-				Kind:    KindSortAuthors + 1000,
+				Kind:    KindSortProfiles + 1000,
 				Tags: nostr.Tags{
 					{"e", "xxx"},
 					{"p", fran},
@@ -34,12 +34,12 @@ func TestResponseEvent(t *testing.T) {
 		{
 			name:   "empty res",
 			res:    []RankResponse{},
-			kind:   KindSortAuthors,
+			kind:   KindSortProfiles,
 			ID:     "xxx",
 			pubkey: fran,
 			expectedEvent: &nostr.Event{
 				Content: "[]",
-				Kind:    KindSortAuthors + 1000,
+				Kind:    KindSortProfiles + 1000,
 				Tags: nostr.Tags{
 					{"e", "xxx"},
 					{"p", fran},
@@ -49,12 +49,12 @@ func TestResponseEvent(t *testing.T) {
 		{
 			name:   "valid",
 			res:    []RankResponse{{Pubkey: "abc", Rank: 0.1}, {Pubkey: "123", Rank: 0.2}},
-			kind:   KindSortAuthors,
+			kind:   KindSortProfiles,
 			ID:     "xxx",
 			pubkey: fran,
 			expectedEvent: &nostr.Event{
 				Content: "[{\"pubkey\":\"abc\",\"rank\":0.1},{\"pubkey\":\"123\",\"rank\":0.2}]",
-				Kind:    KindSortAuthors + 1000,
+				Kind:    KindSortProfiles + 1000,
 				Tags: nostr.Tags{
 					{"e", "xxx"},
 					{"p", fran},

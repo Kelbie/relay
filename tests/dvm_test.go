@@ -82,10 +82,10 @@ func TestDVM_VerifyReputation(t *testing.T) {
 	}
 }
 
-func TestDVM_SortAuthors(t *testing.T) {
+func TestDVM_SortProfiles(t *testing.T) {
 	// step 1. publishing a DVM request
 	req := &nostr.Event{
-		Kind: dvm.KindSortAuthors,
+		Kind: dvm.KindSortProfiles,
 		Tags: nostr.Tags{
 			{"param", "source", odell},
 			{"param", "target", calle},
@@ -188,10 +188,10 @@ func TestDVM_RecommendFollows(t *testing.T) {
 	}
 }
 
-func TestDVM_SearchAuthors(t *testing.T) {
+func TestDVM_SearchProfiles(t *testing.T) {
 	// step 1. publishing a DVM request
 	req := &nostr.Event{
-		Kind: dvm.KindSearchAuthors,
+		Kind: dvm.KindSearchProfiles,
 		Tags: nostr.Tags{
 			{"param", "search", "jack"},
 			{"param", "limit", "3"},

@@ -14,8 +14,8 @@ var (
 	// kinds
 	KindVerifyReputation int = 5312
 	KindRecommendFollows int = 5313
-	KindSortAuthors      int = 5314
-	KindSearchAuthors    int = 5315
+	KindSortProfiles     int = 5314
+	KindSearchProfiles   int = 5315
 	KindDVMError         int = 7000
 )
 
@@ -83,14 +83,14 @@ func VerifyReputationEvent(
 	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
 }
 
-// SortAuthorsEvent() returns the sorted authors event from the specified args.
-func SortAuthorsEvent(
+// SortProfilesEvent() returns the sorted authors event from the specified args.
+func SortProfilesEvent(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	args *Args) *nostr.Event {
 
-	res, err := SortAuthors(ctx, DB, RWS, args)
+	res, err := SortProfiles(ctx, DB, RWS, args)
 	if err != nil {
 		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}
@@ -113,15 +113,15 @@ func RecommendFollowsEvent(
 	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
 }
 
-// SearchAuthorsEvent() returns the sorted authors event from the specified args.
-func SearchAuthorsEvent(
+// SearchProfilesEvent() returns the sorted authors event from the specified args.
+func SearchProfilesEvent(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	eventStore *eventstore.Store,
 	args *Args) *nostr.Event {
 
-	res, err := SearchAuthors(ctx, DB, RWS, eventStore, args)
+	res, err := SearchProfiles(ctx, DB, RWS, eventStore, args)
 	if err != nil {
 		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
 	}

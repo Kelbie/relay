@@ -108,7 +108,7 @@ func TestParse(t *testing.T) {
 					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
 					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9", "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"],
 					"limit": 100,
-					"search":"jack",
+					"search": "jack"
 				}`},
 			expectedArgs: &dvm.Args{
 				Kind:    dvm.KindVerifyReputation,

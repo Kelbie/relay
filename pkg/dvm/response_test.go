@@ -335,15 +335,15 @@ func TestSortAuthors(t *testing.T) {
 			ctx := context.Background()
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
-			res, err := SortAuthors(ctx, DB, RWS, test.args)
+			res, err := SortProfiles(ctx, DB, RWS, test.args)
 
 			if !errors.Is(err, test.expectedError) {
-				t.Fatalf("SortAuthors: expected error %v, got %v", test.expectedError, err)
+				t.Fatalf("SortProfiles: expected error %v, got %v", test.expectedError, err)
 			}
 
 			dist := ResponseDistance(res, test.expectedRes)
 			if dist > maxDist {
-				t.Errorf("SortAuthors: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("SortProfiles: expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected response %v, got %v", test.expectedRes, res)
 			}
 		})
@@ -430,15 +430,15 @@ func TestSearchAuthors(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			res, err := SearchAuthors(ctx, DB, RWS, eventStore, test.args)
+			res, err := SearchProfiles(ctx, DB, RWS, eventStore, test.args)
 
 			if !errors.Is(err, test.expectedError) {
-				t.Fatalf("SearchAuthors: expected error %v, got %v", test.expectedError, err)
+				t.Fatalf("SearchProfiles: expected error %v, got %v", test.expectedError, err)
 			}
 
 			dist := ResponseDistance(res, test.expectedRes)
 			if dist > maxDist {
-				t.Errorf("SearchAuthors: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("SearchProfiles: expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected response %v, got %v", test.expectedRes, res)
 			}
 		})

@@ -87,10 +87,10 @@ func VerifyReputation(
 	return res, nil
 }
 
-// SortAuthors() returns the rank of each specified target.
+// SortProfiles() returns the rank of each specified target.
 // All ranks use the specified args.Sort algorithm.
 // For more info read: https://vertexlab.io/docs/nips/sort-authors-dvm/
-func SortAuthors(
+func SortProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
@@ -100,14 +100,14 @@ func SortAuthors(
 	defer cancel()
 
 	if err := validateSortAuthors(args); err != nil {
-		return nil, fmt.Errorf("SortAuthors: %w", err)
+		return nil, fmt.Errorf("SortProfiles: %w", err)
 	}
 
 	args.Limit = min(args.Limit, len(args.Targets))
 
 	IDs, err := DB.NodeIDs(ctx, append(args.Targets, args.Source)...)
 	if err != nil {
-		return nil, fmt.Errorf("SortAuthors: failed to fetch the IDs of source and targets: %w", err)
+		return nil, fmt.Errorf("SortProfiles: failed to fetch the IDs of source and targets: %w", err)
 	}
 
 	var sourceID *uint32 = IDs[len(IDs)-1]
@@ -123,13 +123,13 @@ func SortAuthors(
 
 	ranks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Sort, sourceID)
 	if err != nil {
-		return nil, fmt.Errorf("SortAuthors: %w", err)
+		return nil, fmt.Errorf("SortProfiles: %w", err)
 	}
 
 	top := topPairs(ranks, args.Limit)
 	res, err := buildResponse(ctx, DB, top)
 	if err != nil {
-		return nil, fmt.Errorf("SortAuthors: %w", err)
+		return nil, fmt.Errorf("SortProfiles: %w", err)
 	}
 
 	var i int
@@ -143,10 +143,10 @@ func SortAuthors(
 	return res, nil
 }
 
-// SearchAuthors() returns the top ranked pubkeys whose kind:0s contain the provided string.
+// SearchProfiles() returns the top ranked pubkeys whose kind:0s contain the provided string.
 // All ranks use the specified args.Sort algorithm.
 // For more info read:
-func SearchAuthors(
+func SearchProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
@@ -157,12 +157,12 @@ func SearchAuthors(
 	defer cancel()
 
 	if err := validateSearchAuthors(args); err != nil {
-		return nil, fmt.Errorf("SearchAuthors: %w", err)
+		return nil, fmt.Errorf("SearchProfiles: %w", err)
 	}
 
 	pubkeys, searchRanks, err := searchAuthors(ctx, eventStore, args.Search)
 	if err != nil {
-		return nil, fmt.Errorf("SearchAuthors: %w", err)
+		return nil, fmt.Errorf("SearchProfiles: %w", err)
 	}
 
 	if len(pubkeys) == 0 {
@@ -172,7 +172,7 @@ func SearchAuthors(
 
 	IDs, err := DB.NodeIDs(ctx, append(pubkeys, args.Source)...)
 	if err != nil {
-		return nil, fmt.Errorf("SearchAuthors: failed to fetch the IDs of search results: %w", err)
+		return nil, fmt.Errorf("SearchProfiles: failed to fetch the IDs of search results: %w", err)
 	}
 
 	var sourceID *uint32 = IDs[len(IDs)-1]
@@ -189,7 +189,7 @@ func SearchAuthors(
 
 	ranks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Sort, sourceID)
 	if err != nil {
-		return nil, fmt.Errorf("SearchAuthors: %w", err)
+		return nil, fmt.Errorf("SearchProfiles: %w", err)
 	}
 
 	for i, ID := range targetIDs {
@@ -200,7 +200,7 @@ func SearchAuthors(
 	top := topPairs(ranks, args.Limit)
 	res, err := buildResponse(ctx, DB, top)
 	if err != nil {
-		return nil, fmt.Errorf("SortAuthors: %w", err)
+		return nil, fmt.Errorf("SortProfiles: %w", err)
 	}
 
 	return res, nil
@@ -496,7 +496,7 @@ func validateSortAuthors(args *Args) error {
 	}
 
 	if len(args.Targets) < 1 {
-		return fmt.Errorf("%w: at least one target must be provided for SortAuthors", ErrInvalidTargets)
+		return fmt.Errorf("%w: at least one target must be provided for SortProfiles", ErrInvalidTargets)
 	}
 
 	if args.Limit < 1 {
@@ -512,11 +512,11 @@ func validateSearchAuthors(args *Args) error {
 	}
 
 	if len(args.Search) == 0 {
-		return fmt.Errorf("%w: the search parameter should not be empty for SearchAuthors", ErrInvalidSearch)
+		return fmt.Errorf("%w: the search parameter should not be empty for SearchProfiles", ErrInvalidSearch)
 	}
 
 	if len(args.Targets) != 0 {
-		return fmt.Errorf("%w: no targets need to be provided for SearchAuthors", ErrInvalidTargets)
+		return fmt.Errorf("%w: no targets need to be provided for SearchProfiles", ErrInvalidTargets)
 	}
 
 	if args.Limit < 1 {
@@ -530,7 +530,7 @@ func validateSearchAuthors(args *Args) error {
 func buildResponse(ctx context.Context, DB models.Database, nodeRanks pairs) (RankResponses, error) {
 	if len(nodeRanks) < 1 {
 		// if nodeRanks is empty, we return an empty response. This can happen for example when calling
-		// SortAuthors and all args.Targets are not present in our DB.
+		// SortProfiles and all args.Targets are not present in our DB.
 		return RankResponses{}, nil
 	}
 
