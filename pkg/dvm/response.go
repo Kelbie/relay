@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -159,9 +160,14 @@ func SearchAuthors(
 		return nil, fmt.Errorf("SearchAuthors: %w", err)
 	}
 
-	pubkeys, err := searchAuthors(ctx, eventStore, args.Search)
+	pubkeys, searchRanks, err := searchAuthors(ctx, eventStore, args.Search)
 	if err != nil {
 		return nil, fmt.Errorf("SearchAuthors: %w", err)
+	}
+
+	if len(pubkeys) == 0 {
+		// if the search did not find anything, return an empty response
+		return RankResponses{}, nil
 	}
 
 	IDs, err := DB.NodeIDs(ctx, append(pubkeys, args.Source)...)
@@ -172,8 +178,11 @@ func SearchAuthors(
 	var sourceID *uint32 = IDs[len(IDs)-1]
 	targetIDs := make([]uint32, 0, len(IDs)-1)
 	for i := 0; i < len(IDs)-1; i++ {
-		if IDs[i] != nil {
+		if IDs[i] == nil {
+			// Add signalling value MaxUint32 so that rankNodes returns 0, while keeping sincronisation with the pubkeys slice.
 			// TODO; We should log if the search returns pubkeys that aren't found in redis.
+			targetIDs = append(targetIDs, math.MaxUint32)
+		} else {
 			targetIDs = append(targetIDs, *IDs[i])
 		}
 	}
@@ -181,6 +190,11 @@ func SearchAuthors(
 	ranks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Sort, sourceID)
 	if err != nil {
 		return nil, fmt.Errorf("SearchAuthors: %w", err)
+	}
+
+	for i, ID := range targetIDs {
+		// merge ranks and searchRanks in order to give more accurate search results
+		ranks[ID] = ranks[ID] * math.Pow(searchRanks[i], 3)
 	}
 
 	top := topPairs(ranks, args.Limit)
@@ -236,53 +250,82 @@ func RecommendFollows(
 }
 
 // The function searchAuthors() performs full text seach on the profiles (kind:0s) using the specified search term.
-func searchAuthors(ctx context.Context, eventStore *eventstore.Store, search string) (pubkeys []string, err error) {
+// It returns the pubkeys and search scores (positives, higher is better) of the SQL query.
+func searchAuthors(ctx context.Context, eventStore *eventstore.Store, search string) (pubkeys []string, scores []float64, err error) {
+
 	search = strings.TrimSpace(search)
-
-	var name, displayName, about, website, nip05 float64 // the weights for the query
-	switch {
-	case strings.Contains(search, "@"):
-		// if search contains '@', the user is probably searching using a nip05
-		name, displayName, about, website, nip05 = 3.0, 3.0, 3.0, 3.0, 10.0
-
-	default:
-		name, displayName, about, website, nip05 = 10.0, 10.0, 2.0, 1.0, 1.0
+	if len(search) < 3 {
+		// since we are using the trigram 'tokenizer', we know there won't be any matches.
+		return nil, nil, nil
 	}
 
-	query := `
-	WITH scored_pubkeys AS (
-		SELECT 
-		  pubkey, 
-		  bm25(profiles_fts, 0.0, 0.0, ?, ?, ?, ?, ?) AS score
-		FROM profiles_fts
-		WHERE profiles_fts MATCH ?
-	  )
-	  SELECT pubkey
-	  FROM scored_pubkeys
-	  WHERE score < -9.0
-	  ORDER BY score;`
-	args := []any{name, displayName, about, website, nip05, search}
-
-	rows, err := eventStore.DB.QueryContext(ctx, query, args...)
+	var matches int
+	err = eventStore.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM profiles_fts WHERE profiles_fts MATCH ?", search).Scan(&matches)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query the database: %w", err)
+		return nil, nil, fmt.Errorf("failed to count matches: %w", err)
+	}
+
+	var d, limit = dampening(matches), limit(matches)
+	var name, displayName, about, website, nip05 float64 = 10, 12, 1 * d, 1 * d, 3 * d
+
+	query := `
+	SELECT 
+		pubkey, 
+		bm25(profiles_fts, 0.0, 0.0, ?, ?, ?, ?, ?) AS score
+	FROM profiles_fts
+	WHERE profiles_fts MATCH ?
+	ORDER BY score
+	LIMIT ?;`
+
+	rows, err := eventStore.DB.QueryContext(ctx, query, name, displayName, about, website, nip05, search, limit)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query the database: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var pubkey string
-		if err = rows.Scan(&pubkey); err != nil {
-			return nil, fmt.Errorf("failed to scan the results of the query: %w", err)
+		var score float64
+		if err = rows.Scan(&pubkey, &score); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan the results of the query: %w", err)
 		}
 
 		pubkeys = append(pubkeys, pubkey)
+		scores = append(scores, -score) // bm25 scores are all negative but we prefer to have positive scores
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to scan the results of the query: %w", err)
+		return nil, nil, fmt.Errorf("failed to scan the results of the query: %w", err)
 	}
 
-	return pubkeys, nil
+	return pubkeys, scores, nil
+}
+
+// The default and max `LIMIT` for the full-text-search query.
+const (
+	defaultSearchLimit = 700
+	maxSearchLimit     = 3000
+)
+
+/*
+This function returns the dampening coefficient used to decrease the importance of the
+'about', 'website', 'nip05' columns when performing full-text search.
+
+The rationale is the following: the higher the 'matches', the lower the weight of such columns.
+When matches surpasses `defaultSearchLimit` (the budget for the query), the coefficient goes to 0.
+This behaviour is useful for searches involving popular nip05 providers (e.g. 'primal'),
+or common terms like 'bitcoin' and 'nostr'.
+*/
+func dampening(matches int) float64 {
+	m, l := float64(matches), float64(defaultSearchLimit)
+	return math.Max(1-math.Pow(m/l, 2), 0)
+}
+
+// This function returns the `limit` to be used for the full-text search query.
+// It is elastic in the number of `matches`, but no smaller than `defaultSearchLimit` and
+// no bigger than `maxSearchLimit`.
+func limit(matches int) int {
+	return max(defaultSearchLimit, min(matches/4, maxSearchLimit))
 }
 
 // rankNodes() associates a rank to each target by applying the specified algorithm.

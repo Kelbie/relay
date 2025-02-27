@@ -18,16 +18,17 @@ import (
 
 var (
 	// pubkeys for testing
-	jack      string = "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
-	mallers   string = "c4eabae1be3cf657bc1855ee05e69de9f059cb7a059227168b80b89761cbc4e0"
-	damus     string = "3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"
-	jb55      string = "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"
-	snowden   string = "84dee6e676e5bb67b4ad4e042cf70cbd8681155db535942fcc6a0533858a7240"
-	fran      string = "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11"
-	odell     string = "04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"
-	calle     string = "50d94fc2d8580c682b071a542f8b1e31a200b0508bab95a33bef0855df281d63"
-	pip       string = "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"
-	randomKey string = "d5ad3d3115d9fa07500b06ccd0b9605d9888a206acba20a1e2e681ec29109387"
+	jack_dorsey  string = "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
+	jack_mallers string = "c4eabae1be3cf657bc1855ee05e69de9f059cb7a059227168b80b89761cbc4e0"
+	jack_spirko  string = "a1fc5dfd7ffcf563c89155b466751b580d115e136e2f8c90e8913385bbedb1cf"
+	damus        string = "3efdaebb1d8923ebd99c9e7ace3b4194ab45512e2be79c1b7d68d9243e0d2681"
+	jb55         string = "32e1827635450ebb3c5a7d12c1f8e7b2b514439ac10a67eef3d9fd9c5c68e245"
+	snowden      string = "84dee6e676e5bb67b4ad4e042cf70cbd8681155db535942fcc6a0533858a7240"
+	fran         string = "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11"
+	odell        string = "04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"
+	calle        string = "50d94fc2d8580c682b071a542f8b1e31a200b0508bab95a33bef0855df281d63"
+	pip          string = "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"
+	randomKey    string = "d5ad3d3115d9fa07500b06ccd0b9605d9888a206acba20a1e2e681ec29109387"
 
 	// relay URLs
 	vertexURL     string = "wss://relay.vertexlab.io"
@@ -155,7 +156,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 	}
 
 	// this list is dependent on the specific database
-	expectedRecommendations := []string{damus, jack, jb55, snowden}
+	expectedRecommendations := []string{damus, jack_dorsey, jb55, snowden}
 	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}}
 	expectedKind := req.Kind + 1000
 
@@ -193,7 +194,7 @@ func TestDVM_SearchAuthors(t *testing.T) {
 		Kind: dvm.KindSearchAuthors,
 		Tags: nostr.Tags{
 			{"param", "search", "jack"},
-			{"param", "limit", "2"},
+			{"param", "limit", "3"},
 		},
 	}
 
@@ -207,7 +208,7 @@ func TestDVM_SearchAuthors(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedJacks := []string{jack, mallers}
+	expectedJacks := []string{jack_dorsey, jack_mallers, jack_spirko}
 	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}}
 	expectedKind := req.Kind + 1000
 
