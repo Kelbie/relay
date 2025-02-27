@@ -273,7 +273,7 @@ func searchAuthors(ctx context.Context, eventStore *eventstore.Store, search str
 		pubkey, 
 		bm25(profiles_fts, 0.0, 0.0, ?, ?, ?, ?, ?) AS score
 	FROM profiles_fts
-	WHERE profiles_fts MATCH ?
+	WHERE profiles_fts MATCH ? AND score < 0
 	ORDER BY score
 	LIMIT ?;`
 
