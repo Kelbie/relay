@@ -407,6 +407,28 @@ func TestSearchAuthors(t *testing.T) {
 			expectedRes: RankResponses{{Pubkey: pip, Rank: 0.0}},
 		},
 		{
+			name:    "valid global npub",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Search: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup",
+				Sort:   "globalPagerank",
+				Limit:  5,
+			},
+			expectedRes: RankResponses{{Pubkey: pip, Rank: 0.0}},
+		},
+		{
+			name:    "valid global hex",
+			DBType:  "simple-with-pks",
+			RWSType: "simple",
+			args: &Args{
+				Search: "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2",
+				Sort:   "globalPagerank",
+				Limit:  5,
+			},
+			expectedRes: RankResponses{{Pubkey: pip, Rank: 0.0}},
+		},
+		{
 			name:    "valid personalized (simple)",
 			DBType:  "simple-with-pks",
 			RWSType: "simple",

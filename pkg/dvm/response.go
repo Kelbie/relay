@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/vertex-lab/crawler/pkg/models"
 	"github.com/vertex-lab/crawler/pkg/pagerank"
 	"github.com/vertex-lab/relay/pkg/eventstore"
@@ -257,6 +259,25 @@ func searchAuthors(ctx context.Context, eventStore *eventstore.Store, search str
 	if len(search) < 3 {
 		// since we are using the trigram 'tokenizer', we know there won't be any matches.
 		return nil, nil, nil
+	}
+
+	// check if the search is an npub of hex pubkey
+	if nostr.IsValidPublicKey(search) {
+		return []string{search}, []float64{1}, nil
+	}
+
+	if strings.HasPrefix(search, "npub") {
+		_, pubkey, err := nip19.Decode(search)
+		if err != nil {
+			return nil, nil, nil
+		}
+
+		pk, ok := pubkey.(string)
+		if !ok {
+			return nil, nil, nil
+		}
+
+		return []string{pk}, []float64{1}, nil
 	}
 
 	var matches int
