@@ -96,6 +96,7 @@ func main() {
 		// accept all events from authorized pubkeys
 		pubkeyReasons, err := relay.ManagementAPI.ListAllowedPubKeys(ctx)
 		if err != nil {
+			log.Error("failed to load list of allowed pubkeys: %v", err)
 			return true, err.Error()
 		}
 
