@@ -22,25 +22,12 @@ var (
 
 // Parse() parses a filter and returns the specified arguments for the DVM.
 func Parse(filter *nostr.Filter) (*dvm.Args, error) {
-	if filter == nil {
-		return nil, ErrNilFilter
-	}
-
-	if filter.Search == "" {
-		return nil, ErrEmptyFieldSearch
-	}
-
-	if len(filter.Kinds) != 2 {
-		return nil, fmt.Errorf("%w :%v", ErrInvalidKindsFormat, filter.Kinds)
-	}
-
-	DVMkind, DVMerr := filter.Kinds[0], filter.Kinds[1]
-	if DVMkind < 6312 || DVMkind > 6318 || DVMerr != 7000 {
-		return nil, fmt.Errorf("%w :%v", ErrInvalidKindsFormat, filter.Kinds)
+	if err := validateFilter(filter); err != nil {
+		return nil, err
 	}
 
 	var err error
-	var defaultArgs = dvm.NewArgs("", "", DVMkind-1000)
+	var defaultArgs = dvm.NewArgs("", "", filter.Kinds[0]-1000)
 	var args = *defaultArgs // this copy will be returned if no errors occur.
 
 	if err = json.Unmarshal([]byte(filter.Search), &args); err != nil {
@@ -76,3 +63,86 @@ func Parse(filter *nostr.Filter) (*dvm.Args, error) {
 
 	return &args, nil
 }
+
+func validateFilter(filter *nostr.Filter) error {
+	if filter == nil {
+		return ErrNilFilter
+	}
+
+	if filter.Search == "" {
+		return ErrEmptyFieldSearch
+	}
+
+	if len(filter.Kinds) != 2 {
+		return fmt.Errorf("%w :%v", ErrInvalidKindsFormat, filter.Kinds)
+	}
+
+	DVMkind, DVMerr := filter.Kinds[0], filter.Kinds[1]
+	if DVMkind < 6312 || DVMkind > 6315 || DVMerr != 7000 {
+		return fmt.Errorf("%w :%v", ErrInvalidKindsFormat, filter.Kinds)
+	}
+
+	return nil
+}
+
+// ParseArgs uses a streaming decoder to allow duplicate "target" keys.
+// func ParseArgs(input string) (Args, error) {
+// 	var args Args
+
+// 	dec := json.NewDecoder(strings.NewReader(input))
+// 	// Expect the JSON object to start with a '{'
+// 	t, err := dec.Token()
+// 	if err != nil {
+// 		return args, err
+// 	}
+// 	if delim, ok := t.(json.Delim); !ok || delim != '{' {
+// 		return args, fmt.Errorf("expected object start")
+// 	}
+
+// 	// Process key-value pairs manually.
+// 	for dec.More() {
+// 		// Read the next key.
+// 		t, err := dec.Token()
+// 		if err != nil {
+// 			return args, err
+// 		}
+// 		key, ok := t.(string)
+// 		if !ok {
+// 			return args, fmt.Errorf("expected string key")
+// 		}
+
+// 		switch key {
+// 		case "target":
+// 			// Decode the target value (assuming it's a string).
+// 			var target string
+// 			if err := dec.Decode(&target); err != nil {
+// 				return args, err
+// 			}
+// 			args.Targets = append(args.Targets, target)
+// 		case "source":
+// 			if err := dec.Decode(&args.Source); err != nil {
+// 				return args, err
+// 			}
+// 		case "limit":
+// 			if err := dec.Decode(&args.Limit); err != nil {
+// 				return args, err
+// 			}
+// 		default:
+// 			// For any key we don't care about, skip its value.
+// 			if err := dec.Decode(new(interface{})); err != nil {
+// 				return args, err
+// 			}
+// 		}
+// 	}
+
+// 	// Ensure the object ends with a '}'
+// 	t, err = dec.Token()
+// 	if err != nil {
+// 		return args, err
+// 	}
+// 	if delim, ok := t.(json.Delim); !ok || delim != '}' {
+// 		return args, fmt.Errorf("expected object end")
+// 	}
+
+// 	return args, nil
+// }
