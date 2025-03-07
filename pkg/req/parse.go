@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/vertex-lab/relay/pkg/dvm"
 
@@ -21,58 +20,22 @@ var (
 )
 
 // Parse() parses a filter and returns the specified arguments for the DVM.
-func Parse(filter *nostr.Filter) (*dvm.Args, error) {
-	if err := validateFilter(filter); err != nil {
-		return nil, err
+// This function should always be called after [ValidateFilter].
+func Parse(filter *nostr.Filter) (dvm.Params, error) {
+	if len(filter.Search) < 1 {
+		return dvm.Params{}, ErrEmptyFieldSearch
 	}
 
-	var err error
-	var defaultArgs = dvm.NewArgs("", "", filter.Kinds[0]-1000)
-	var args = *defaultArgs // this copy will be returned if no errors occur.
-
-	if err = json.Unmarshal([]byte(filter.Search), &args); err != nil {
-		return defaultArgs, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
+	params := dvm.NewParams("")
+	if err := json.Unmarshal([]byte(filter.Search), &params); err != nil {
+		return dvm.Params{}, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
 	}
 
-	// parse source key if provided
-	if args.Source != "" {
-		args.Source, err = dvm.ParseKey(args.Source)
-		if err != nil {
-			return defaultArgs, err
-		}
-	}
-
-	// parse targets in place
-	for i, target := range args.Targets {
-		t, err := dvm.ParseKey(target)
-		if err != nil {
-			return defaultArgs, err
-		}
-
-		args.Targets[i] = t
-	}
-
-	// validate sort, distance and limit.
-	if !slices.Contains(dvm.ValidSorts, args.Sort) {
-		return defaultArgs, fmt.Errorf("%w: %v", dvm.ErrInvalidSortOption, args.Sort)
-	}
-
-	if args.Limit > dvm.MaxLimit {
-		return defaultArgs, fmt.Errorf("%w: limit must be smaller than %v", dvm.ErrInvalidLimit, dvm.MaxLimit)
-	}
-
-	return &args, nil
+	return params, nil
 }
 
-func validateFilter(filter *nostr.Filter) error {
-	if filter == nil {
-		return ErrNilFilter
-	}
-
-	if filter.Search == "" {
-		return ErrEmptyFieldSearch
-	}
-
+// ValidateFilter checks if the kinds of the filter match the valid format kinds:{<dvm_response_kind>, 7000}.
+func ValidateFilter(filter *nostr.Filter) error {
 	if len(filter.Kinds) != 2 {
 		return fmt.Errorf("%w :%v", ErrInvalidKindsFormat, filter.Kinds)
 	}
@@ -84,65 +47,3 @@ func validateFilter(filter *nostr.Filter) error {
 
 	return nil
 }
-
-// ParseArgs uses a streaming decoder to allow duplicate "target" keys.
-// func ParseArgs(input string) (Args, error) {
-// 	var args Args
-
-// 	dec := json.NewDecoder(strings.NewReader(input))
-// 	// Expect the JSON object to start with a '{'
-// 	t, err := dec.Token()
-// 	if err != nil {
-// 		return args, err
-// 	}
-// 	if delim, ok := t.(json.Delim); !ok || delim != '{' {
-// 		return args, fmt.Errorf("expected object start")
-// 	}
-
-// 	// Process key-value pairs manually.
-// 	for dec.More() {
-// 		// Read the next key.
-// 		t, err := dec.Token()
-// 		if err != nil {
-// 			return args, err
-// 		}
-// 		key, ok := t.(string)
-// 		if !ok {
-// 			return args, fmt.Errorf("expected string key")
-// 		}
-
-// 		switch key {
-// 		case "target":
-// 			// Decode the target value (assuming it's a string).
-// 			var target string
-// 			if err := dec.Decode(&target); err != nil {
-// 				return args, err
-// 			}
-// 			args.Targets = append(args.Targets, target)
-// 		case "source":
-// 			if err := dec.Decode(&args.Source); err != nil {
-// 				return args, err
-// 			}
-// 		case "limit":
-// 			if err := dec.Decode(&args.Limit); err != nil {
-// 				return args, err
-// 			}
-// 		default:
-// 			// For any key we don't care about, skip its value.
-// 			if err := dec.Decode(new(interface{})); err != nil {
-// 				return args, err
-// 			}
-// 		}
-// 	}
-
-// 	// Ensure the object ends with a '}'
-// 	t, err = dec.Token()
-// 	if err != nil {
-// 		return args, err
-// 	}
-// 	if delim, ok := t.(json.Delim); !ok || delim != '}' {
-// 		return args, fmt.Errorf("expected object end")
-// 	}
-
-// 	return args, nil
-// }

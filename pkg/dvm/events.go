@@ -2,12 +2,9 @@
 package dvm
 
 import (
-	"context"
 	"encoding/json"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/vertex-lab/crawler/pkg/models"
-	"github.com/vertex-lab/relay/pkg/eventstore"
 )
 
 var (
@@ -19,112 +16,54 @@ var (
 	KindDVMError         int = 7000
 )
 
-// ErrorEvent() returns an unsigned nostr event for the DVM error
-func ErrorEvent(errMsg, requestID, requestPubkey string) *nostr.Event {
-	var tags = nostr.Tags{{"status", "error", errMsg}}
-	if requestID != "" {
-		tags = append(tags, nostr.Tag{"e", requestID})
-	}
-	if requestPubkey != "" {
-		tags = append(tags, nostr.Tag{"p", requestPubkey})
+// Record encapsulates the relevant fields for identifying the request.
+type Record struct {
+	ID     string
+	Pubkey string
+	Kind   int
+}
+
+func (r Record) ToTags() nostr.Tags {
+	var tags nostr.Tags
+	if r.ID != "" {
+		tags = append(tags, nostr.Tag{"e", r.ID})
 	}
 
+	if r.Pubkey != "" {
+		tags = append(tags, nostr.Tag{"p", r.Pubkey})
+	}
+
+	return tags
+}
+
+// ErrorEvent() returns an unsigned nostr event for the DVM error
+func ErrorEvent(err error, rec Record) *nostr.Event {
 	return &nostr.Event{
 		Content:   "",
 		CreatedAt: nostr.Now(),
 		Kind:      KindDVMError,
-		Tags:      tags,
+		Tags:      append(rec.ToTags(), nostr.Tag{"status", "error", err.Error()}),
 	}
 }
 
 // ResponseEvent() returns an unsigned nostr event used for the DVM
-func ResponseEvent(res []RankResponse, requestID, requestPubkey string, requestKind int) *nostr.Event {
-	var tags nostr.Tags
-	if requestID != "" {
-		tags = append(tags, nostr.Tag{"e", requestID})
-	}
-	if requestPubkey != "" {
-		tags = append(tags, nostr.Tag{"p", requestPubkey})
-	}
-
-	if len(res) >= 1 && requestKind == KindVerifyReputation && requestID == "" {
+func ResponseEvent(response PubkeyRanks, rec Record) *nostr.Event {
+	if len(response) >= 1 && rec.Kind == KindVerifyReputation && rec.ID == "" {
 		// this is a nasty trick to mantain backwards compatibility with Zapstore,
-		// that should be removed as soon as Zapstore upgreades to the new format for VerifyReputation.
-		// requestID == "" iff REQ is used.
-		res = res[1:]
+		// that should be removed as soon as Zapstore upgrades to the new format for VerifyReputation.
+		// rec.ID == "" iff REQ is used.
+		response = response[1:]
 	}
 
-	jsonBytes, err := json.Marshal(res)
+	json, err := json.Marshal(response)
 	if err != nil {
-		return ErrorEvent(err.Error(), requestID, requestPubkey)
+		return ErrorEvent(err, rec)
 	}
 
-	var content = string(jsonBytes)
 	return &nostr.Event{
-		Content:   content,
+		Content:   string(json),
 		CreatedAt: nostr.Now(),
-		Kind:      requestKind + 1000,
-		Tags:      tags,
+		Kind:      rec.Kind + 1000,
+		Tags:      rec.ToTags(),
 	}
-}
-
-// VerifyReputationEvent() returns the verify reputation event from the specified args.
-func VerifyReputationEvent(
-	ctx context.Context,
-	DB models.Database,
-	RWS models.RandomWalkStore,
-	args *Args) *nostr.Event {
-
-	res, err := VerifyReputation(ctx, DB, RWS, args)
-	if err != nil {
-		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
-	}
-
-	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
-}
-
-// SortProfilesEvent() returns the sorted authors event from the specified args.
-func SortProfilesEvent(
-	ctx context.Context,
-	DB models.Database,
-	RWS models.RandomWalkStore,
-	args *Args) *nostr.Event {
-
-	res, err := SortProfiles(ctx, DB, RWS, args)
-	if err != nil {
-		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
-	}
-
-	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
-}
-
-// RecommendFollowsEvent() returns the recommended follows event from the specified args.
-func RecommendFollowsEvent(
-	ctx context.Context,
-	DB models.Database,
-	RWS models.RandomWalkStore,
-	args *Args) *nostr.Event {
-
-	res, err := RecommendFollows(ctx, DB, RWS, args)
-	if err != nil {
-		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
-	}
-
-	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
-}
-
-// SearchProfilesEvent() returns the sorted authors event from the specified args.
-func SearchProfilesEvent(
-	ctx context.Context,
-	DB models.Database,
-	RWS models.RandomWalkStore,
-	eventStore *eventstore.Store,
-	args *Args) *nostr.Event {
-
-	res, err := SearchProfiles(ctx, DB, RWS, eventStore, args)
-	if err != nil {
-		return ErrorEvent(err.Error(), args.ID, args.Pubkey)
-	}
-
-	return ResponseEvent(res, args.ID, args.Pubkey, args.Kind)
 }

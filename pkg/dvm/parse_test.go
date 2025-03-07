@@ -17,237 +17,343 @@ const (
 	randomKey string = "d5ad3d3115d9fa07500b06ccd0b9605d9888a206acba20a1e2e681ec29109387"
 )
 
-func TestParseArgs(t *testing.T) {
-	testCases := []struct {
+func TestParse(t *testing.T) {
+	tests := []struct {
 		name          string
 		req           *nostr.Event
-		expectedArgs  *Args
+		expected      Params
 		expectedError error
 	}{
 		{
-			name:          "nil req",
-			req:           nil,
-			expectedArgs:  nil,
-			expectedError: ErrNilEvent,
-		},
-		{
-			name: "empty req --> default args",
+			name: "invalid limit",
 			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
+				Kind: KindVerifyReputation,
+				Tags: nostr.Tags{{"param", "limit", "sixty-nine"}},
 			},
-			expectedArgs: NewArgs("", fran, KindVerifyReputation),
-		},
-		{
-			name: "invalid kind",
-			req: &nostr.Event{
-				ID:     "xxx",
-				PubKey: fran,
-				Kind:   43223,
-			},
-			expectedArgs:  NewArgs("xxx", fran, 43223),
-			expectedError: ErrInvalidKind,
-		},
-		{
-			name: "badly formatted tag: no param",
-			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
-				Tags: nostr.Tags{
-					{"target", "xxxx"},
-				},
-			},
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
-			expectedError: ErrBadlyFormattedTag,
-		},
-		{
-			name: "badly formatted tag: too short",
-			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
-				Tags: nostr.Tags{
-					{"param", "target"},
-				},
-			},
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
-			expectedError: ErrBadlyFormattedTag,
-		},
-		{
-			name: "invalid parameter",
-			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
-				Tags: nostr.Tags{
-					{"param", "delta", "xxx"},
-				},
-			},
-
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
-			expectedError: ErrUnknownParameter,
-		},
-		{
-			name: "invalid sort option",
-			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
-				Tags: nostr.Tags{
-					{"param", "sort", "grapeWine"},
-				},
-			},
-
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
-			expectedError: ErrInvalidSortOption,
-		},
-		{
-			name: "badly formatted pubkey",
-			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
-				Tags: nostr.Tags{
-					{"param", "target", "xxxx"},
-				},
-			},
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
-			expectedError: ErrBadlyFormattedKey,
-		},
-		{
-			name: "badly formatted int",
-			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
-				Tags: nostr.Tags{
-					{"param", "limit", "one"},
-				},
-			},
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
-			expectedError: ErrBadlyFormattedInt,
-		},
-		{
-			name: "limit too high",
-			req: &nostr.Event{
-				PubKey: fran,
-				Kind:   KindVerifyReputation,
-				Tags: nostr.Tags{
-					{"param", "limit", "10000"},
-				},
-			},
-			expectedArgs:  NewArgs("", fran, KindVerifyReputation),
 			expectedError: ErrInvalidLimit,
 		},
 		{
-			name: "valid relevant who follow",
+			name: "multiple source",
 			req: &nostr.Event{
-				Kind:   KindVerifyReputation,
-				PubKey: fran,
+				Kind: KindVerifyReputation,
+				Tags: nostr.Tags{{"param", "source", "aaa"}, {"param", "source", "bbb"}},
+			},
+			expectedError: ErrMultipleParams,
+		},
+		{
+			name: "multiple sort",
+			req: &nostr.Event{
+				Kind: KindVerifyReputation,
+				Tags: nostr.Tags{{"param", "sort", "aaa"}, {"param", "sort", "bbb"}},
+			},
+			expectedError: ErrMultipleParams,
+		},
+		{
+			name: "multiple limit",
+			req: &nostr.Event{
+				Kind: KindVerifyReputation,
+				Tags: nostr.Tags{{"param", "limit", "9"}, {"param", "limit", "11"}},
+			},
+			expectedError: ErrMultipleParams,
+		},
+		{
+			name: "multiple search",
+			req: &nostr.Event{
+				Kind: KindVerifyReputation,
+				Tags: nostr.Tags{{"param", "search", "jack"}, {"param", "search", "odell"}},
+			},
+			expectedError: ErrMultipleParams,
+		},
+		{
+			name: "valid",
+			req: &nostr.Event{
 				Tags: nostr.Tags{
+					{"param", "search", "jack"},
 					{"param", "source", pip},
+					{"param", "sort", Personalized},
+					{"param", "limit", "9"},
 					{"param", "target", calle},
-					{"param", "sort", "globalPagerank"},
+					{"param", "target", odell},
+					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expectedArgs: &Args{
-				Kind:    KindVerifyReputation,
-				Pubkey:  fran,
-				Source:  pip,
-				Targets: []string{calle},
-				Sort:    "globalPagerank",
-				Limit:   DefaultLimit,
-			},
-		},
-		{
-			name: "valid recommended follows",
-			req: &nostr.Event{
-				Kind:   KindRecommendFollows,
-				PubKey: pip,
-				Tags: nostr.Tags{
-					{"param", "sort", "personalizedPagerank"},
-				},
-			},
-			expectedArgs: &Args{
-				Kind:    KindRecommendFollows,
-				Pubkey:  pip,
-				Source:  pip,
-				Targets: nil,
-				Sort:    "personalizedPagerank",
-				Limit:   DefaultLimit,
-			},
-		},
-		{
-			name: "valid sort authors",
-			req: &nostr.Event{
-				Kind:   KindSortProfiles,
-				PubKey: pip,
-				Tags: nostr.Tags{
-					{"param", "target", fran},
-					{"param", "target", pip},
-					{"param", "target", calle},
-					{"param", "target", "npub1glq5d270lwhzp9eqtw5t6f204f0hcgcgedlclhe0kcqk7jccw4wscjh0u8"},
-				},
-			},
-			expectedArgs: &Args{
-				Kind:    KindSortProfiles,
-				Pubkey:  pip,
-				Source:  pip,
-				Targets: []string{fran, pip, calle, "47c146abcffbae2097205ba8bd254faa5f7c2308cb7f8fdf2fb6016f4b18755d"},
-				Sort:    "globalPagerank",
-				Limit:   DefaultLimit,
-			},
-		},
-		{
-			name: "valid search authors",
-			req: &nostr.Event{
-				Kind:   KindSearchProfiles,
-				PubKey: pip,
-				Tags: nostr.Tags{
-					{"param", "search", "hello"},
-					{"param", "sort", "personalizedPagerank"},
-				},
-			},
-			expectedArgs: &Args{
-				Kind:    KindSearchProfiles,
-				Pubkey:  pip,
-				Source:  pip,
-				Targets: nil,
-				Sort:    "personalizedPagerank",
-				Limit:   DefaultLimit,
-				Search:  "hello",
+			expected: Params{
+				Algorithm: Algorithm{Sort: Personalized, Source: pip},
+				Search:    "jack",
+				Targets:   []string{calle, odell},
+				Limit:     9,
 			},
 		},
 	}
 
-	for _, test := range testCases {
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			args, err := Parse(test.req)
 
 			if !errors.Is(err, test.expectedError) {
-				t.Fatalf("ParseRequestArgs(): expected %v, got %v", test.expectedError, err)
+				t.Fatalf("Parse(): expected %v, got %v", test.expectedError, err)
 			}
 
-			if !reflect.DeepEqual(args, test.expectedArgs) {
-				t.Errorf("ParseRequestArgs(): expected %v, got %v", test.expectedArgs, args)
+			if !reflect.DeepEqual(args, test.expected) {
+				t.Errorf("Parse(): expected %v, got %v", test.expected, args)
 			}
 		})
 	}
 }
 
-// ----------------------------------BENCHMARKS--------------------------------
-
-func BenchmarkParseArgs(b *testing.B) {
-	const npub = "npub1wf4pufsucer5va8g9p0rj5dnhvfeh6d8w0g6eayaep5dhps6rsgs43dgh9"
-	const tagsNum = 10000
-
-	tags := make([]nostr.Tag, tagsNum)
-	for i := 0; i < tagsNum; i++ {
-		tags[i] = nostr.Tag{"param", "target", npub}
+func TestToVerifyReputation(t *testing.T) {
+	tests := []struct {
+		name          string
+		params        Params
+		expected      *VerifyReputationArgs
+		expectedError error
+	}{
+		{
+			name:          "no targets",
+			params:        Params{},
+			expectedError: ErrInvalidTarget,
+		},
+		{
+			name:          "too many targets",
+			params:        Params{Targets: []string{pip, calle}},
+			expectedError: ErrInvalidTarget,
+		},
+		{
+			name:          "search",
+			params:        Params{Targets: []string{pip}, Search: "j"},
+			expectedError: ErrParamNotSupported,
+		},
+		{
+			name:          "invalid source key",
+			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Targets: []string{pip}, Limit: 10},
+			expectedError: ErrInvalidSource,
+		},
+		{
+			name:          "invalid target key",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{"xxx"}, Limit: 10},
+			expectedError: ErrInvalidTarget,
+		},
+		{
+			name:          "negative limit",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: -1},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:          "limit too high",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name: "valid",
+			params: Params{
+				Algorithm: Algorithm{Sort: Personalized, Source: odell},
+				Targets:   []string{"npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
+				Limit:     69,
+			},
+			expected: &VerifyReputationArgs{
+				Algorithm: Algorithm{Sort: Personalized, Source: odell},
+				Target:    pip,
+				Limit:     69,
+			},
+		},
 	}
 
-	req := &nostr.Event{
-		PubKey: fran,
-		Tags:   tags,
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			args, err := test.params.ToVerifyReputationArgs()
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("expected error %v, got %v", test.expectedError, err)
+			}
+
+			if !reflect.DeepEqual(args, test.expected) {
+				t.Fatalf("expected args %v, got %v", test.expected, args)
+			}
+		})
+	}
+}
+
+func TestToRecommendFollows(t *testing.T) {
+	tests := []struct {
+		name          string
+		params        Params
+		expected      *RecommendFollowsArgs
+		expectedError error
+	}{
+		{
+			name:          "non-empty targets",
+			params:        Params{Targets: []string{pip}},
+			expectedError: ErrParamNotSupported,
+		},
+		{
+			name:          "search",
+			params:        Params{Search: "j"},
+			expectedError: ErrParamNotSupported,
+		},
+		{
+			name:          "invalid source key",
+			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10},
+			expectedError: ErrInvalidSource,
+		},
+		{
+			name:          "negative limit",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: -1},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:          "limit too high",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name: "valid",
+			params: Params{
+				Algorithm: Algorithm{Sort: Personalized, Source: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
+				Limit:     69,
+			},
+			expected: &RecommendFollowsArgs{
+				Algorithm: Algorithm{Sort: Personalized, Source: pip},
+				Limit:     69,
+			},
+		},
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		Parse(req)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			args, err := test.params.ToRecommendFollowsArgs()
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("expected error %v, got %v", test.expectedError, err)
+			}
+
+			if !reflect.DeepEqual(args, test.expected) {
+				t.Fatalf("expected args %v, got %v", test.expected, args)
+			}
+		})
+	}
+}
+
+func TestToSortProfiles(t *testing.T) {
+	tests := []struct {
+		name          string
+		params        Params
+		expected      *SortProfilesArgs
+		expectedError error
+	}{
+		{
+			name:          "search",
+			params:        Params{Search: "j"},
+			expectedError: ErrParamNotSupported,
+		},
+		{
+			name:          "invalid source key",
+			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10, Targets: []string{pip}},
+			expectedError: ErrInvalidSource,
+		},
+		{
+			name:          "empty targets",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: 10},
+			expectedError: ErrInvalidTarget,
+		},
+		{
+			name:          "invalid target",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: 10, Targets: []string{pip, calle, "xxxx"}},
+			expectedError: ErrInvalidTarget,
+		},
+		{
+			name:          "negative limit",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: -1},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:          "limit too high",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name: "valid",
+			params: Params{
+				Algorithm: Algorithm{Sort: Personalized, Source: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
+				Targets:   []string{calle, pip, odell, fran, "npub16kkn6vg4m8aqw5qtqmxdpwtqtkvg3gsx4jazpg0zu6q7c2gsjwrs3tdflr"},
+				Limit:     69,
+			},
+			expected: &SortProfilesArgs{
+				Algorithm: Algorithm{Sort: Personalized, Source: pip},
+				Targets:   []string{calle, pip, odell, fran, randomKey},
+				Limit:     5,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			args, err := test.params.ToSortProfilesArgs()
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("expected error %v, got %v", test.expectedError, err)
+			}
+
+			if !reflect.DeepEqual(args, test.expected) {
+				t.Fatalf("expected args %v, got %v", test.expected, args)
+			}
+		})
+	}
+}
+
+func TestToSearchProfiles(t *testing.T) {
+	tests := []struct {
+		name          string
+		params        Params
+		expected      *SearchProfilesArgs
+		expectedError error
+	}{
+		{
+			name:          "non-empty targets",
+			params:        Params{Targets: []string{pip, calle}},
+			expectedError: ErrParamNotSupported,
+		},
+		{
+			name:          "invalid source key",
+			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10, Search: "jack"},
+			expectedError: ErrInvalidSource,
+		},
+		{
+			name:          "search too short",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: 10, Search: "ab"},
+			expectedError: ErrInvalidSearch,
+		},
+		{
+			name:          "negative limit",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: -1, Search: "jack"},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name:          "limit too high",
+			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1, Search: "jack"},
+			expectedError: ErrInvalidLimit,
+		},
+		{
+			name: "valid",
+			params: Params{
+				Algorithm: Algorithm{Sort: Personalized, Source: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
+				Search:    "   jack   ",
+				Limit:     69,
+			},
+			expected: &SearchProfilesArgs{
+				Algorithm: Algorithm{Sort: Personalized, Source: pip},
+				Search:    "jack",
+				Limit:     69,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			args, err := test.params.ToSearchProfilesArgs()
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("expected error %v, got %v", test.expectedError, err)
+			}
+
+			if !reflect.DeepEqual(args, test.expected) {
+				t.Fatalf("expected args %v, got %v", test.expected, args)
+			}
+		})
 	}
 }

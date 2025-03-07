@@ -134,14 +134,14 @@ func New(DatabaseURL string) (*Store, error) {
 func (s *Store) Save(ctx context.Context, event *nostr.Event) error {
 	tags, err := json.Marshal(event.Tags)
 	if err != nil {
-		return fmt.Errorf("failed to marshal the tags: %w", err)
+		return fmt.Errorf("failed to marshal the tags of the event with ID %s: %w", event.ID, err)
 	}
 
 	_, err = s.DB.ExecContext(ctx, `INSERT OR IGNORE INTO events (id, pubkey, created_at, kind, tags, content, sig)
         VALUES ($1, $2, $3, $4, $5, $6, $7)`, event.ID, event.PubKey, event.CreatedAt, event.Kind, tags, event.Content, event.Sig)
 
 	if err != nil {
-		return fmt.Errorf("failed to save event with ID %s: %w", event.ID, err)
+		return fmt.Errorf("failed to save the event with ID %s: %w", event.ID, err)
 	}
 
 	return nil

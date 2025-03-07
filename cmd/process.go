@@ -6,55 +6,113 @@ import (
 
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/eventstore"
+	"github.com/vertex-lab/relay/pkg/req"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/crawler/pkg/models"
 )
 
-// ProcessRequest() constructs the appropriate DVM event given args and parsingErr,
-// and then applies the closure function responseHandler.
+func HandleDVMRequest(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	eventStore *eventstore.Store,
+	request *nostr.Event,
+	responseHandler func(context.Context, *nostr.Event) error) error {
+
+	if request == nil {
+		return dvm.ErrNilEvent
+	}
+
+	record := dvm.Record{ID: request.ID, Pubkey: request.PubKey, Kind: request.Kind}
+	params, err := dvm.Parse(request)
+	if err != nil {
+		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+	}
+
+	return ProcessRequest(ctx, DB, RWS, eventStore, params, record, responseHandler)
+}
+
+func HandleREQRequest(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	eventStore *eventstore.Store,
+	filter *nostr.Filter,
+	responseHandler func(context.Context, *nostr.Event) error) error {
+
+	if filter == nil {
+		return req.ErrNilFilter
+	}
+
+	if err := req.ValidateFilter(filter); err != nil {
+		// if the filter doesn't match the valid format "kinds:<dvm_response_kind>, 7000",
+		// return the error as a NOTICE and not as a kind:7000 to make sure the customer receives it.
+		return err
+	}
+
+	record := dvm.Record{Kind: filter.Kinds[0] - 1000}
+	params, err := req.Parse(filter)
+	if err != nil {
+		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+	}
+
+	return ProcessRequest(ctx, DB, RWS, eventStore, params, record, responseHandler)
+}
+
 func ProcessRequest(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	eventstore *eventstore.Store,
-	args *dvm.Args,
-	parsingErr error,
+	eventStore *eventstore.Store,
+	params dvm.Params,
+	record dvm.Record,
 	responseHandler func(context.Context, *nostr.Event) error) error {
 
-	if args == nil {
-		return dvm.ErrNilArgs
-	}
+	var res dvm.PubkeyRanks
+	var err error
 
-	var res *nostr.Event
-	if parsingErr != nil {
-		// if there are parsing errors, return them as the appropriate DVM event
-		res = dvm.ErrorEvent(parsingErr.Error(), args.ID, args.Pubkey)
-		return responseHandler(ctx, res)
-	}
-
-	switch args.Kind {
+	switch record.Kind {
 	case dvm.KindVerifyReputation:
-		res = dvm.VerifyReputationEvent(ctx, DB, RWS, args)
+		args, err := params.ToVerifyReputationArgs()
+		if err != nil {
+			return err
+		}
+		res, err = dvm.VerifyReputation(ctx, DB, RWS, args)
 
 	case dvm.KindRecommendFollows:
-		res = dvm.RecommendFollowsEvent(ctx, DB, RWS, args)
+		args, err := params.ToRecommendFollowsArgs()
+		if err != nil {
+			return err
+		}
+		res, err = dvm.RecommendFollows(ctx, DB, RWS, args)
 
 	case dvm.KindSortProfiles:
-		res = dvm.SortProfilesEvent(ctx, DB, RWS, args)
+		args, err := params.ToSortProfilesArgs()
+		if err != nil {
+			return err
+		}
+		res, err = dvm.SortProfiles(ctx, DB, RWS, args)
 
 	case dvm.KindSearchProfiles:
-		res = dvm.SearchProfilesEvent(ctx, DB, RWS, eventstore, args)
+		args, err := params.ToSearchProfilesArgs()
+		if err != nil {
+			return err
+		}
+		res, err = dvm.SearchProfiles(ctx, DB, RWS, eventStore, args)
 
 	default:
-		return fmt.Errorf("%w: %v", dvm.ErrInvalidKind, args.Kind)
+		err = fmt.Errorf("%w: %v", dvm.ErrInvalidKind, record.Kind)
 	}
 
-	// log how many requests have been processed so far
+	if err != nil {
+		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+	}
+
 	requestCounter.Add(1)
-	if requestCounter.Load()%250 == 0 {
-		log.Info("processed %v requests", requestCounter.Load())
+	if requestCounter.Load()%500 == 0 {
+		log.Info("processed %d requests", requestCounter.Load())
 	}
 
-	return responseHandler(ctx, res)
+	return responseHandler(ctx, dvm.ResponseEvent(res, record))
 }

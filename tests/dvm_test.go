@@ -67,7 +67,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	var ranks dvm.RankResponses
+	var ranks dvm.PubkeyRanks
 	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestDVM_SortProfiles(t *testing.T) {
 		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	var ranks dvm.RankResponses
+	var ranks dvm.PubkeyRanks
 	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
 		t.Errorf("failed to unmarshal the DVM response content: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	var ranks dvm.RankResponses
+	var ranks dvm.PubkeyRanks
 	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
 		t.Errorf("failed to unmarshal the DVM response content: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestDVM_SearchProfiles(t *testing.T) {
 		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	var ranks dvm.RankResponses
+	var ranks dvm.PubkeyRanks
 	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
 		t.Errorf("failed to unmarshal the DVM response content: %v", err)
 	}

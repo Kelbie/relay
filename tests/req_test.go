@@ -30,9 +30,9 @@ func TestREQ_VerifyReputation(t *testing.T) {
 		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	var ranks dvm.RankResponses
+	var ranks dvm.PubkeyRanks
 	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
-		t.Errorf("failed to unmarshal the DVM response content: %v", err)
+		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
 	pubkeys, _ := ranks.Unpack()
@@ -45,7 +45,7 @@ func TestREQ_VerifyReputation(t *testing.T) {
 
 // reqResponse() connects to the relay, send the REQ.
 func reqResponse(req nostr.Filter, relayURL string) (res *nostr.Event, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	relay, err := nostr.RelayConnect(ctx, relayURL)
@@ -53,8 +53,12 @@ func reqResponse(req nostr.Filter, relayURL string) (res *nostr.Event, err error
 		return nil, fmt.Errorf("failed to connect to %s: %w", relayURL, err)
 	}
 
-	var counter int
 	ch, err := relay.QueryEvents(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var counter int
 	for event := range ch {
 		res = event
 		counter++

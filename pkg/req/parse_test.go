@@ -20,88 +20,18 @@ const (
 
 func TestParse(t *testing.T) {
 	testCases := []struct {
-		name          string
-		filter        *nostr.Filter
-		expectedArgs  *dvm.Args
-		expectedError error
+		name           string
+		filter         *nostr.Filter
+		expectedParams dvm.Params
+		expectedError  error
 	}{
-		{
-			name:          "nil filter",
-			filter:        nil,
-			expectedArgs:  nil,
-			expectedError: ErrNilFilter,
-		},
 		{
 			name:          "empty search",
 			filter:        &nostr.Filter{Search: ""},
-			expectedArgs:  nil,
 			expectedError: ErrEmptyFieldSearch,
 		},
 		{
-			name:          "invalid kinds 1",
-			filter:        &nostr.Filter{Kinds: []int{69}, Search: "xx"},
-			expectedArgs:  nil,
-			expectedError: ErrInvalidKindsFormat,
-		},
-		{
-			name:          "invalid kinds 2",
-			filter:        &nostr.Filter{Kinds: []int{6312, 6313}, Search: "xx"},
-			expectedArgs:  nil,
-			expectedError: ErrInvalidKindsFormat,
-		},
-		{
-			name:          "invalid kinds 3",
-			filter:        &nostr.Filter{Kinds: []int{6312, 7000, 1}, Search: "xx"},
-			expectedArgs:  nil,
-			expectedError: ErrInvalidKindsFormat,
-		},
-		{
-			name: "invalid source",
-			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
-				Search: `{
-					"source": "abc"
-				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
-			expectedError: dvm.ErrBadlyFormattedKey,
-		},
-		{
-			name: "invalid targets",
-			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
-				Search: `{
-					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
-					"targets": ["abc", "cde"]
-				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
-			expectedError: dvm.ErrBadlyFormattedKey,
-		},
-		{
-			name: "invalid sort",
-			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
-				Search: `{
-					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
-					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
-					"sort": "abc"
-				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
-			expectedError: dvm.ErrInvalidSortOption,
-		},
-		{
-			name: "invalid limit",
-			filter: &nostr.Filter{
-				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
-				Search: `{
-					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
-					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9"],
-					"limit": 100000
-				}`},
-			expectedArgs:  dvm.NewArgs("", "", dvm.KindVerifyReputation),
-			expectedError: dvm.ErrInvalidLimit,
-		},
-		{
-			name: "valid",
+			name: "valid 1",
 			filter: &nostr.Filter{
 				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: `{
@@ -110,13 +40,40 @@ func TestParse(t *testing.T) {
 					"limit": 100,
 					"search": "jack"
 				}`},
-			expectedArgs: &dvm.Args{
-				Kind:    dvm.KindVerifyReputation,
-				Source:  fran,
-				Targets: []string{odell, pip},
-				Sort:    dvm.DefaultSort,
-				Limit:   100,
-				Search:  "jack",
+			expectedParams: dvm.Params{
+				Algorithm: dvm.Algorithm{Sort: dvm.Global, Source: fran},
+				Targets:   []string{odell, pip},
+				Limit:     100,
+				Search:    "jack",
+			},
+		},
+		{
+			name: "valid 2",
+			filter: &nostr.Filter{
+				Kinds: []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
+				Search: `{
+					"source": "726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11",
+					"targets": ["04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9", "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"],
+					"limit": 100,
+					"search": "jack"
+				}`},
+			expectedParams: dvm.Params{
+				Algorithm: dvm.Algorithm{Sort: dvm.Global, Source: fran},
+				Targets:   []string{odell, pip},
+				Limit:     100,
+				Search:    "jack",
+			},
+		},
+		{
+			name: "valid 3",
+			filter: &nostr.Filter{
+				Kinds:  []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
+				Search: "{\"source\":\"04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9\", \"targets\":[\"726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11\"]}",
+			},
+			expectedParams: dvm.Params{
+				Algorithm: dvm.Algorithm{Sort: dvm.Global, Source: odell},
+				Targets:   []string{fran},
+				Limit:     dvm.DefaultLimit,
 			},
 		},
 	}
@@ -129,8 +86,46 @@ func TestParse(t *testing.T) {
 				t.Fatalf("Parse: expected error %v, got %v", test.expectedError, err)
 			}
 
-			if !reflect.DeepEqual(args, test.expectedArgs) {
-				t.Errorf("Parse: expected args %v, got %v", test.expectedArgs, args)
+			if !reflect.DeepEqual(args, test.expectedParams) {
+				t.Errorf("Parse: expected args %v, got %v", test.expectedParams, args)
+			}
+		})
+	}
+}
+
+func TestValidateFilter(t *testing.T) {
+	tests := []struct {
+		name          string
+		filter        *nostr.Filter
+		expectedError error
+	}{
+		{
+			name:          "invalid kinds 1",
+			filter:        &nostr.Filter{Kinds: []int{69}, Search: "xx"},
+			expectedError: ErrInvalidKindsFormat,
+		},
+		{
+			name:          "invalid kinds 2",
+			filter:        &nostr.Filter{Kinds: []int{6312, 6313}, Search: "xx"},
+			expectedError: ErrInvalidKindsFormat,
+		},
+		{
+			name:          "invalid kinds 3",
+			filter:        &nostr.Filter{Kinds: []int{6312, 7000, 1}, Search: "xx"},
+			expectedError: ErrInvalidKindsFormat,
+		},
+		{
+			name:   "valid",
+			filter: &nostr.Filter{Kinds: []int{6312, 7000}, Search: "xx"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			err := ValidateFilter(test.filter)
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("expected error %v, got %v", test.expectedError, err)
 			}
 		})
 	}

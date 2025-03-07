@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,8 +13,6 @@ import (
 
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/eventstore"
-	"github.com/vertex-lab/relay/pkg/rate"
-	"github.com/vertex-lab/relay/pkg/req"
 
 	"github.com/fiatjaf/khatru"
 	_ "github.com/joho/godotenv/autoload"
@@ -83,74 +80,47 @@ func main() {
 	}
 	log.Info("redis connected")
 
-	RateLimiter := rate.NewLimiter() // used to rate-limit requests for un-authorized users
-
-	// setup relay
+	// setup relay info
 	relay.Info.Name = "Vertex Relay"
 	relay.Info.Software = "Vertex Relay based on Khatru"
 	relay.Info.Version = "0.0.1"
 	relay.Info.PubKey = pubkey
 	relay.Info.SupportedNIPs = []any{11, 42, 86, 90}
 
-	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
-		// accept all events from authorized pubkeys
-		pubkeyReasons, err := relay.ManagementAPI.ListAllowedPubKeys(ctx)
-		if err != nil {
-			log.Error("failed to load list of allowed pubkeys: %v", err)
-			return true, err.Error()
-		}
-
-		for _, pr := range pubkeyReasons {
-			if event.PubKey == pr.PubKey {
-				return false, ""
-			}
-		}
-
-		// everyone else has strict rate-limits
-		bucket, _ := RateLimiter.LoadOrStore(event.PubKey, rate.NewBucket())
-		return bucket.Reject(1)
-	})
+	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs)
 
 	relay.StoreEvent = append(relay.StoreEvent, db.Save, func(ctx context.Context, event *nostr.Event) error {
-		args, parsingErr := dvm.Parse(event)
-		err = ProcessRequest(ctx, DB, RWS, db, args, parsingErr, func(ctx context.Context, res *nostr.Event) error {
+
+		err := HandleDVMRequest(ctx, DB, RWS, db, event, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
-				return fmt.Errorf("error signing response eventID %v: %v", res.ID, err)
+				return fmt.Errorf("error signing the response eventID %s: %w", res.ID, err)
 			}
 
 			relay.BroadcastEvent(res)
-			if err := db.Save(ctx, res); err != nil {
-				return fmt.Errorf("error saving response eventID: %v, %v", res.ID, err)
-			}
-
-			return nil
+			return db.Save(ctx, res)
 		})
 
 		if err != nil {
 			log.Error("error processing event: %v", err)
-			return fmt.Errorf("error processing event: %v", err)
+			return fmt.Errorf("error processing event: %w", err)
 		}
+
 		return nil
 	})
+
 	relay.DeleteEvent = append(relay.DeleteEvent, func(ctx context.Context, event *nostr.Event) error {
 		return db.Delete(ctx, event.ID)
 	})
+
 	relay.QueryEvents = append(relay.QueryEvents, QueryNoSearch, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 		if filter.Search == "" {
 			return nil, nil
 		}
 
-		args, err := req.Parse(&filter)
-		if errors.Is(err, req.ErrInvalidKindsFormat) {
-			// if the filter doesn't match the valid format "kinds:<dvm_response_kind>, 7000",
-			// return the error as a NOTICE and not as a kind:7000 to make sure the customer receives it.
-			return nil, err
-		}
-
 		ch := make(chan *nostr.Event, 1)
 		defer close(ch)
 
-		err = ProcessRequest(ctx, DB, RWS, db, args, err, func(ctx context.Context, res *nostr.Event) error {
+		err := HandleREQRequest(ctx, DB, RWS, db, &filter, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
 				return fmt.Errorf("failed to sign eventID %v: %v", res.ID, err)
 			}
@@ -167,12 +137,13 @@ func main() {
 			log.Error("error processing event: %v", err)
 			return nil, fmt.Errorf("error processing event: %w", err)
 		}
+
 		return ch, nil
 	})
 
 	go func() {
 		port := env("PORT", "3334")
-		log.Info("running on :%v", port)
+		log.Info("running on :%s", port)
 		if err := http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay); err != nil {
 			panic("failed to run relay: %" + err.Error())
 		}
@@ -180,9 +151,9 @@ func main() {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	<-signalChan // Block until a signal is received
+	<-signalChan
 	log.Info("signal received. Shutting down...")
-	log.Info("total events processed: %v", requestCounter.Load())
+	log.Info("total events processed: %d", requestCounter.Load())
 }
 
 // ---------------------------------HELPERS-------------------------------------
