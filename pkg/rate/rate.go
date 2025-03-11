@@ -1,61 +1,82 @@
-// The rate package implemente a simple bucket-rate-limiting with refill.
 package rate
 
 import (
+	"context"
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
-	DefaultFreeTokens int           = 30
-	DefaultInterval   time.Duration = 24 * time.Hour
+	DefaultRefillTokens          int = 39
+	DefaultRefillIntervalSeconds int = 24 * 60 * 60
+	DefaultMaxTokensBeforeRefill int = 250
+	DefaultWalksThreshold        int = 110
 )
 
-type Limiter struct {
-	*xsync.MapOf[string, *Bucket]
-}
-
-func NewLimiter() Limiter {
-	return Limiter{xsync.NewMapOf[string, *Bucket]()}
-}
-
-// Bucket contains the number of tokens left for a user, with the last request to implement refilling
 type Bucket struct {
-	mu      sync.Mutex
-	tokens  int
-	lastReq time.Time
+	Tokens       int   `redis:"tokens"`
+	LastModified int64 `redis:"last_modified"` // unix time
 }
 
-func NewBucket() *Bucket {
-	return &Bucket{
-		tokens:  DefaultFreeTokens,
-		lastReq: time.Now(),
+type PagerankRefillPolicy struct {
+	refillTokens          int
+	refillIntervalSeconds int
+	maxTokensBeforeRefill int
+	walksThreshold        int
+}
+
+func NewPagerankRefillPolicy() PagerankRefillPolicy {
+	return PagerankRefillPolicy{
+		refillTokens:          DefaultRefillTokens,
+		refillIntervalSeconds: DefaultRefillIntervalSeconds,
+		maxTokensBeforeRefill: DefaultMaxTokensBeforeRefill,
+		walksThreshold:        DefaultWalksThreshold,
 	}
 }
 
-// Reject() returns whether the request is rejected based on the cost and the number of tokens in the bucket.
-// If it's accepted, it pays the cost.
-func (b *Bucket) Reject(cost int) (reject bool, msg string) {
-	if b == nil {
-		return true, "nil bucket"
+type Limiter struct {
+	client *redis.Client
+	policy PagerankRefillPolicy
+}
+
+func NewLimiter(client *redis.Client) Limiter {
+	return Limiter{
+		client: client,
+		policy: NewPagerankRefillPolicy(),
+	}
+}
+
+func (l Limiter) Pay(pubkey string, cost int) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	args := []any{pubkey, cost, l.policy.refillTokens, l.policy.refillIntervalSeconds, l.policy.maxTokensBeforeRefill, l.policy.walksThreshold}
+	res, err := l.client.FCall(ctx, "pay", nil, args...).Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to pay: %w", err)
 	}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// refill every interval
-	if time.Since(b.lastReq) >= DefaultInterval {
-		b.tokens = DefaultFreeTokens
+	code, ok := res.(string)
+	if !ok {
+		return false, fmt.Errorf("failed to pay: failed to type assert the result as a string: %v", res)
 	}
 
-	if b.tokens >= cost {
-		b.tokens -= cost
-		b.lastReq = time.Now()
-		return false, ""
+	return code == "paid", nil
+}
+
+func (l Limiter) Bucket(pubkey string) (*Bucket, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	key := "creditBucket:" + pubkey
+	cmd := l.client.HGetAll(ctx, key)
+
+	var bucket Bucket
+	if err := cmd.Scan(&bucket); err != nil {
+		return nil, fmt.Errorf("failed to fetch %s: %w", key, err)
 	}
 
-	return true, fmt.Sprintf("you've reached the limit of %d free requests per day: DM us if you want unlimited access", DefaultFreeTokens)
+	return &bucket, nil
 }
