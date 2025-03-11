@@ -38,6 +38,9 @@ var (
 
 	// internal system errors
 	ErrInternal error = errors.New("internal error")
+
+	// payment errors
+	ErrNoCredits error = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll top you up for free.")
 )
 
 // Algorithm is the sorting algorithm used in the DVM responses.
