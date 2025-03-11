@@ -48,9 +48,15 @@ func NewLimiter(client *redis.Client) Limiter {
 	}
 }
 
+// Pay() tries to deduct `cost` tokens from the bucket of `pubkey` and returns whether the payment was successful.
 func (l Limiter) Pay(pubkey string, cost int) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
+
+	if cost < 0 {
+		// cost can be 0 to allow for easier testing. See rate_test.go
+		return false, fmt.Errorf("cost cannot be negative: %d", cost)
+	}
 
 	args := []any{pubkey, cost, l.policy.refillTokens, l.policy.refillIntervalSeconds, l.policy.maxTokensBeforeRefill, l.policy.walksThreshold}
 	res, err := l.client.FCall(ctx, "pay", nil, args...).Result()
@@ -66,8 +72,9 @@ func (l Limiter) Pay(pubkey string, cost int) (bool, error) {
 	return code == "paid", nil
 }
 
+// Bucket() returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
 func (l Limiter) Bucket(pubkey string) (*Bucket, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
 	key := "creditBucket:" + pubkey
@@ -79,4 +86,26 @@ func (l Limiter) Bucket(pubkey string) (*Bucket, error) {
 	}
 
 	return &bucket, nil
+}
+
+// TopUp() increases the tokens of `pubkey` by `tokens`, and returns the total after the increase.
+func (l Limiter) TopUp(pubkey string, tokens int) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	if tokens < 0 {
+		return -1, fmt.Errorf("tokens cannot be negative: %d", tokens)
+	}
+
+	key := "creditBucket:" + pubkey
+	pipe := l.client.TxPipeline()
+
+	cmd := pipe.HIncrBy(ctx, key, "tokens", int64(tokens))
+	pipe.HSet(ctx, key, "last_modified", time.Now().Unix())
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		return -1, fmt.Errorf("failed to top-up the balance of %s: %w", key, err)
+	}
+
+	return int(cmd.Val()), nil
 }

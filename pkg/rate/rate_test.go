@@ -216,6 +216,35 @@ func TestPay(t *testing.T) {
 	}
 }
 
+func TestTopUp(t *testing.T) {
+	redis := redisutils.SetupTestClient()
+	defer redisutils.CleanupRedis(redis)
+
+	limiter := NewLimiter(redis)
+	_, err := limiter.TopUp("whatever", 100)
+	if err != nil {
+		t.Fatalf("expected error nil, got %v", err)
+	}
+
+	total, err := limiter.TopUp("whatever", 69)
+	if err != nil {
+		t.Fatalf("expected error nil, got %v", err)
+	}
+
+	if total != 169 {
+		t.Fatalf("expected total 169, got %d", total)
+	}
+
+	bucket, err := limiter.Bucket("whatever")
+	if err != nil {
+		t.Fatalf("expected error nil, got %v", err)
+	}
+
+	if bucket.Tokens != 169 {
+		t.Fatalf("expected bucket's tokens 169, got %d", bucket.Tokens)
+	}
+}
+
 // ---------------------------------BENCHMARKS---------------------------------
 
 func BenchmarkPay(b *testing.B) {
