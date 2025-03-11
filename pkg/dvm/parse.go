@@ -23,9 +23,8 @@ var (
 
 var (
 	// parsing errors
-	ErrNilEvent          error = errors.New("nil event pointer")
-	ErrTooManyTags       error = errors.New("too many tags")
 	ErrInvalidKind       error = errors.New("invalid kind: we only support kinds 5312 to 5315")
+	ErrTooManyTags       error = errors.New("too many tags")
 	ErrParamNotSupported error = errors.New("unsupported parameter")
 	ErrMultipleParams    error = errors.New("too many parameters of the same type")
 
@@ -39,7 +38,6 @@ var (
 
 	// internal system errors
 	ErrInternal error = errors.New("internal error")
-	ErrNilArgs  error = errors.New("nil args pointer")
 )
 
 // Algorithm is the sorting algorithm used in the DVM responses.
@@ -73,7 +71,7 @@ type SearchProfilesArgs struct {
 
 // Params contains all the param fields of all DVMs.
 // For each request method (DVM, REQ filter, http...), the [Parse] function should
-// always return p Params, which will then be converted using the appropriate method.
+// always return p Params, which will then be converted using the appropriate method To<argument's name>.
 // This way, adding a new request method will require writing only one parsing function.
 type Params struct {
 	Algorithm
@@ -253,6 +251,8 @@ func (a *SearchProfilesArgs) Normalize() error {
 	return nil
 }
 
+// Parse() parses all the tags with prefix "param" into a Params structure.
+// If some params are not provided, the default values will be used.
 func Parse(req *nostr.Event) (Params, error) {
 	params := NewParams(req.PubKey)
 	counter := make(map[string]int, 5)

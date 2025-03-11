@@ -2,6 +2,7 @@ package dvm
 
 import (
 	"errors"
+	"math/rand/v2"
 	"reflect"
 	"testing"
 
@@ -355,5 +356,28 @@ func TestToSearchProfiles(t *testing.T) {
 				t.Fatalf("expected args %v, got %v", test.expected, args)
 			}
 		})
+	}
+}
+
+// ---------------------------------BENCHMARKS---------------------------------
+
+func BenchmarkParse(b *testing.B) {
+	candidates := nostr.Tags{
+		{"param", "target", pip},
+		{"param", "limit", "69"},
+		{"param", "search", "jack"},
+	}
+
+	tags := make(nostr.Tags, MaxLimit)
+	for i := 0; i < MaxLimit; i++ {
+		index := rand.IntN(len(candidates))
+		tags[i] = candidates[index]
+	}
+
+	req := &nostr.Event{Tags: tags}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		Parse(req)
 	}
 }
