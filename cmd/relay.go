@@ -13,6 +13,7 @@ import (
 
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/eventstore"
+	"github.com/vertex-lab/relay/pkg/rate"
 
 	"github.com/fiatjaf/khatru"
 	_ "github.com/joho/godotenv/autoload"
@@ -27,6 +28,7 @@ var env func(k string, fallback ...string) (v string)
 var log *logger.Aggregate
 var requestCounter = &atomic.Uint32{}
 var db *eventstore.Store
+var limiter rate.Limiter
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,6 +82,8 @@ func main() {
 	}
 	log.Info("redis connected")
 
+	limiter = rate.NewLimiter(redis)
+
 	// setup relay info
 	relay.Info.Name = "Vertex Relay"
 	relay.Info.Software = "Vertex Relay based on Khatru"
@@ -90,7 +94,6 @@ func main() {
 	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs)
 
 	relay.StoreEvent = append(relay.StoreEvent, db.Save, func(ctx context.Context, event *nostr.Event) error {
-
 		err := HandleDVMRequest(ctx, DB, RWS, db, event, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
 				return fmt.Errorf("error signing the response eventID %s: %w", res.ID, err)
@@ -161,7 +164,6 @@ func main() {
 // QueryNoSearch() simply translates the slice of events returned by db.Query
 // into a channel, making it compatible with Khatru.
 func QueryNoSearch(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-
 	if filter.Search != "" {
 		return nil, nil
 	}

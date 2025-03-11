@@ -21,13 +21,22 @@ func HandleDVMRequest(
 	responseHandler func(context.Context, *nostr.Event) error) error {
 
 	if request == nil {
-		return dvm.ErrNilEvent
+		return fmt.Errorf("nil event pointer")
 	}
 
 	record := dvm.Record{ID: request.ID, Pubkey: request.PubKey, Kind: request.Kind}
 	params, err := dvm.Parse(request)
 	if err != nil {
 		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+	}
+
+	paid, err := limiter.Pay(request.PubKey, cost(params))
+	if err != nil {
+		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+	}
+
+	if !paid {
+		return responseHandler(ctx, dvm.ErrorEvent(dvm.ErrNoCredits, record))
 	}
 
 	return ProcessRequest(ctx, DB, RWS, eventStore, params, record, responseHandler)
@@ -115,4 +124,15 @@ func ProcessRequest(
 	}
 
 	return responseHandler(ctx, dvm.ResponseEvent(res, record))
+}
+
+// This function estimates the cost of processing a request with the provided params.
+func cost(params dvm.Params) int {
+	switch params.Sort {
+	case dvm.Personalized:
+		return 100
+
+	default:
+		return 10
+	}
 }
