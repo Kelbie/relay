@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultRefillTokens          int = 39
+	DefaultRefillTokens          int = 60
 	DefaultRefillIntervalSeconds int = 24 * 60 * 60
 	DefaultMaxTokensBeforeRefill int = 250
 	DefaultWalksThreshold        int = 110
@@ -21,18 +21,26 @@ type Bucket struct {
 }
 
 type PagerankRefillPolicy struct {
-	refillTokens          int
-	refillIntervalSeconds int
-	maxTokensBeforeRefill int
-	walksThreshold        int
+	RefillTokens          int
+	RefillIntervalSeconds int
+	MaxTokensBeforeRefill int
+	WalksThreshold        int
+}
+
+func (p PagerankRefillPolicy) Print() {
+	fmt.Println("Refill Policy:")
+	fmt.Printf("  Refill Tokens: %d\n", p.RefillTokens)
+	fmt.Printf("  Refill Interval: %ds\n", p.RefillIntervalSeconds)
+	fmt.Printf("  Max Tokens Before Refill: %d\n", p.MaxTokensBeforeRefill)
+	fmt.Printf("  Walk Threshold: %d\n", p.WalksThreshold)
 }
 
 func NewPagerankRefillPolicy() PagerankRefillPolicy {
 	return PagerankRefillPolicy{
-		refillTokens:          DefaultRefillTokens,
-		refillIntervalSeconds: DefaultRefillIntervalSeconds,
-		maxTokensBeforeRefill: DefaultMaxTokensBeforeRefill,
-		walksThreshold:        DefaultWalksThreshold,
+		RefillTokens:          DefaultRefillTokens,
+		RefillIntervalSeconds: DefaultRefillIntervalSeconds,
+		MaxTokensBeforeRefill: DefaultMaxTokensBeforeRefill,
+		WalksThreshold:        DefaultWalksThreshold,
 	}
 }
 
@@ -41,10 +49,15 @@ type Limiter struct {
 	policy PagerankRefillPolicy
 }
 
+// NewLimiter() returns a limiter with a default [PagerankRefillPolicy].
 func NewLimiter(client *redis.Client) Limiter {
+	return NewLimiterWithPolicy(client, NewPagerankRefillPolicy())
+}
+
+func NewLimiterWithPolicy(client *redis.Client, policy PagerankRefillPolicy) Limiter {
 	return Limiter{
 		client: client,
-		policy: NewPagerankRefillPolicy(),
+		policy: policy,
 	}
 }
 
@@ -58,7 +71,7 @@ func (l Limiter) Pay(pubkey string, cost int) (bool, error) {
 		return false, fmt.Errorf("cost cannot be negative: %d", cost)
 	}
 
-	args := []any{pubkey, cost, l.policy.refillTokens, l.policy.refillIntervalSeconds, l.policy.maxTokensBeforeRefill, l.policy.walksThreshold}
+	args := []any{pubkey, cost, l.policy.RefillTokens, l.policy.RefillIntervalSeconds, l.policy.MaxTokensBeforeRefill, l.policy.WalksThreshold}
 	res, err := l.client.FCall(ctx, "pay", nil, args...).Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to pay: %w", err)

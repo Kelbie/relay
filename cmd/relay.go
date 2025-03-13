@@ -60,7 +60,7 @@ func main() {
 	log.Info("sqlite connected to %s", config.SQLitePath)
 
 	redis := redis.NewClient(&redis.Options{Addr: config.RedisAddress})
-	limiter = rate.NewLimiter(redis)
+	limiter = rate.NewLimiterWithPolicy(redis, config.Limits)
 	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
 	if err != nil {
 		panic("failed to connect to redis on " + config.RedisAddress + ": " + err.Error())

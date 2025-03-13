@@ -86,13 +86,13 @@ func TestAutomaticRefill(t *testing.T) {
 		{
 			name:           "too many tokens, no refill",
 			pubkeyData:     reputableKeyWithBucket,
-			policy:         PagerankRefillPolicy{maxTokensBeforeRefill: 0},
+			policy:         PagerankRefillPolicy{MaxTokensBeforeRefill: 0},
 			expectedBucket: &Bucket{Tokens: 100, LastModified: now},
 		},
 		{
 			name:           "not enough time passed, no refill",
 			pubkeyData:     reputableKeyWithBucket,
-			policy:         PagerankRefillPolicy{refillIntervalSeconds: math.MaxInt},
+			policy:         PagerankRefillPolicy{RefillIntervalSeconds: math.MaxInt},
 			expectedBucket: &Bucket{Tokens: 100, LastModified: now},
 		},
 		{
@@ -168,7 +168,7 @@ func TestPay(t *testing.T) {
 			name:       "not enough tokens",
 			pubkeyData: reputableKeyWithBucket,
 			cost:       101,
-			policy:     PagerankRefillPolicy{maxTokensBeforeRefill: 0},
+			policy:     PagerankRefillPolicy{MaxTokensBeforeRefill: 0},
 
 			expectedPaid:   false,
 			expectedBucket: &reputableKeyWithBucket.Bucket,
@@ -177,7 +177,7 @@ func TestPay(t *testing.T) {
 			name:       "enough tokens",
 			pubkeyData: reputableKeyWithBucket,
 			cost:       10,
-			policy:     PagerankRefillPolicy{maxTokensBeforeRefill: 0},
+			policy:     PagerankRefillPolicy{MaxTokensBeforeRefill: 0},
 
 			expectedPaid:   true,
 			expectedBucket: &Bucket{Tokens: 90, LastModified: time.Now().Unix()},
