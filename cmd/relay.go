@@ -27,7 +27,7 @@ import (
 var env func(k string, fallback ...string) (v string)
 var log *logger.Aggregate
 var requestCounter = &atomic.Uint32{}
-var db *eventstore.Store
+var sqlite *eventstore.Store
 var limiter rate.Limiter
 
 func main() {
@@ -59,15 +59,11 @@ func main() {
 	}
 
 	// initialize relay datastore, for events and white-listing.
-	db, err = eventstore.New(env("SQLITE_URL"))
+	sqlite, err = eventstore.New(env("SQLITE_URL"))
 	if err != nil {
 		panic("failed to initialize database: " + err.Error())
 	}
 	log.Info("sqlite database connected")
-
-	if err := RelayManagementInit(ctx, db, relay); err != nil {
-		panic("failed to initialize relay management: " + err.Error())
-	}
 
 	// initialize redis connection used for computing responses
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
@@ -93,14 +89,14 @@ func main() {
 
 	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs)
 
-	relay.StoreEvent = append(relay.StoreEvent, db.Save, func(ctx context.Context, event *nostr.Event) error {
-		err := HandleDVMRequest(ctx, DB, RWS, db, event, func(ctx context.Context, res *nostr.Event) error {
+	relay.StoreEvent = append(relay.StoreEvent, sqlite.Save, func(ctx context.Context, event *nostr.Event) error {
+		err := HandleDVMRequest(ctx, DB, RWS, sqlite, event, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
 				return fmt.Errorf("error signing the response eventID %s: %w", res.ID, err)
 			}
 
 			relay.BroadcastEvent(res)
-			return db.Save(ctx, res)
+			return sqlite.Save(ctx, res)
 		})
 
 		if err != nil {
@@ -112,7 +108,7 @@ func main() {
 	})
 
 	relay.DeleteEvent = append(relay.DeleteEvent, func(ctx context.Context, event *nostr.Event) error {
-		return db.Delete(ctx, event.ID)
+		return sqlite.Delete(ctx, event.ID)
 	})
 
 	relay.QueryEvents = append(relay.QueryEvents, QueryNoSearch, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
@@ -123,12 +119,12 @@ func main() {
 		ch := make(chan *nostr.Event, 1)
 		defer close(ch)
 
-		err := HandleREQRequest(ctx, DB, RWS, db, &filter, func(ctx context.Context, res *nostr.Event) error {
+		err := HandleREQRequest(ctx, DB, RWS, sqlite, &filter, func(ctx context.Context, res *nostr.Event) error {
 			if err := res.Sign(secret); err != nil {
 				return fmt.Errorf("failed to sign eventID %v: %v", res.ID, err)
 			}
 
-			if err := db.Save(ctx, res); err != nil {
+			if err := sqlite.Save(ctx, res); err != nil {
 				log.Error("failed to save eventID: %v, %v", res.ID, err)
 			}
 
@@ -161,14 +157,14 @@ func main() {
 
 // ---------------------------------HELPERS-------------------------------------
 
-// QueryNoSearch() simply translates the slice of events returned by db.Query
+// QueryNoSearch() simply translates the slice of events returned by sqlite.Query
 // into a channel, making it compatible with Khatru.
 func QueryNoSearch(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	if filter.Search != "" {
 		return nil, nil
 	}
 
-	events, err := db.Query(ctx, &filter)
+	events, err := sqlite.Query(ctx, &filter)
 	if err != nil {
 		return nil, err
 	}
