@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync/atomic"
 	"syscall"
 
@@ -24,7 +23,6 @@ import (
 	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
 
-var env func(k string, fallback ...string) (v string)
 var log *logger.Aggregate
 var requestCounter = &atomic.Uint32{}
 var sqlite *eventstore.Store
@@ -33,6 +31,11 @@ var limiter rate.Limiter
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	config, err := LoadConfig()
+	if err != nil {
+		panic("failed to load config: " + err.Error())
+	}
 
 	relay := khatru.NewRelay()
 	mux := relay.Router()
@@ -50,48 +53,36 @@ func main() {
 	PrintTitle(log)
 	defer PrintShutdown(log)
 
-	// store secret key in .env because the bunker is too buggy at the moment
-	env = Env()
-	secret := env("SK")
-	pubkey, err := nostr.GetPublicKey(secret)
+	sqlite, err = eventstore.New(config.SQLitePath)
 	if err != nil {
-		panic("failed to get pubkey: " + err.Error())
+		panic("failed to initialize sqlite with path " + config.SQLitePath + ": " + err.Error())
 	}
+	log.Info("sqlite connected to %s", config.SQLitePath)
 
-	// initialize relay datastore, for events and white-listing.
-	sqlite, err = eventstore.New(env("SQLITE_URL"))
-	if err != nil {
-		panic("failed to initialize database: " + err.Error())
-	}
-	log.Info("sqlite database connected")
-
-	// initialize redis connection used for computing responses
-	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	redis := redis.NewClient(&redis.Options{Addr: config.RedisAddress})
+	limiter = rate.NewLimiter(redis)
 	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
 	if err != nil {
-		panic("redis failed to connect: " + err.Error())
+		panic("failed to connect to redis on " + config.RedisAddress + ": " + err.Error())
 	}
 
 	RWS, err := redistore.NewRWSConnection(ctx, redis)
 	if err != nil {
-		panic("redis failed to connect: " + err.Error())
+		panic("failed to connect to redis on " + config.RedisAddress + ": " + err.Error())
 	}
-	log.Info("redis connected")
+	log.Info("redis connected at %s", config.RedisAddress)
 
-	limiter = rate.NewLimiter(redis)
-
-	// setup relay info
 	relay.Info.Name = "Vertex Relay"
 	relay.Info.Software = "Vertex Relay based on Khatru"
 	relay.Info.Version = "0.0.1"
-	relay.Info.PubKey = pubkey
+	relay.Info.PubKey = config.public
 	relay.Info.SupportedNIPs = []any{11, 42, 86, 90}
 
 	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs)
 
 	relay.StoreEvent = append(relay.StoreEvent, sqlite.Save, func(ctx context.Context, event *nostr.Event) error {
 		err := HandleDVMRequest(ctx, DB, RWS, sqlite, event, func(ctx context.Context, res *nostr.Event) error {
-			if err := res.Sign(secret); err != nil {
+			if err := res.Sign(config.secret); err != nil {
 				return fmt.Errorf("error signing the response eventID %s: %w", res.ID, err)
 			}
 
@@ -120,7 +111,7 @@ func main() {
 		defer close(ch)
 
 		err := HandleREQRequest(ctx, DB, RWS, sqlite, &filter, func(ctx context.Context, res *nostr.Event) error {
-			if err := res.Sign(secret); err != nil {
+			if err := res.Sign(config.secret); err != nil {
 				return fmt.Errorf("failed to sign eventID %v: %v", res.ID, err)
 			}
 
@@ -141,12 +132,11 @@ func main() {
 	})
 
 	go func() {
-		port := env("PORT", "3334")
-		log.Info("running on :%s", port)
-		if err := http.ListenAndServe(fmt.Sprintf("localhost:%s", port), relay); err != nil {
-			panic("failed to run relay: %" + err.Error())
+		if err := http.ListenAndServe(config.RelayAddress, relay); err != nil {
+			panic("failed to run relay on " + config.RelayAddress + ": " + err.Error())
 		}
 	}()
+	log.Info("relay running on %s", config.RelayAddress)
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -179,40 +169,18 @@ func QueryNoSearch(ctx context.Context, filter nostr.Filter) (chan *nostr.Event,
 	return ch, nil
 }
 
-func RejectNonDVMs(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+func RejectNonDVMs(ctx context.Context, event *nostr.Event) (bool, string) {
 	if event.Kind < 5312 || event.Kind > 5315 {
 		return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
 	}
 	return false, ""
 }
 
-// Env() returns a function that returns the specified enviroment variable with an optional fallback.
-func Env() func(k string, fallback ...string) (v string) {
-	var env = make(map[string]string)
-
-	for _, item := range os.Environ() {
-		parts := strings.SplitN(item, "=", 2)
-		env[parts[0]] = parts[1]
-	}
-
-	return func(k string, fallback ...string) (v string) {
-		v = env[k]
-
-		if v == "" && len(fallback) > 0 {
-			v = fallback[0]
-		}
-
-		return v
-	}
-}
-
-// PrintTitle prints a simple title.
 func PrintTitle(l *logger.Aggregate) {
 	l.Info("----------------------")
 	l.Info("Starting up the relay")
 }
 
-// PrintShutdown() prints a little shutdown message.
 func PrintShutdown(l *logger.Aggregate) {
 	l.Info("Relay stopped")
 	l.Info("----------------------")
