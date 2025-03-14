@@ -36,18 +36,33 @@ func (r Record) ToTags() nostr.Tags {
 	return tags
 }
 
+// A struct used for marshalling and unmarshalling [PubkeyRanks] more conveniently
+type pubkeyRankAlias struct {
+	Pubkey string  `json:"pubkey"`
+	Rank   float64 `json:"rank"`
+}
+
 func MarshalJSON(p PubkeyRanks) ([]byte, error) {
-	type alias struct {
-		Pubkey string  `json:"pubkey"`
-		Rank   float64 `json:"rank"`
-	}
-
-	aliases := make([]alias, len(p))
+	alias := make([]pubkeyRankAlias, len(p))
 	for i, pair := range p {
-		aliases[i] = alias{Pubkey: pair.Key, Rank: pair.Val}
+		alias[i] = pubkeyRankAlias{Pubkey: pair.Key, Rank: pair.Val}
 	}
 
-	return json.Marshal(aliases)
+	return json.Marshal(alias)
+}
+
+func UnmarshalJSON(data []byte) (PubkeyRanks, error) {
+	var alias []pubkeyRankAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return nil, err
+	}
+
+	pubkeyRanks := make(PubkeyRanks, len(alias))
+	for i, pair := range alias {
+		pubkeyRanks[i] = PubkeyRank{Key: pair.Pubkey, Val: pair.Rank}
+	}
+
+	return pubkeyRanks, nil
 }
 
 // ErrorEvent() returns an unsigned nostr event for the DVM error

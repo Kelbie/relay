@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -30,8 +29,8 @@ func TestREQ_VerifyReputation(t *testing.T) {
 		t.Errorf("the format of the response is wrong: %v", err)
 	}
 
-	var ranks dvm.PubkeyRanks
-	if err := json.Unmarshal([]byte(res.Content), &ranks); err != nil {
+	ranks, err := dvm.UnmarshalJSON([]byte(res.Content))
+	if err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
