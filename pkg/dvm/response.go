@@ -14,13 +14,18 @@ import (
 	"github.com/vertex-lab/crawler/pkg/pagerank"
 	"github.com/vertex-lab/crawler/pkg/utils/sliceutils"
 	"github.com/vertex-lab/relay/pkg/eventstore"
+	"github.com/vertex-lab/relay/pkg/pairs"
 )
 
-// PubkeyRank is a list of pairs (pubkey, rank). It's the basic response for all our DVMs.
-type PubkeyRanks = Pairs[string, float64]
+type (
+	// PubkeyRank is the pair (pubkey, rank). It's the basis for all DVM responses.
+	PubkeyRank  = pairs.Pair[string, float64]
+	PubkeyRanks = pairs.Pairs[string, float64]
 
-// NodeRanks is
-type NodeRanks = Pairs[uint32, float64]
+	// NodeRank is the pair (nodeID, rank). Only used for internal computations.
+	NodeRank  = pairs.Pair[uint32, float64]
+	NodeRanks = pairs.Pairs[uint32, float64]
+)
 
 // VerifyReputation() returns the rank of the target and its highest ranked followers.
 // All ranks use the specified args.Algorithm.
@@ -37,7 +42,7 @@ func VerifyReputation(
 	target, err := DB.NodeByKey(ctx, args.Target)
 	if errors.Is(err, models.ErrNodeNotFoundDB) {
 		// if target is not found in our database, we assume it's a low-reputation key (rank of 0).
-		return PubkeyRanks{{Key: args.Target, Rank: 0}}, nil
+		return PubkeyRanks{{Key: args.Target, Val: 0}}, nil
 	}
 
 	if err != nil {
@@ -57,7 +62,7 @@ func VerifyReputation(
 		return nil, fmt.Errorf("VerifyReputation %w", err)
 	}
 
-	topFollowers := Top(nodeRanks[1:], args.Limit)
+	topFollowers := nodeRanks[1:].Top(args.Limit)
 	nodeRanks = append(nodeRanks[0:1], topFollowers...) // the response MUST have the target in the first position
 
 	response, err := ToPubkeys(ctx, DB, nodeRanks)
@@ -102,12 +107,12 @@ func SortProfiles(
 	}
 
 	_, ranks := targetRanks.Unpack()
-	response, err := Pack(args.Targets, ranks)
+	response, err := pairs.Pack(args.Targets, ranks)
 	if err != nil {
 		return nil, fmt.Errorf("SortProfiles %w: %w", ErrInternal, err)
 	}
 
-	return Top(response, args.Limit), nil
+	return response.Top(args.Limit), nil
 }
 
 // SearchProfiles() returns the top ranked pubkeys whose kind:0s contain the provided string.
@@ -153,10 +158,10 @@ func SearchProfiles(
 
 	for i, target := range targetRanks {
 		// merge ranks and searchRanks in order to give more accurate search results
-		response[i].Rank = math.Pow(searchRanks[i], 3) * target.Rank
+		response[i].Val = math.Pow(searchRanks[i], 3) * target.Val
 	}
 
-	return Top(response, args.Limit), nil
+	return response.Top(args.Limit), nil
 }
 
 // The function searchAuthors() performs full text seach on the profiles (kind:0s) using the specified search term.
@@ -167,7 +172,7 @@ func searchAuthors(
 	search string) (PubkeyRanks, error) {
 
 	if nostr.IsValidPublicKey(search) {
-		return Pairs[string, float64]{{Key: search, Rank: 1}}, nil
+		return pairs.Pairs[string, float64]{{Key: search, Val: 1}}, nil
 	}
 
 	if strings.HasPrefix(search, "npub") {
@@ -181,7 +186,7 @@ func searchAuthors(
 			return nil, ErrBadlyFormattedKey
 		}
 
-		return Pairs[string, float64]{{Key: pk, Rank: 1}}, nil
+		return pairs.Pairs[string, float64]{{Key: pk, Val: 1}}, nil
 	}
 
 	var matches int
@@ -205,7 +210,7 @@ func searchAuthors(
 	}
 	defer rows.Close()
 
-	pubRanks := make(Pairs[string, float64], 0, limit) // pre-allocating
+	pubRanks := make(PubkeyRanks, 0, limit) // pre-allocating
 	var pk string
 	var rank float64
 
@@ -215,7 +220,7 @@ func searchAuthors(
 		}
 
 		// bm25 scores are all negative but we prefer to have positive scores, since we need the top from highest to lowest
-		pubRanks = append(pubRanks, Pair[string, float64]{Key: pk, Rank: -rank})
+		pubRanks = append(pubRanks, PubkeyRank{Key: pk, Val: -rank})
 	}
 
 	if err := rows.Err(); err != nil {
@@ -281,7 +286,7 @@ func RecommendFollows(
 		return nil, fmt.Errorf("RecommendFollows: %w", err)
 	}
 
-	topNodes := Top(nodeRanks, args.Limit)
+	topNodes := nodeRanks.Top(args.Limit)
 	response, err := ToPubkeys(ctx, DB, topNodes)
 	if err != nil {
 		return nil, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
@@ -331,7 +336,7 @@ func recommendFollowsGlobal(
 
 	nodeRanks := make(NodeRanks, 0, len(rankMap))
 	for ID, rank := range rankMap {
-		nodeRanks = append(nodeRanks, Pair[uint32, float64]{Key: ID, Rank: rank})
+		nodeRanks = append(nodeRanks, NodeRank{Key: ID, Val: rank})
 	}
 
 	return nodeRanks, nil
@@ -369,7 +374,7 @@ func recommendFollowsPersonalized(
 
 	nodeRanks := make(NodeRanks, 0, len(pp))
 	for ID, rank := range pp {
-		nodeRanks = append(nodeRanks, Pair[uint32, float64]{Key: ID, Rank: rank})
+		nodeRanks = append(nodeRanks, NodeRank{Key: ID, Val: rank})
 	}
 
 	return nodeRanks, nil
@@ -417,9 +422,9 @@ func rankNodes(
 		return nil, fmt.Errorf("%w: %s", ErrInvalidSort, algo.Sort)
 	}
 
-	nodeRanks := make(Pairs[uint32, float64], len(IDs))
+	nodeRanks := make(NodeRanks, len(IDs))
 	for i, ID := range IDs {
-		nodeRanks[i] = Pair[uint32, float64]{Key: ID, Rank: rankMap[ID]}
+		nodeRanks[i] = NodeRank{Key: ID, Val: rankMap[ID]}
 	}
 
 	return nodeRanks, nil
@@ -431,7 +436,7 @@ func rankNodes(
 func ToPubkeys(
 	ctx context.Context,
 	DB models.Database,
-	nodeRanks Pairs[uint32, float64]) (PubkeyRanks, error) {
+	nodeRanks NodeRanks) (PubkeyRanks, error) {
 
 	IDs, ranks := nodeRanks.Unpack()
 	pubkeys, err := DB.Pubkeys(ctx, IDs...)
@@ -445,7 +450,7 @@ func ToPubkeys(
 			return nil, fmt.Errorf("failed to fetch the pubkey of nodeID %d", IDs[i])
 		}
 
-		pubkeyRanks[i] = Pair[string, float64]{Key: *pk, Rank: ranks[i]}
+		pubkeyRanks[i] = PubkeyRank{Key: *pk, Val: ranks[i]}
 	}
 
 	return pubkeyRanks, nil

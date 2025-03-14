@@ -18,7 +18,7 @@ func TestResponseEvent(t *testing.T) {
 			name: "nil res",
 			rec:  Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran},
 			expectedEvent: &nostr.Event{
-				Content: "null",
+				Content: "[]",
 				Kind:    KindSortProfiles + 1000,
 				Tags:    nostr.Tags{{"e", "xxx"}, {"p", fran}},
 			},
@@ -35,7 +35,7 @@ func TestResponseEvent(t *testing.T) {
 		},
 		{
 			name: "valid",
-			res:  PubkeyRanks{{Key: "abc", Rank: 0.1}, {Key: "123", Rank: 0.2}},
+			res:  PubkeyRanks{{Key: "abc", Val: 0.1}, {Key: "123", Val: 0.2}},
 			rec:  Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran},
 			expectedEvent: &nostr.Event{
 				Content: "[{\"pubkey\":\"abc\",\"rank\":0.1},{\"pubkey\":\"123\",\"rank\":0.2}]",

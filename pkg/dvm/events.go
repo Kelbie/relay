@@ -36,6 +36,20 @@ func (r Record) ToTags() nostr.Tags {
 	return tags
 }
 
+func MarshalJSON(p PubkeyRanks) ([]byte, error) {
+	type alias struct {
+		Pubkey string  `json:"pubkey"`
+		Rank   float64 `json:"rank"`
+	}
+
+	aliases := make([]alias, len(p))
+	for i, pair := range p {
+		aliases[i] = alias{Pubkey: pair.Key, Rank: pair.Val}
+	}
+
+	return json.Marshal(aliases)
+}
+
 // ErrorEvent() returns an unsigned nostr event for the DVM error
 func ErrorEvent(err error, rec Record) *nostr.Event {
 	return &nostr.Event{
@@ -55,7 +69,7 @@ func ResponseEvent(response PubkeyRanks, rec Record) *nostr.Event {
 		response = response[1:]
 	}
 
-	json, err := json.Marshal(response)
+	json, err := MarshalJSON(response)
 	if err != nil {
 		return ErrorEvent(err, rec)
 	}

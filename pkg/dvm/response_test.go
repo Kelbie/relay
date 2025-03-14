@@ -2,9 +2,7 @@ package dvm
 
 import (
 	"context"
-	"fmt"
 	"math"
-	"math/rand/v2"
 	"sort"
 	"testing"
 
@@ -32,7 +30,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    randomKey,
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: randomKey, Rank: 0}},
+			expected: PubkeyRanks{{Key: randomKey, Val: 0}},
 		},
 		{
 			name:    "valid global (simple)",
@@ -43,7 +41,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    calle,
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: calle, Rank: 0.5}, {Key: odell, Rank: 0.5}},
+			expected: PubkeyRanks{{Key: calle, Val: 0.5}, {Key: odell, Val: 0.5}},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -54,7 +52,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    "2",
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Rank: 0.33333}, {Key: "1", Rank: 0.33333}},
+			expected: PubkeyRanks{{Key: "2", Val: 0.33333}, {Key: "1", Val: 0.33333}},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -65,7 +63,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    calle,
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: calle, Rank: 0.45946}, {Key: odell, Rank: 0.54054}},
+			expected: PubkeyRanks{{Key: calle, Val: 0.45946}, {Key: odell, Val: 0.54054}},
 		},
 		{
 			name:    "valid personalized (triangle)",
@@ -76,7 +74,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    "2",
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Rank: 0.280855199}, {Key: "1", Rank: 0.330417881}},
+			expected: PubkeyRanks{{Key: "2", Val: 0.280855199}, {Key: "1", Val: 0.330417881}},
 		},
 	}
 
@@ -117,7 +115,7 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{randomKey, calle, pip},
 				Limit:     3,
 			},
-			expected: PubkeyRanks{{Key: calle, Rank: 0.5}, {Key: pip, Rank: 0.0}, {Key: randomKey, Rank: 0.0}},
+			expected: PubkeyRanks{{Key: calle, Val: 0.5}, {Key: pip, Val: 0.0}, {Key: randomKey, Val: 0.0}},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -128,7 +126,7 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{"0", "1", "2", "69"},
 				Limit:     4,
 			},
-			expected: PubkeyRanks{{Key: "0", Rank: 0.33333}, {Key: "1", Rank: 0.33333}, {Key: "2", Rank: 0.33333}, {Key: "69", Rank: 0}},
+			expected: PubkeyRanks{{Key: "0", Val: 0.33333}, {Key: "1", Val: 0.33333}, {Key: "2", Val: 0.33333}, {Key: "69", Val: 0}},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -139,7 +137,7 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{odell, calle, pip},
 				Limit:     3,
 			},
-			expected: PubkeyRanks{{Key: odell, Rank: 0.540540541}, {Key: calle, Rank: 0.459459459}, {Key: pip, Rank: 0.0}},
+			expected: PubkeyRanks{{Key: odell, Val: 0.540540541}, {Key: calle, Val: 0.459459459}, {Key: pip, Val: 0.0}},
 		},
 		{
 			name:    "valid personalized (triangle)",
@@ -150,7 +148,7 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{"0", "1", "2"},
 				Limit:     3,
 			},
-			expected: PubkeyRanks{{Key: "0", Rank: 0.388726919}, {Key: "1", Rank: 0.330417881}, {Key: "2", Rank: 0.280855199}},
+			expected: PubkeyRanks{{Key: "0", Val: 0.388726919}, {Key: "1", Val: 0.330417881}, {Key: "2", Val: 0.280855199}},
 		},
 	}
 
@@ -191,7 +189,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    "pip",
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Rank: 0.0}},
+			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
 		},
 		{
 			name:    "valid global npub",
@@ -202,7 +200,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup",
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Rank: 0.0}},
+			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
 		},
 		{
 			name:    "valid global hex",
@@ -213,7 +211,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    pip,
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Rank: 0.0}},
+			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
 		},
 		{
 			name:    "valid no results",
@@ -234,7 +232,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    "pip",
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Rank: 0.0}},
+			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
 		},
 	}
 
@@ -278,7 +276,7 @@ func TestRecommendFollows(t *testing.T) {
 				Algorithm: Algorithm{Sort: Global, Source: randomKey},
 				Limit:     2,
 			},
-			expected: PubkeyRanks{{Key: calle, Rank: 0.5}, {Key: odell, Rank: 0.5}},
+			expected: PubkeyRanks{{Key: calle, Val: 0.5}, {Key: odell, Val: 0.5}},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -288,7 +286,7 @@ func TestRecommendFollows(t *testing.T) {
 				Algorithm: Algorithm{Sort: Global, Source: "0"},
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Rank: 1.0 / 3.0}},
+			expected: PubkeyRanks{{Key: "2", Val: 1.0 / 3.0}},
 		},
 		{
 			name:    "valid personalized",
@@ -298,7 +296,7 @@ func TestRecommendFollows(t *testing.T) {
 				Algorithm: Algorithm{Sort: Personalized, Source: "0"},
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Rank: 0.2809}},
+			expected: PubkeyRanks{{Key: "2", Val: 0.2809}},
 		},
 	}
 
@@ -317,30 +315,6 @@ func TestRecommendFollows(t *testing.T) {
 			if dist > maxDist {
 				t.Errorf("RecommendFollows: expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected response %v, got %v", test.expected, res)
-			}
-		})
-	}
-}
-
-// ---------------------------------BENCHMARKS----------------------------------
-
-func BenchmarkConvertingMapToNodeRanks(b *testing.B) {
-	sizes := []int{10000, 100000, 1000000}
-	for _, size := range sizes {
-		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
-
-			m := make(map[uint32]float64, size)
-			for i := 0; i < size; i++ {
-				m[uint32(i)] = rand.Float64()
-			}
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				// converting a map to a collection of NodeRanks
-				n := make(NodeRanks, 0, size)
-				for key, val := range m {
-					n = append(n, Pair[uint32, float64]{Key: key, Rank: val})
-				}
 			}
 		})
 	}
@@ -365,7 +339,7 @@ func distance(res1, res2 PubkeyRanks) float64 {
 			return math.MaxFloat64
 		}
 
-		distance += math.Abs(res1[i].Rank - res2[i].Rank)
+		distance += math.Abs(res1[i].Val - res2[i].Val)
 	}
 
 	return distance
