@@ -75,7 +75,7 @@ func VerifyReputation(
 
 // SortProfiles() returns the rank of each specified target.
 // All ranks use the specified args.Algorithm.
-// For more info read: https://vertexlab.io/docs/nips/sort-authors-dvm/
+// For more info read: https://vertexlab.io/docs/nips/sort-profiles-dvm/
 func SortProfiles(
 	ctx context.Context,
 	DB models.Database,
@@ -117,7 +117,7 @@ func SortProfiles(
 
 // SearchProfiles() returns the top ranked pubkeys whose kind:0s contain the provided string.
 // All ranks use the specified args.Sort algorithm.
-// For more info read:
+// For more info read: https://vertexlab.io/docs/nips/search-profiles-dvm/
 func SearchProfiles(
 	ctx context.Context,
 	DB models.Database,
