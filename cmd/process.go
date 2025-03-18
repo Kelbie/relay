@@ -83,32 +83,16 @@ func ProcessRequest(
 
 	switch record.Kind {
 	case dvm.KindVerifyReputation:
-		args, err := params.ToVerifyReputationArgs()
-		if err != nil {
-			return err
-		}
-		res, err = dvm.VerifyReputation(ctx, DB, RWS, args)
+		res, err = dvm.VerifyReputation(ctx, DB, RWS, params)
 
 	case dvm.KindRecommendFollows:
-		args, err := params.ToRecommendFollowsArgs()
-		if err != nil {
-			return err
-		}
-		res, err = dvm.RecommendFollows(ctx, DB, RWS, args)
+		res, err = dvm.RecommendFollows(ctx, DB, RWS, params)
 
 	case dvm.KindSortProfiles:
-		args, err := params.ToSortProfilesArgs()
-		if err != nil {
-			return err
-		}
-		res, err = dvm.SortProfiles(ctx, DB, RWS, args)
+		res, err = dvm.SortProfiles(ctx, DB, RWS, params)
 
 	case dvm.KindSearchProfiles:
-		args, err := params.ToSearchProfilesArgs()
-		if err != nil {
-			return err
-		}
-		res, err = dvm.SearchProfiles(ctx, DB, RWS, eventStore, args)
+		res, err = dvm.SearchProfiles(ctx, DB, RWS, eventStore, params)
 
 	default:
 		err = fmt.Errorf("%w: %v", dvm.ErrInvalidKind, record.Kind)

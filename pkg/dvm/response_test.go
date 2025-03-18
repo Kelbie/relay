@@ -84,7 +84,7 @@ func TestVerifyReputation(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			res, err := VerifyReputation(ctx, DB, RWS, test.args)
+			res, err := verifyReputation(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
@@ -158,7 +158,7 @@ func TestSortProfiles(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			res, err := SortProfiles(ctx, DB, RWS, test.args)
+			res, err := sortProfiles(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
@@ -246,7 +246,7 @@ func TestSearchAuthors(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			res, err := SearchProfiles(ctx, DB, RWS, eventStore, test.args)
+			res, err := searchProfiles(ctx, DB, RWS, eventStore, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
@@ -306,7 +306,7 @@ func TestRecommendFollows(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			res, err := RecommendFollows(ctx, DB, RWS, test.args)
+			res, err := recommendFollows(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}

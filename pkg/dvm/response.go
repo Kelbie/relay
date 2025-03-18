@@ -34,10 +34,29 @@ func VerifyReputation(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *VerifyReputationArgs) (PubkeyRanks, error) {
+	params Params) (PubkeyRanks, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	args, err := params.ToVerifyReputationArgs()
+	if err != nil {
+		return nil, err
+	}
+
+	ranking, err := verifyReputation(ctx, DB, RWS, args)
+	if err != nil {
+		return nil, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
+	}
+
+	return ranking, nil
+}
+
+func verifyReputation(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	args *VerifyReputationArgs) (PubkeyRanks, error) {
 
 	target, err := DB.NodeByKey(ctx, args.Target)
 	if errors.Is(err, models.ErrNodeNotFoundDB) {
@@ -46,12 +65,12 @@ func VerifyReputation(
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("VerifyReputation %w: failed to fetch the target's ID: %w", ErrInternal, err)
+		return nil, fmt.Errorf("failed to fetch the target's ID: %w", err)
 	}
 
 	IDs, err := DB.Followers(ctx, target.ID)
 	if err != nil {
-		return nil, fmt.Errorf("VerifyReputation %w: failed to fetch the followers of the target: %w", ErrInternal, err)
+		return nil, fmt.Errorf("failed to fetch the followers of the target: %w", err)
 	}
 
 	followerIDs := IDs[0]
@@ -59,7 +78,7 @@ func VerifyReputation(
 
 	nodeRanks, err := rankNodes(ctx, DB, RWS, nodesToRank, args.Algorithm)
 	if err != nil {
-		return nil, fmt.Errorf("VerifyReputation %w", err)
+		return nil, err
 	}
 
 	topFollowers := nodeRanks[1:].Top(args.Limit)
@@ -67,7 +86,7 @@ func VerifyReputation(
 
 	response, err := ToPubkeys(ctx, DB, nodeRanks)
 	if err != nil {
-		return nil, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
+		return nil, err
 	}
 
 	return response, nil
@@ -80,14 +99,33 @@ func SortProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *SortProfilesArgs) (PubkeyRanks, error) {
+	params Params) (PubkeyRanks, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	args, err := params.ToSortProfilesArgs()
+	if err != nil {
+		return nil, err
+	}
+
+	ranking, err := sortProfiles(ctx, DB, RWS, args)
+	if err != nil {
+		return nil, fmt.Errorf("SortProfiles %w: %w", ErrInternal, err)
+	}
+
+	return ranking, nil
+}
+
+func sortProfiles(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	args *SortProfilesArgs) (PubkeyRanks, error) {
+
 	IDs, err := DB.NodeIDs(ctx, args.Targets...)
 	if err != nil {
-		return nil, fmt.Errorf("SortProfiles %w: failed to fetch the IDs of the targets: %w", ErrInternal, err)
+		return nil, fmt.Errorf("failed to fetch the IDs of the targets: %w", err)
 	}
 
 	var targetIDs = make([]uint32, len(IDs))
@@ -103,40 +141,60 @@ func SortProfiles(
 
 	targetRanks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Algorithm)
 	if err != nil {
-		return nil, fmt.Errorf("SortProfiles %w: %w", ErrInternal, err)
+		return nil, err
 	}
 
 	_, ranks := targetRanks.Unpack()
 	response, err := pairs.Pack(args.Targets, ranks)
 	if err != nil {
-		return nil, fmt.Errorf("SortProfiles %w: %w", ErrInternal, err)
+		return nil, err
 	}
 
 	return response.Top(args.Limit), nil
 }
 
 // SearchProfiles() returns the top ranked pubkeys whose kind:0s contain the provided string.
-// All ranks use the specified args.Sort algorithm.
+// All ranks use the specified args.Algorithm.
 // For more info read: https://vertexlab.io/docs/nips/search-profiles-dvm/
 func SearchProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	eventStore *eventstore.Store,
-	args *SearchProfilesArgs) (PubkeyRanks, error) {
+	params Params) (PubkeyRanks, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	response, err := searchAuthors(ctx, eventStore, args.Search)
+	args, err := params.ToSearchProfilesArgs()
 	if err != nil {
-		return nil, fmt.Errorf("SearchProfiles: %w", err)
+		return nil, err
+	}
+
+	ranking, err := searchProfiles(ctx, DB, RWS, eventStore, args)
+	if err != nil {
+		return nil, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
+	}
+
+	return ranking, nil
+}
+
+func searchProfiles(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	eventStore *eventstore.Store,
+	args *SearchProfilesArgs) (PubkeyRanks, error) {
+
+	response, err := fts(ctx, eventStore, args.Search)
+	if err != nil {
+		return nil, err
 	}
 
 	pubkeys, searchRanks := response.Unpack()
 	IDs, err := DB.NodeIDs(ctx, pubkeys...)
 	if err != nil {
-		return nil, fmt.Errorf("SearchProfiles %w: failed to fetch the IDs of search results: %w", ErrInternal, err)
+		return nil, fmt.Errorf("failed to fetch the IDs of search results: %w", err)
 	}
 
 	targetIDs := make([]uint32, len(IDs))
@@ -153,7 +211,7 @@ func SearchProfiles(
 
 	targetRanks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Algorithm)
 	if err != nil {
-		return nil, fmt.Errorf("SearchProfiles: %w", err)
+		return nil, err
 	}
 
 	for i, target := range targetRanks {
@@ -164,9 +222,9 @@ func SearchProfiles(
 	return response.Top(args.Limit), nil
 }
 
-// The function searchAuthors() performs full text seach on the profiles (kind:0s) using the specified search term.
+// The function fts() performs full text seach on the profiles (kind:0s) using the specified search term.
 // It returns the pubkeys and search scores (positives, higher is better) of the SQL query.
-func searchAuthors(
+func fts(
 	ctx context.Context,
 	eventStore *eventstore.Store,
 	search string) (PubkeyRanks, error) {
@@ -264,10 +322,29 @@ func RecommendFollows(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *RecommendFollowsArgs) (PubkeyRanks, error) {
+	params Params) (PubkeyRanks, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
+	args, err := params.ToRecommendFollowsArgs()
+	if err != nil {
+		return nil, err
+	}
+
+	ranking, err := recommendFollows(ctx, DB, RWS, args)
+	if err != nil {
+		return nil, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
+	}
+
+	return ranking, nil
+}
+
+func recommendFollows(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	args *RecommendFollowsArgs) (PubkeyRanks, error) {
 
 	var nodeRanks NodeRanks
 	var err error
@@ -279,17 +356,17 @@ func RecommendFollows(
 		nodeRanks, err = recommendFollowsPersonalized(ctx, DB, RWS, args.Source, 30)
 
 	default:
-		return nil, fmt.Errorf("%w: %s", ErrInvalidSort, args.Sort)
+		err = fmt.Errorf("%w: %s", ErrInvalidSort, args.Sort)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("RecommendFollows: %w", err)
+		return nil, err
 	}
 
 	topNodes := nodeRanks.Top(args.Limit)
 	response, err := ToPubkeys(ctx, DB, topNodes)
 	if err != nil {
-		return nil, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
+		return nil, err
 	}
 
 	return response, nil
