@@ -19,7 +19,7 @@ func TestVerifyReputation(t *testing.T) {
 		DBType   string
 		RWSType  string
 		args     *VerifyReputationArgs
-		expected PubkeyRanks
+		expected Ranking
 	}{
 		{
 			name:    "target not in the DB",
@@ -30,7 +30,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    randomKey,
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: randomKey, Val: 0}},
+			expected: Ranking{{Key: randomKey, Val: 0}},
 		},
 		{
 			name:    "valid global (simple)",
@@ -41,7 +41,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    calle,
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: calle, Val: 0.5}, {Key: odell, Val: 0.5}},
+			expected: Ranking{{Key: calle, Val: 0.5}, {Key: odell, Val: 0.5}},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -52,7 +52,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    "2",
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Val: 0.33333}, {Key: "1", Val: 0.33333}},
+			expected: Ranking{{Key: "2", Val: 0.33333}, {Key: "1", Val: 0.33333}},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -63,7 +63,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    calle,
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: calle, Val: 0.45946}, {Key: odell, Val: 0.54054}},
+			expected: Ranking{{Key: calle, Val: 0.45946}, {Key: odell, Val: 0.54054}},
 		},
 		{
 			name:    "valid personalized (triangle)",
@@ -74,7 +74,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    "2",
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Val: 0.280855199}, {Key: "1", Val: 0.330417881}},
+			expected: Ranking{{Key: "2", Val: 0.280855199}, {Key: "1", Val: 0.330417881}},
 		},
 	}
 
@@ -84,15 +84,15 @@ func TestVerifyReputation(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			res, err := verifyReputation(ctx, DB, RWS, test.args)
+			ranking, err := verifyReputation(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
 
-			dist := distance(res, test.expected)
+			dist := distance(ranking, test.expected)
 			if dist > maxDist {
 				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
-				t.Errorf("expected response %v, got %v", test.expected, res)
+				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
 			}
 		})
 	}
@@ -104,7 +104,7 @@ func TestSortProfiles(t *testing.T) {
 		DBType   string
 		RWSType  string
 		args     *SortProfilesArgs
-		expected PubkeyRanks
+		expected Ranking
 	}{
 		{
 			name:    "valid global (one target not found in the DB)",
@@ -115,7 +115,11 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{randomKey, calle, pip},
 				Limit:     3,
 			},
-			expected: PubkeyRanks{{Key: calle, Val: 0.5}, {Key: pip, Val: 0.0}, {Key: randomKey, Val: 0.0}},
+			expected: Ranking{
+				{Key: calle, Val: 0.5},
+				{Key: pip, Val: 0.0},
+				{Key: randomKey, Val: 0.0},
+			},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -126,7 +130,12 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{"0", "1", "2", "69"},
 				Limit:     4,
 			},
-			expected: PubkeyRanks{{Key: "0", Val: 0.33333}, {Key: "1", Val: 0.33333}, {Key: "2", Val: 0.33333}, {Key: "69", Val: 0}},
+			expected: Ranking{
+				{Key: "0", Val: 0.33333},
+				{Key: "1", Val: 0.33333},
+				{Key: "2", Val: 0.33333},
+				{Key: "69", Val: 0},
+			},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -137,7 +146,11 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{odell, calle, pip},
 				Limit:     3,
 			},
-			expected: PubkeyRanks{{Key: odell, Val: 0.540540541}, {Key: calle, Val: 0.459459459}, {Key: pip, Val: 0.0}},
+			expected: Ranking{
+				{Key: odell, Val: 0.540540541},
+				{Key: calle, Val: 0.459459459},
+				{Key: pip, Val: 0.0},
+			},
 		},
 		{
 			name:    "valid personalized (triangle)",
@@ -148,7 +161,11 @@ func TestSortProfiles(t *testing.T) {
 				Targets:   []string{"0", "1", "2"},
 				Limit:     3,
 			},
-			expected: PubkeyRanks{{Key: "0", Val: 0.388726919}, {Key: "1", Val: 0.330417881}, {Key: "2", Val: 0.280855199}},
+			expected: Ranking{
+				{Key: "0", Val: 0.388726919},
+				{Key: "1", Val: 0.330417881},
+				{Key: "2", Val: 0.280855199},
+			},
 		},
 	}
 
@@ -158,15 +175,15 @@ func TestSortProfiles(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			res, err := sortProfiles(ctx, DB, RWS, test.args)
+			ranking, err := sortProfiles(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
 
-			dist := distance(res, test.expected)
+			dist := distance(ranking, test.expected)
 			if dist > maxDist {
-				t.Errorf("SortProfiles: expected distance %v, got %v", maxDist, dist)
-				t.Errorf("expected response %v, got %v", test.expected, res)
+				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
 			}
 		})
 	}
@@ -178,7 +195,7 @@ func TestSearchAuthors(t *testing.T) {
 		DBType   string
 		RWSType  string
 		args     *SearchProfilesArgs
-		expected PubkeyRanks
+		expected Ranking
 	}{
 		{
 			name:    "valid global",
@@ -189,7 +206,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    "pip",
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
+			expected: Ranking{{Key: pip, Val: 0.0}},
 		},
 		{
 			name:    "valid global npub",
@@ -200,7 +217,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup",
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
+			expected: Ranking{{Key: pip, Val: 0.0}},
 		},
 		{
 			name:    "valid global hex",
@@ -211,7 +228,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    pip,
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
+			expected: Ranking{{Key: pip, Val: 0.0}},
 		},
 		{
 			name:    "valid no results",
@@ -232,7 +249,7 @@ func TestSearchAuthors(t *testing.T) {
 				Search:    "pip",
 				Limit:     5,
 			},
-			expected: PubkeyRanks{{Key: pip, Val: 0.0}},
+			expected: Ranking{{Key: pip, Val: 0.0}},
 		},
 	}
 
@@ -246,15 +263,15 @@ func TestSearchAuthors(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			res, err := searchProfiles(ctx, DB, RWS, eventStore, test.args)
+			ranking, err := searchProfiles(ctx, DB, RWS, eventStore, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
 
-			dist := distance(res, test.expected)
+			dist := distance(ranking, test.expected)
 			if dist > maxDist {
-				t.Errorf("SearchProfiles: expected distance %v, got %v", maxDist, dist)
-				t.Errorf("expected response %v, got %v", test.expected, res)
+				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
 			}
 		})
 	}
@@ -266,7 +283,7 @@ func TestRecommendFollows(t *testing.T) {
 		DBType   string
 		RWSType  string
 		args     *RecommendFollowsArgs
-		expected PubkeyRanks
+		expected Ranking
 	}{
 		{
 			name:    "valid global (simple)",
@@ -276,7 +293,10 @@ func TestRecommendFollows(t *testing.T) {
 				Algorithm: Algorithm{Sort: Global, Source: randomKey},
 				Limit:     2,
 			},
-			expected: PubkeyRanks{{Key: calle, Val: 0.5}, {Key: odell, Val: 0.5}},
+			expected: Ranking{
+				{Key: calle, Val: 0.5},
+				{Key: odell, Val: 0.5},
+			},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -286,7 +306,7 @@ func TestRecommendFollows(t *testing.T) {
 				Algorithm: Algorithm{Sort: Global, Source: "0"},
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Val: 1.0 / 3.0}},
+			expected: Ranking{{Key: "2", Val: 1.0 / 3.0}},
 		},
 		{
 			name:    "valid personalized",
@@ -296,7 +316,7 @@ func TestRecommendFollows(t *testing.T) {
 				Algorithm: Algorithm{Sort: Personalized, Source: "0"},
 				Limit:     1,
 			},
-			expected: PubkeyRanks{{Key: "2", Val: 0.2809}},
+			expected: Ranking{{Key: "2", Val: 0.2809}},
 		},
 	}
 
@@ -306,15 +326,15 @@ func TestRecommendFollows(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			res, err := recommendFollows(ctx, DB, RWS, test.args)
+			ranking, err := recommendFollows(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
 
-			dist := distance(res, test.expected)
+			dist := distance(ranking, test.expected)
 			if dist > maxDist {
-				t.Errorf("RecommendFollows: expected distance %v, got %v", maxDist, dist)
-				t.Errorf("expected response %v, got %v", test.expected, res)
+				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
 			}
 		})
 	}
@@ -322,24 +342,24 @@ func TestRecommendFollows(t *testing.T) {
 
 // -----------------------------------HELPERS-----------------------------------
 
-// distance() returns the L1 distance between two PubkeyRanks.
-func distance(res1, res2 PubkeyRanks) float64 {
-	if len(res1) != len(res2) {
+// distance() returns the L1 distance between two Rankings.
+func distance(r1, r2 Ranking) float64 {
+	if len(r1) != len(r2) {
 		return math.MaxFloat64
 	}
 
 	// sort the responses in lexicographic order of the keys before comparing
-	sort.Slice(res1, func(i, j int) bool { return res1[i].Key > res1[j].Key })
-	sort.Slice(res2, func(i, j int) bool { return res2[i].Key > res2[j].Key })
+	sort.Slice(r1, func(i, j int) bool { return r1[i].Key > r1[j].Key })
+	sort.Slice(r2, func(i, j int) bool { return r2[i].Key > r2[j].Key })
 
 	var distance float64
-	for i := range res1 {
-		if res1[i].Key != res2[i].Key {
-			// if the keys are different, the two responses are incomparable
+	for i := range r1 {
+		if r1[i].Key != r2[i].Key {
+			// if the keys are different, the two ranking are incomparable
 			return math.MaxFloat64
 		}
 
-		distance += math.Abs(res1[i].Val - res2[i].Val)
+		distance += math.Abs(r1[i].Val - r2[i].Val)
 	}
 
 	return distance

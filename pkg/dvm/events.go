@@ -36,39 +36,9 @@ func (r Record) ToTags() nostr.Tags {
 	return tags
 }
 
-// A struct used for marshalling and unmarshalling [PubkeyRanks] more conveniently
-type pubkeyRankAlias struct {
-	Pubkey string  `json:"pubkey"`
-	Rank   float64 `json:"rank"`
-}
-
-func MarshalJSON(p PubkeyRanks) ([]byte, error) {
-	alias := make([]pubkeyRankAlias, len(p))
-	for i, pair := range p {
-		alias[i] = pubkeyRankAlias{Pubkey: pair.Key, Rank: pair.Val}
-	}
-
-	return json.Marshal(alias)
-}
-
-func UnmarshalJSON(data []byte) (PubkeyRanks, error) {
-	var alias []pubkeyRankAlias
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return nil, err
-	}
-
-	pubkeyRanks := make(PubkeyRanks, len(alias))
-	for i, pair := range alias {
-		pubkeyRanks[i] = PubkeyRank{Key: pair.Pubkey, Val: pair.Rank}
-	}
-
-	return pubkeyRanks, nil
-}
-
 // ErrorEvent() returns an unsigned nostr event for the DVM error
 func ErrorEvent(err error, rec Record) *nostr.Event {
 	return &nostr.Event{
-		Content:   "",
 		CreatedAt: nostr.Now(),
 		Kind:      KindDVMError,
 		Tags:      append(rec.ToTags(), nostr.Tag{"status", "error", err.Error()}),
@@ -76,15 +46,15 @@ func ErrorEvent(err error, rec Record) *nostr.Event {
 }
 
 // ResponseEvent() returns an unsigned nostr event used for the DVM
-func ResponseEvent(response PubkeyRanks, rec Record) *nostr.Event {
-	if len(response) >= 1 && rec.Kind == KindVerifyReputation && rec.ID == "" {
+func ResponseEvent(res Response, rec Record) *nostr.Event {
+	if len(res) >= 1 && rec.Kind == KindVerifyReputation && rec.ID == "" {
 		// this is a nasty trick to mantain backwards compatibility with Zapstore,
 		// that should be removed as soon as Zapstore upgrades to the new format for VerifyReputation.
 		// rec.ID == "" iff REQ is used.
-		response = response[1:]
+		res = res[1:]
 	}
 
-	json, err := MarshalJSON(response)
+	json, err := json.Marshal(res)
 	if err != nil {
 		return ErrorEvent(err, rec)
 	}

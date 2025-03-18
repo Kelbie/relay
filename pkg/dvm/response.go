@@ -17,15 +17,38 @@ import (
 	"github.com/vertex-lab/relay/pkg/pairs"
 )
 
-type (
-	// PubkeyRank is the pair (pubkey, rank). It's the basis for all DVM responses.
-	PubkeyRank  = pairs.Pair[string, float64]
-	PubkeyRanks = pairs.Pairs[string, float64]
+type Response []ResponseItem
 
-	// NodeRank is the pair (nodeID, rank). Only used for internal computations.
-	NodeRank  = pairs.Pair[uint32, float64]
-	NodeRanks = pairs.Pairs[uint32, float64]
+type ResponseItem struct {
+	Pubkey string  `json:"pubkey"`
+	Rank   float64 `json:"rank"`
+	Extra
+}
+
+// Extra groups optional information about a pubkey.
+type Extra struct {
+	Follows   *int `json:"follows,omitempty"`
+	Followers *int `json:"followers,omitempty"`
+}
+
+type (
+	Ranking     = pairs.Pairs[string, float64] // a slice of (pubkey, rank)
+	nodeRanking = pairs.Pairs[uint32, float64] // a slice of (nodeID, rank)
 )
+
+// NewResponse() combines the ranking and the optional extras into a [Response].
+func NewResponse(ranking Ranking, extras map[string]Extra) Response {
+	res := make(Response, len(ranking))
+	for i, pair := range ranking {
+		res[i] = ResponseItem{Pubkey: pair.Key, Rank: pair.Val}
+
+		if extra, ok := extras[pair.Key]; ok {
+			res[i].Extra = extra
+		}
+	}
+
+	return res
+}
 
 // VerifyReputation() returns the rank of the target and its highest ranked followers.
 // All ranks use the specified args.Algorithm.
@@ -34,7 +57,7 @@ func VerifyReputation(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	params Params) (PubkeyRanks, error) {
+	params Params) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -49,19 +72,19 @@ func VerifyReputation(
 		return nil, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
 	}
 
-	return ranking, nil
+	return NewResponse(ranking, nil), nil
 }
 
 func verifyReputation(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *VerifyReputationArgs) (PubkeyRanks, error) {
+	args *VerifyReputationArgs) (Ranking, error) {
 
 	target, err := DB.NodeByKey(ctx, args.Target)
 	if errors.Is(err, models.ErrNodeNotFoundDB) {
 		// if target is not found in our database, we assume it's a low-reputation key (rank of 0).
-		return PubkeyRanks{{Key: args.Target, Val: 0}}, nil
+		return Ranking{{Key: args.Target, Val: 0}}, nil
 	}
 
 	if err != nil {
@@ -84,12 +107,7 @@ func verifyReputation(
 	topFollowers := nodeRanks[1:].Top(args.Limit)
 	nodeRanks = append(nodeRanks[0:1], topFollowers...) // the response MUST have the target in the first position
 
-	response, err := ToPubkeys(ctx, DB, nodeRanks)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
+	return ResolveIDs(ctx, DB, nodeRanks)
 }
 
 // SortProfiles() returns the rank of each specified target.
@@ -99,7 +117,7 @@ func SortProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	params Params) (PubkeyRanks, error) {
+	params Params) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -114,14 +132,14 @@ func SortProfiles(
 		return nil, fmt.Errorf("SortProfiles %w: %w", ErrInternal, err)
 	}
 
-	return ranking, nil
+	return NewResponse(ranking, nil), nil
 }
 
 func sortProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *SortProfilesArgs) (PubkeyRanks, error) {
+	args *SortProfilesArgs) (Ranking, error) {
 
 	IDs, err := DB.NodeIDs(ctx, args.Targets...)
 	if err != nil {
@@ -139,18 +157,18 @@ func sortProfiles(
 		}
 	}
 
-	targetRanks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Algorithm)
+	targetRanking, err := rankNodes(ctx, DB, RWS, targetIDs, args.Algorithm)
 	if err != nil {
 		return nil, err
 	}
 
-	_, ranks := targetRanks.Unpack()
-	response, err := pairs.Pack(args.Targets, ranks)
+	_, ranks := targetRanking.Unpack()
+	ranking, err := pairs.Pack(args.Targets, ranks)
 	if err != nil {
 		return nil, err
 	}
 
-	return response.Top(args.Limit), nil
+	return ranking.Top(args.Limit), nil
 }
 
 // SearchProfiles() returns the top ranked pubkeys whose kind:0s contain the provided string.
@@ -161,7 +179,7 @@ func SearchProfiles(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	eventStore *eventstore.Store,
-	params Params) (PubkeyRanks, error) {
+	params Params) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -176,7 +194,7 @@ func SearchProfiles(
 		return nil, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
 	}
 
-	return ranking, nil
+	return NewResponse(ranking, nil), nil
 }
 
 func searchProfiles(
@@ -184,14 +202,14 @@ func searchProfiles(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	eventStore *eventstore.Store,
-	args *SearchProfilesArgs) (PubkeyRanks, error) {
+	args *SearchProfilesArgs) (Ranking, error) {
 
-	response, err := fts(ctx, eventStore, args.Search)
+	ranking, err := fts(ctx, eventStore, args.Search)
 	if err != nil {
 		return nil, err
 	}
 
-	pubkeys, searchRanks := response.Unpack()
+	pubkeys, searchRanks := ranking.Unpack()
 	IDs, err := DB.NodeIDs(ctx, pubkeys...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the IDs of search results: %w", err)
@@ -209,17 +227,17 @@ func searchProfiles(
 		}
 	}
 
-	targetRanks, err := rankNodes(ctx, DB, RWS, targetIDs, args.Algorithm)
+	targetRanking, err := rankNodes(ctx, DB, RWS, targetIDs, args.Algorithm)
 	if err != nil {
 		return nil, err
 	}
 
-	for i, target := range targetRanks {
+	for i, target := range targetRanking {
 		// merge ranks and searchRanks in order to give more accurate search results
-		response[i].Val = math.Pow(searchRanks[i], 3) * target.Val
+		ranking[i].Val = math.Pow(searchRanks[i], 3) * target.Val
 	}
 
-	return response.Top(args.Limit), nil
+	return ranking.Top(args.Limit), nil
 }
 
 // The function fts() performs full text seach on the profiles (kind:0s) using the specified search term.
@@ -227,7 +245,7 @@ func searchProfiles(
 func fts(
 	ctx context.Context,
 	eventStore *eventstore.Store,
-	search string) (PubkeyRanks, error) {
+	search string) (Ranking, error) {
 
 	if nostr.IsValidPublicKey(search) {
 		return pairs.Pairs[string, float64]{{Key: search, Val: 1}}, nil
@@ -268,7 +286,7 @@ func fts(
 	}
 	defer rows.Close()
 
-	pubRanks := make(PubkeyRanks, 0, limit) // pre-allocating
+	ranking := make(Ranking, 0, limit) // pre-allocating
 	var pk string
 	var rank float64
 
@@ -278,14 +296,14 @@ func fts(
 		}
 
 		// bm25 scores are all negative but we prefer to have positive scores, since we need the top from highest to lowest
-		pubRanks = append(pubRanks, PubkeyRank{Key: pk, Val: -rank})
+		ranking = append(ranking, pairs.Pair[string, float64]{Key: pk, Val: -rank})
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to scan the results of the query: %w", err)
 	}
 
-	return pubRanks, nil
+	return ranking, nil
 }
 
 // The default and max `LIMIT` for the full-text-search query.
@@ -322,7 +340,7 @@ func RecommendFollows(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	params Params) (PubkeyRanks, error) {
+	params Params) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -337,23 +355,23 @@ func RecommendFollows(
 		return nil, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
 	}
 
-	return ranking, nil
+	return NewResponse(ranking, nil), nil
 }
 
 func recommendFollows(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *RecommendFollowsArgs) (PubkeyRanks, error) {
+	args *RecommendFollowsArgs) (Ranking, error) {
 
-	var nodeRanks NodeRanks
+	var ranks models.PagerankMap
 	var err error
 	switch args.Sort {
 	case Global:
-		nodeRanks, err = recommendFollowsGlobal(ctx, DB, RWS, args.Source)
+		ranks, err = recommendFollowsGlobal(ctx, DB, RWS, args.Source)
 
 	case Personalized:
-		nodeRanks, err = recommendFollowsPersonalized(ctx, DB, RWS, args.Source, 30)
+		ranks, err = recommendFollowsPersonalized(ctx, DB, RWS, args.Source, 30)
 
 	default:
 		err = fmt.Errorf("%w: %s", ErrInvalidSort, args.Sort)
@@ -363,20 +381,15 @@ func recommendFollows(
 		return nil, err
 	}
 
-	topNodes := nodeRanks.Top(args.Limit)
-	response, err := ToPubkeys(ctx, DB, topNodes)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
+	topNodes := pairs.Top(ranks, args.Limit)
+	return ResolveIDs(ctx, DB, topNodes)
 }
 
 func recommendFollowsGlobal(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	source string) (NodeRanks, error) {
+	source string) (models.PagerankMap, error) {
 
 	var avoid []uint32 // a slice of nodeIDs that should not be recommended, like self, follows, mutes...
 	node, err := DB.NodeByKey(ctx, source)
@@ -394,8 +407,8 @@ func recommendFollowsGlobal(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch follows of %s", source)
 		}
-		// remove follows and self from the recommendations
-		avoid = append(follows[0], node.ID)
+
+		avoid = append(follows[0], node.ID) // remove follows and self from the recommendations
 	}
 
 	// this should be faster than using DB.AllNodes(). It might happen that some nodeIDs
@@ -406,17 +419,7 @@ func recommendFollowsGlobal(
 	}
 
 	candidates = sliceutils.Difference(candidates, avoid)
-	rankMap, err := pagerank.Global(ctx, RWS, candidates...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to recommend with globalPagerank pagerank: %w", err)
-	}
-
-	nodeRanks := make(NodeRanks, 0, len(rankMap))
-	for ID, rank := range rankMap {
-		nodeRanks = append(nodeRanks, NodeRank{Key: ID, Val: rank})
-	}
-
-	return nodeRanks, nil
+	return pagerank.Global(ctx, RWS, candidates...)
 }
 
 func recommendFollowsPersonalized(
@@ -424,7 +427,7 @@ func recommendFollowsPersonalized(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	source string,
-	limit int) (NodeRanks, error) {
+	limit int) (models.PagerankMap, error) {
 
 	var avoid []uint32 // a slice of nodeIDs that should not be recommended, like self, follows, mutes...
 	node, err := DB.NodeByKey(ctx, source)
@@ -437,24 +440,18 @@ func recommendFollowsPersonalized(
 		return nil, fmt.Errorf("failed to fetch follows of %s", source)
 	}
 
-	// remove follows and self from the recommendations
-	avoid = append(follows[0], node.ID)
+	avoid = append(follows[0], node.ID) // remove follows and self from the recommendations
 
 	pp, err := pagerank.Personalized(ctx, DB, RWS, node.ID, uint16(limit))
 	if err != nil {
-		return nil, fmt.Errorf("failed to recommend with personalizedPagerank pagerank: %w", err)
+		return nil, err
 	}
 
 	for _, ID := range avoid {
 		delete(pp, ID)
 	}
 
-	nodeRanks := make(NodeRanks, 0, len(pp))
-	for ID, rank := range pp {
-		nodeRanks = append(nodeRanks, NodeRank{Key: ID, Val: rank})
-	}
-
-	return nodeRanks, nil
+	return pp, nil
 }
 
 // rankNodes() associates a rank to each node ID by applying the specified algorithm.
@@ -464,56 +461,57 @@ func rankNodes(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	IDs []uint32,
-	algo Algorithm) (NodeRanks, error) {
+	algo Algorithm) (nodeRanking, error) {
 
 	if len(IDs) == 0 {
 		return nil, nil
 	}
 
-	var rankMap models.PagerankMap
+	var ranks models.PagerankMap
 	var err error
 
 	switch algo.Sort {
 	case Global:
-		rankMap, err = pagerank.Global(ctx, RWS, IDs...)
+		ranks, err = pagerank.Global(ctx, RWS, IDs...)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to sort with %s: %w", ErrInternal, algo.Sort, err)
+			return nil, fmt.Errorf("failed to sort with %s: %w", algo.Sort, err)
 		}
 
 	case Personalized:
 		source, err := DB.NodeIDs(ctx, algo.Source)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to sort with %s: %w", ErrInternal, algo.Sort, err)
+			return nil, fmt.Errorf("failed to sort with %s: %w", algo.Sort, err)
 		}
 
 		if source[0] == nil {
 			return nil, fmt.Errorf("%w: pubkey was not found", ErrInvalidSource)
 		}
 
-		rankMap, err = pagerank.Personalized(ctx, DB, RWS, *source[0], 100)
+		ranks, err = pagerank.Personalized(ctx, DB, RWS, *source[0], 100)
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to sort with %s: %w", ErrInternal, algo.Sort, err)
+			return nil, fmt.Errorf("failed to sort with %s: %w", algo.Sort, err)
 		}
 
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrInvalidSort, algo.Sort)
 	}
 
-	nodeRanks := make(NodeRanks, len(IDs))
+	nodeRanking := make(nodeRanking, len(IDs))
 	for i, ID := range IDs {
-		nodeRanks[i] = NodeRank{Key: ID, Val: rankMap[ID]}
+		nodeRanking[i] = pairs.Pair[uint32, float64]{Key: ID, Val: ranks[ID]}
 	}
 
-	return nodeRanks, nil
+	return nodeRanking, nil
 }
 
 // -----------------------------------HELPERS-----------------------------------
 
-// ToPubkeys() is used for converting the nodeIDs of Pairs[uint32, float64] into pubkeys.
-func ToPubkeys(
+// ResolveIDs() is used for converting the nodeIDs of Pairs[uint32, float64] into pubkeys.
+// In other words, it converts [nodeRanking] into a [Ranking].
+func ResolveIDs(
 	ctx context.Context,
 	DB models.Database,
-	nodeRanks NodeRanks) (PubkeyRanks, error) {
+	nodeRanks nodeRanking) (Ranking, error) {
 
 	IDs, ranks := nodeRanks.Unpack()
 	pubkeys, err := DB.Pubkeys(ctx, IDs...)
@@ -521,14 +519,14 @@ func ToPubkeys(
 		return nil, err
 	}
 
-	pubkeyRanks := make(PubkeyRanks, len(IDs))
+	ranking := make(Ranking, len(IDs))
 	for i, pk := range pubkeys {
 		if pk == nil {
 			return nil, fmt.Errorf("failed to fetch the pubkey of nodeID %d", IDs[i])
 		}
 
-		pubkeyRanks[i] = PubkeyRank{Key: *pk, Val: ranks[i]}
+		ranking[i] = pairs.Pair[string, float64]{Key: *pk, Val: ranks[i]}
 	}
 
-	return pubkeyRanks, nil
+	return ranking, nil
 }

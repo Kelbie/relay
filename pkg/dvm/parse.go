@@ -11,8 +11,8 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip19"
 )
 
+// DVM parameters and defaults
 var (
-	// DVM parameters and defaults
 	Global       string = "globalPagerank"
 	Personalized string = "personalizedPagerank"
 	ValidSorts          = []string{Global, Personalized}
