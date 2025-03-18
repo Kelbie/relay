@@ -50,6 +50,16 @@ func NewResponse(ranking Ranking, extras map[string]Extra) Response {
 	return res
 }
 
+// Pubkeys() returns the pubkeys present in the response.
+func (r Response) Pubkeys() []string {
+	pubkeys := make([]string, len(r))
+	for i, item := range r {
+		pubkeys[i] = item.Pubkey
+	}
+
+	return pubkeys
+}
+
 // VerifyReputation() returns the rank of the target and its highest ranked followers.
 // All ranks use the specified args.Algorithm.
 // For more info read: https://vertexlab.io/docs/nips/verify-reputation-dvm/

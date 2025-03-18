@@ -3,6 +3,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -108,12 +109,12 @@ func TestDVM_VerifyReputation(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	ranks, err := dvm.UnmarshalJSON([]byte(res.Content))
-	if err != nil {
+	var response dvm.Response
+	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	pubkeys, _ := ranks.Unpack()
+	pubkeys := response.Pubkeys()
 	if pubkeys[0] != fran {
 		t.Errorf("the first pubkey should be the target %s", fran)
 	}
@@ -153,12 +154,12 @@ func TestDVM_SortProfiles(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	ranks, err := dvm.UnmarshalJSON([]byte(res.Content))
-	if err != nil {
+	var response dvm.Response
+	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	sorted, _ := ranks.Unpack()
+	sorted := response.Pubkeys()
 	if !reflect.DeepEqual(sorted, expectedSorted) {
 		t.Errorf("sorted keys don't match the expected ones")
 		t.Errorf("sorted:")
@@ -200,12 +201,12 @@ func TestDVM_RecommendFollows(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	ranks, err := dvm.UnmarshalJSON([]byte(res.Content))
-	if err != nil {
+	var response dvm.Response
+	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	recommendations, _ := ranks.Unpack()
+	recommendations := response.Pubkeys()
 	if !reflect.DeepEqual(recommendations, expectedRecommendations) {
 		t.Errorf("recommendations don't match the expected ones")
 		t.Errorf("recommendations:")
@@ -247,12 +248,12 @@ func TestDVM_SearchProfiles(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	ranks, err := dvm.UnmarshalJSON([]byte(res.Content))
-	if err != nil {
+	var response dvm.Response
+	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	jacks, _ := ranks.Unpack()
+	jacks := response.Pubkeys()
 	if !reflect.DeepEqual(jacks, expectedJacks) {
 		t.Errorf("the search results don't match the expected ones")
 		t.Errorf("result:")

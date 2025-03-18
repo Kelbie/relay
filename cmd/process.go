@@ -78,7 +78,7 @@ func ProcessRequest(
 	record dvm.Record,
 	responseHandler func(context.Context, *nostr.Event) error) error {
 
-	var res dvm.PubkeyRanks
+	var res dvm.Response
 	var err error
 
 	switch record.Kind {
