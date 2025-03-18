@@ -158,6 +158,20 @@ func TestTopMap(t *testing.T) {
 
 // ------------------------------------BENCHMARK--------------------------------
 
+func BenchmarkMin(b *testing.B) {
+	sizes := []int{10000, 100000, 1000000}
+	for _, size := range sizes {
+		b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+
+			pairs := randPairs(size)
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				pairs.Min()
+			}
+		})
+	}
+}
+
 func BenchmarkTop(b *testing.B) {
 	sizes := []int{10000, 100000, 1000000}
 	limits := []int{10, 100, 1000}
@@ -227,6 +241,20 @@ func BenchmarkNaiveTopMap(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+func BenchmarkToPairs(b *testing.B) {
+	sizes := []int{10000, 100000, 1000000}
+	for _, size := range sizes {
+		b.Run(fmt.Sprintf("ToPairs size=%d", size), func(b *testing.B) {
+
+			m := randMap(size)
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				ToPairs(m)
+			}
+		})
 	}
 }
 

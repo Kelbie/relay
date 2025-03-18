@@ -1,5 +1,28 @@
-// The package pairs is useful for sorting, finding the top valued elements in a
-// collection of key-value pairs.
+/*
+The package pairs is useful for sorting and finding the top valued elements in a
+collection of key-value pairs.
+
+The [Pair] structure can be expanded with additional fields, however that will have
+an impact on performance. For example, adding one more value increases the execution
+time of the Top method by ~40% when len(pairs) = 10^6.
+
+The most performant way to relate additional data to a [Pair] is by using its key.
+For instance:
+
+	type MyStruct struct {
+		Pairs[string, float64]
+		Extras map[string]Extra
+	}
+
+	type Extra struct {
+		Field1 int
+		Field2 string
+		Field3 float64
+	}
+
+By embedding [Pairs], MyStruct can call the method Top with no overhead caused by the extra data.
+This obviuosly requires the keys to be unique.
+*/
 package pairs
 
 import (
