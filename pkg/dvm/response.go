@@ -1,7 +1,9 @@
+// The dvm package is responsible for parsing and responsing to DVM requests.
 package dvm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -17,6 +19,14 @@ import (
 	"github.com/vertex-lab/relay/pkg/pairs"
 )
 
+var (
+	KindVerifyReputation int = 5312
+	KindRecommendFollows int = 5313
+	KindSortProfiles     int = 5314
+	KindSearchProfiles   int = 5315
+	KindDVMError         int = 7000
+)
+
 type Response []ResponseItem
 
 type ResponseItem struct {
@@ -25,7 +35,7 @@ type ResponseItem struct {
 	Extra
 }
 
-// Extra groups optional information about a pubkey.
+// Extra groups optional information about a pubkey. If a field is nil, it means the information is missing.
 type Extra struct {
 	Follows   *int `json:"follows,omitempty"`
 	Followers *int `json:"followers,omitempty"`
@@ -37,14 +47,14 @@ type (
 )
 
 // NewResponse() combines the ranking and the optional extras into a [Response].
-func NewResponse(ranking Ranking, extras map[string]Extra) Response {
+func NewResponse(ranking Ranking, extras ...Extra) Response {
 	res := make(Response, len(ranking))
 	for i, pair := range ranking {
 		res[i] = ResponseItem{Pubkey: pair.Key, Rank: pair.Val}
+	}
 
-		if extra, ok := extras[pair.Key]; ok {
-			res[i].Extra = extra
-		}
+	for i, extra := range extras {
+		res[i].Extra = extra
 	}
 
 	return res
@@ -58,6 +68,37 @@ func (r Response) Pubkeys() []string {
 	}
 
 	return pubkeys
+}
+
+// ErrorEvent() returns an unsigned nostr event for the DVM error
+func ErrorEvent(err error, rec Record) *nostr.Event {
+	return &nostr.Event{
+		CreatedAt: nostr.Now(),
+		Kind:      KindDVMError,
+		Tags:      append(rec.ToTags(), nostr.Tag{"status", "error", err.Error()}),
+	}
+}
+
+// ResponseEvent() returns an unsigned nostr event used for the DVM
+func ResponseEvent(res Response, rec Record) *nostr.Event {
+	if len(res) >= 1 && rec.Kind == KindVerifyReputation && rec.ID == "" {
+		// this is a nasty trick to mantain backwards compatibility with Zapstore,
+		// that should be removed as soon as Zapstore upgrades to the new format for VerifyReputation.
+		// rec.ID == "" iff REQ is used.
+		res = res[1:]
+	}
+
+	json, err := json.Marshal(res)
+	if err != nil {
+		return ErrorEvent(err, rec)
+	}
+
+	return &nostr.Event{
+		Content:   string(json),
+		CreatedAt: nostr.Now(),
+		Kind:      rec.Kind + 1000,
+		Tags:      rec.ToTags(),
+	}
 }
 
 // VerifyReputation() returns the rank of the target and its highest ranked followers.
@@ -82,7 +123,7 @@ func VerifyReputation(
 		return nil, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
 	}
 
-	return NewResponse(ranking, nil), nil
+	return NewResponse(ranking), nil
 }
 
 func verifyReputation(
@@ -117,7 +158,7 @@ func verifyReputation(
 	topFollowers := nodeRanks[1:].Top(args.Limit)
 	nodeRanks = append(nodeRanks[0:1], topFollowers...) // the response MUST have the target in the first position
 
-	return ResolveIDs(ctx, DB, nodeRanks)
+	return resolveIDs(ctx, DB, nodeRanks)
 }
 
 // SortProfiles() returns the rank of each specified target.
@@ -142,7 +183,7 @@ func SortProfiles(
 		return nil, fmt.Errorf("SortProfiles %w: %w", ErrInternal, err)
 	}
 
-	return NewResponse(ranking, nil), nil
+	return NewResponse(ranking), nil
 }
 
 func sortProfiles(
@@ -204,7 +245,7 @@ func SearchProfiles(
 		return nil, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
 	}
 
-	return NewResponse(ranking, nil), nil
+	return NewResponse(ranking), nil
 }
 
 func searchProfiles(
@@ -365,7 +406,7 @@ func RecommendFollows(
 		return nil, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
 	}
 
-	return NewResponse(ranking, nil), nil
+	return NewResponse(ranking), nil
 }
 
 func recommendFollows(
@@ -392,7 +433,7 @@ func recommendFollows(
 	}
 
 	topNodes := pairs.Top(ranks, args.Limit)
-	return ResolveIDs(ctx, DB, topNodes)
+	return resolveIDs(ctx, DB, topNodes)
 }
 
 func recommendFollowsGlobal(
@@ -516,9 +557,9 @@ func rankNodes(
 
 // -----------------------------------HELPERS-----------------------------------
 
-// ResolveIDs() is used for converting the nodeIDs of Pairs[uint32, float64] into pubkeys.
+// resolveIDs() is used for converting the nodeIDs of Pairs[uint32, float64] into pubkeys.
 // In other words, it converts [nodeRanking] into a [Ranking].
-func ResolveIDs(
+func resolveIDs(
 	ctx context.Context,
 	DB models.Database,
 	nodeRanks nodeRanking) (Ranking, error) {

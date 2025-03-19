@@ -3,7 +3,6 @@ package dvm
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -15,7 +14,6 @@ import (
 var (
 	Global       string = "globalPagerank"
 	Personalized string = "personalizedPagerank"
-	ValidSorts          = []string{Global, Personalized}
 
 	DefaultLimit int = 5
 	MaxLimit     int = 1000
@@ -30,7 +28,7 @@ var (
 
 	// value errors
 	ErrInvalidSource     error = errors.New("invalid source")
-	ErrInvalidSort       error = errors.New(fmt.Sprintf("sort must be one of the following: %v", ValidSorts))
+	ErrInvalidSort       error = errors.New(fmt.Sprintf("sort must be one of the following: %s, %s", Global, Personalized))
 	ErrInvalidTarget     error = errors.New("invalid target")
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidSearch     error = errors.New("invalid search")
@@ -83,12 +81,89 @@ type Params struct {
 	Limit   int
 }
 
+// Record encapsulates the relevant fields for identifying the request.
+type Record struct {
+	ID     string
+	Pubkey string
+	Kind   int
+}
+
+func (r Record) ToTags() nostr.Tags {
+	var tags nostr.Tags
+	if r.ID != "" {
+		tags = append(tags, nostr.Tag{"e", r.ID})
+	}
+
+	if r.Pubkey != "" {
+		tags = append(tags, nostr.Tag{"p", r.Pubkey})
+	}
+
+	return tags
+}
+
 // NewParams returns the default values for the params.
 func NewParams(pubkey string) Params {
 	return Params{
 		Algorithm: Algorithm{Sort: Global, Source: pubkey},
 		Limit:     DefaultLimit,
 	}
+}
+
+// Parse() parses all the tags with prefix "param" into a Params structure.
+// If some params are not provided, the default values will be used.
+func Parse(req *nostr.Event) (Params, error) {
+	params := NewParams(req.PubKey)
+	counter := make(map[string]int, 5)
+
+	if len(req.Tags) > MaxLimit+4 {
+		return Params{}, ErrTooManyTags
+	}
+
+	for _, tag := range req.Tags {
+		if len(tag) < 3 {
+			continue
+		}
+
+		prefix, key, val := tag[0], tag[1], tag[2]
+		if prefix != "param" {
+			continue
+		}
+
+		counter[key]++
+		switch key {
+
+		case "target":
+			params.Targets = append(params.Targets, val)
+
+		case "source":
+			params.Source = val
+
+		case "sort":
+			params.Sort = val
+
+		case "search":
+			params.Search = val
+
+		case "limit":
+			l, err := strconv.Atoi(val)
+			if err != nil {
+				return Params{}, fmt.Errorf("%w: limit must be an integer between 1 and %d: %s", ErrInvalidLimit, MaxLimit, val)
+			}
+
+			params.Limit = l
+
+		default:
+			return Params{}, fmt.Errorf("%w: param must be one between 'target', 'source', 'sort', 'search', 'limit' %v", ErrParamNotSupported, key)
+		}
+	}
+
+	for key, val := range counter {
+		if key != "target" && val > 1 {
+			return Params{}, fmt.Errorf("%w: at most one '%s' can be provided", ErrMultipleParams, key)
+		}
+	}
+
+	return params, nil
 }
 
 func (p Params) ToVerifyReputationArgs() (*VerifyReputationArgs, error) {
@@ -167,7 +242,7 @@ func (p Params) ToSearchProfilesArgs() (*SearchProfilesArgs, error) {
 }
 
 func (a *Algorithm) Normalize() error {
-	if !slices.Contains(ValidSorts, a.Sort) {
+	if a.Sort != Global && a.Sort != Personalized {
 		return fmt.Errorf("%w: %v", ErrInvalidSort, a.Sort)
 	}
 
@@ -252,63 +327,6 @@ func (a *SearchProfilesArgs) Normalize() error {
 	}
 
 	return nil
-}
-
-// Parse() parses all the tags with prefix "param" into a Params structure.
-// If some params are not provided, the default values will be used.
-func Parse(req *nostr.Event) (Params, error) {
-	params := NewParams(req.PubKey)
-	counter := make(map[string]int, 5)
-
-	if len(req.Tags) > MaxLimit+4 {
-		return Params{}, ErrTooManyTags
-	}
-
-	for _, tag := range req.Tags {
-		if len(tag) < 3 {
-			continue
-		}
-
-		prefix, key, val := tag[0], tag[1], tag[2]
-		if prefix != "param" {
-			continue
-		}
-
-		counter[key]++
-		switch key {
-
-		case "target":
-			params.Targets = append(params.Targets, val)
-
-		case "source":
-			params.Source = val
-
-		case "sort":
-			params.Sort = val
-
-		case "search":
-			params.Search = val
-
-		case "limit":
-			l, err := strconv.Atoi(val)
-			if err != nil {
-				return Params{}, fmt.Errorf("%w: limit must be an integer between 1 and %d: %s", ErrInvalidLimit, MaxLimit, val)
-			}
-
-			params.Limit = l
-
-		default:
-			return Params{}, fmt.Errorf("%w: param must be one between 'target', 'source', 'sort', 'search', 'limit' %v", ErrParamNotSupported, key)
-		}
-	}
-
-	for key, val := range counter {
-		if key != "target" && val > 1 {
-			return Params{}, fmt.Errorf("%w: at most one '%s' can be provided", ErrMultipleParams, key)
-		}
-	}
-
-	return params, nil
 }
 
 // ToHexPubkey() returns a parsed hex pubkey from the specified string.
