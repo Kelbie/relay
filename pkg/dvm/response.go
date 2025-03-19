@@ -340,7 +340,7 @@ func dampening(matches int) float64 {
 // It is elastic in the number of `matches`, but no smaller than `defaultSearchLimit` and
 // no bigger than `maxSearchLimit`.
 func limit(matches int) int {
-	return max(defaultSearchLimit, min(matches/4, maxSearchLimit))
+	return max(defaultSearchLimit, min(matches, maxSearchLimit))
 }
 
 // RecommendFollows() uses the specified args.Algorithm to return a list of recommendations for args.Source.
