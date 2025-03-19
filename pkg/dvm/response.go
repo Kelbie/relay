@@ -1,4 +1,4 @@
-// The dvm package is responsible for parsing and responsing to DVM requests.
+// The dvm package is responsible for parsing and responding to DVM requests.
 package dvm
 
 import (
@@ -369,7 +369,7 @@ This function returns the dampening coefficient used to decrease the importance 
 
 The rationale is the following: the higher the 'matches', the lower the weight of such columns.
 When matches surpasses `defaultSearchLimit` (the budget for the query), the coefficient goes to 0.
-This behaviour is useful for searches involving popular nip05 providers (e.g. 'primal'),
+This behaviour is useful for searches involving popular nip05/lightning providers (e.g. 'primal', 'alby'),
 or common terms like 'bitcoin' and 'nostr'.
 */
 func dampening(matches int) float64 {
@@ -378,7 +378,7 @@ func dampening(matches int) float64 {
 }
 
 // This function returns the `limit` to be used for the full-text search query.
-// It is elastic in the number of `matches`, but no smaller than `defaultSearchLimit` and
+// It is proportional to the number of `matches`, but no smaller than `defaultSearchLimit` and
 // no bigger than `maxSearchLimit`.
 func limit(matches int) int {
 	return max(defaultSearchLimit, min(matches, maxSearchLimit))
