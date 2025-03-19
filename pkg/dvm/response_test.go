@@ -87,11 +87,13 @@ func TestResponseEvent(t *testing.T) {
 
 func TestVerifyReputation(t *testing.T) {
 	tests := []struct {
-		name     string
-		DBType   string
-		RWSType  string
-		args     *VerifyReputationArgs
-		expected Ranking
+		name    string
+		DBType  string
+		RWSType string
+		args    *VerifyReputationArgs
+
+		ranking Ranking
+		extras  []Extra
 	}{
 		{
 			name:    "target not in the DB",
@@ -102,7 +104,7 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    randomKey,
 				Limit:     5,
 			},
-			expected: Ranking{{Key: randomKey, Val: 0}},
+			ranking: Ranking{{Key: randomKey, Val: 0}},
 		},
 		{
 			name:    "valid global (simple)",
@@ -113,7 +115,8 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    calle,
 				Limit:     1,
 			},
-			expected: Ranking{{Key: calle, Val: 0.5}, {Key: odell, Val: 0.5}},
+			ranking: Ranking{{Key: calle, Val: 0.5}, {Key: odell, Val: 0.5}},
+			extras:  []Extra{{Follows: intPtr(0), Followers: intPtr(1)}},
 		},
 		{
 			name:    "valid global (triangle)",
@@ -124,7 +127,8 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    "2",
 				Limit:     1,
 			},
-			expected: Ranking{{Key: "2", Val: 0.33333}, {Key: "1", Val: 0.33333}},
+			ranking: Ranking{{Key: "2", Val: 0.33333}, {Key: "1", Val: 0.33333}},
+			extras:  []Extra{{Follows: intPtr(1), Followers: intPtr(1)}},
 		},
 		{
 			name:    "valid personalized (simple)",
@@ -135,7 +139,8 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    calle,
 				Limit:     1,
 			},
-			expected: Ranking{{Key: calle, Val: 0.45946}, {Key: odell, Val: 0.54054}},
+			ranking: Ranking{{Key: calle, Val: 0.45946}, {Key: odell, Val: 0.54054}},
+			extras:  []Extra{{Follows: intPtr(0), Followers: intPtr(1)}},
 		},
 		{
 			name:    "valid personalized (triangle)",
@@ -146,7 +151,8 @@ func TestVerifyReputation(t *testing.T) {
 				Target:    "2",
 				Limit:     1,
 			},
-			expected: Ranking{{Key: "2", Val: 0.280855199}, {Key: "1", Val: 0.330417881}},
+			ranking: Ranking{{Key: "2", Val: 0.280855199}, {Key: "1", Val: 0.330417881}},
+			extras:  []Extra{{Follows: intPtr(1), Followers: intPtr(1)}},
 		},
 	}
 
@@ -156,15 +162,19 @@ func TestVerifyReputation(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			ranking, err := verifyReputation(ctx, DB, RWS, test.args)
+			ranking, extras, err := verifyReputation(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
 
-			dist := distance(ranking, test.expected)
+			dist := distance(ranking, test.ranking)
 			if dist > maxDist {
 				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
-				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
+				t.Errorf("expected ranking %v, got %v", test.ranking, ranking)
+			}
+
+			if !reflect.DeepEqual(extras, test.extras) {
+				t.Errorf("expected extras %v, got %v", test.extras, extras)
 			}
 		})
 	}

@@ -119,47 +119,66 @@ func VerifyReputation(
 		return nil, err
 	}
 
-	ranking, err := verifyReputation(ctx, DB, RWS, args)
+	ranking, extras, err := verifyReputation(ctx, DB, RWS, args)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
 	}
 
-	return NewResponse(ranking), nil
+	return NewResponse(ranking, extras...), nil
 }
 
 func verifyReputation(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *VerifyReputationArgs) (Ranking, error) {
+	args *VerifyReputationArgs) (Ranking, []Extra, error) {
 
 	target, err := DB.NodeByKey(ctx, args.Target)
 	if errors.Is(err, models.ErrNodeNotFoundDB) {
 		// if target is not found in our database, we assume it's a low-reputation key (rank of 0).
-		return Ranking{{Key: args.Target, Val: 0}}, nil
+		return Ranking{{Key: args.Target, Val: 0}}, nil, nil
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the target's ID: %w", err)
+		return nil, nil, fmt.Errorf("failed to fetch the target's ID: %w", err)
 	}
 
 	IDs, err := DB.Followers(ctx, target.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the followers of the target: %w", err)
+		return nil, nil, fmt.Errorf("failed to fetch the followers of the target: %w", err)
 	}
 
 	followerIDs := IDs[0]
 	nodesToRank := append([]uint32{target.ID}, followerIDs...)
 
-	nodeRanks, err := rankNodes(ctx, DB, RWS, nodesToRank, args.Algorithm)
+	nodeRanking, err := rankNodes(ctx, DB, RWS, nodesToRank, args.Algorithm)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	topFollowers := nodeRanks[1:].Top(args.Limit)
-	nodeRanks = append(nodeRanks[0:1], topFollowers...) // the response MUST have the target in the first position
+	topFollowers := nodeRanking[1:].Top(args.Limit)
+	nodeRanking = append(nodeRanking[0:1], topFollowers...) // the response MUST have the target in the first position
 
-	return resolveIDs(ctx, DB, nodeRanks)
+	ranking, err := resolveIDs(ctx, DB, nodeRanking)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// this is inefficient, we should just query for the cardinality of that set.
+	IDs, err = DB.Follows(ctx, target.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch the follows of the target: %w", err)
+	}
+
+	follows := len(IDs[0])
+	followers := len(followerIDs)
+
+	extras := []Extra{{
+		Follows:   &follows,
+		Followers: &followers,
+	}}
+
+	return ranking, extras, nil
 }
 
 // SortProfiles() returns the rank of each specified target.
