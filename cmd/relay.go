@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/eventstore"
 	"github.com/vertex-lab/relay/pkg/rate"
+	"github.com/vertex-lab/relay/pkg/req"
 
 	"github.com/fiatjaf/khatru"
 	_ "github.com/joho/godotenv/autoload"
@@ -123,7 +125,7 @@ func main() {
 			return nil
 		})
 
-		if err != nil {
+		if err != nil && !errors.Is(err, req.ErrInvalidKindsFormat) {
 			log.Error("error processing event: %v", err)
 			return nil, fmt.Errorf("error processing event: %w", err)
 		}

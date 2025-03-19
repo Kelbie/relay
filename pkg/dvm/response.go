@@ -79,9 +79,10 @@ func ErrorEvent(err error, rec Record) *nostr.Event {
 	}
 }
 
-// ResponseEvent() returns an unsigned nostr event used for the DVM
-func ResponseEvent(res Response, rec Record) *nostr.Event {
-	if len(res) >= 1 && rec.Kind == KindVerifyReputation && rec.ID == "" {
+// ResponseEvent() returns an unsigned nostr event used for the DVM.
+// The `CreatedAt` field in the response event shows how old the ranking data is.
+func ResponseEvent(res Response, req *Request) *nostr.Event {
+	if len(res) >= 1 && req.Kind == KindVerifyReputation && req.ID == "" {
 		// this is a nasty trick to mantain backwards compatibility with Zapstore,
 		// that should be removed as soon as Zapstore upgrades to the new format for VerifyReputation.
 		// rec.ID == "" iff REQ is used.
@@ -90,14 +91,14 @@ func ResponseEvent(res Response, rec Record) *nostr.Event {
 
 	json, err := json.Marshal(res)
 	if err != nil {
-		return ErrorEvent(err, rec)
+		return ErrorEvent(err, req.Record)
 	}
 
 	return &nostr.Event{
 		Content:   string(json),
-		CreatedAt: nostr.Now(),
-		Kind:      rec.Kind + 1000,
-		Tags:      rec.ToTags(),
+		CreatedAt: req.CreatedAt, // shows how old the ranking data is
+		Kind:      req.Kind + 1000,
+		Tags:      req.ToTags(),
 	}
 }
 
@@ -108,12 +109,12 @@ func VerifyReputation(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	params Params) (Response, error) {
+	request *Request) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	args, err := params.ToVerifyReputationArgs()
+	args, err := request.ToVerifyReputationArgs()
 	if err != nil {
 		return nil, err
 	}
@@ -168,12 +169,12 @@ func SortProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	params Params) (Response, error) {
+	request *Request) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	args, err := params.ToSortProfilesArgs()
+	args, err := request.ToSortProfilesArgs()
 	if err != nil {
 		return nil, err
 	}
@@ -230,12 +231,12 @@ func SearchProfiles(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	eventStore *eventstore.Store,
-	params Params) (Response, error) {
+	request *Request) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	args, err := params.ToSearchProfilesArgs()
+	args, err := request.ToSearchProfilesArgs()
 	if err != nil {
 		return nil, err
 	}
@@ -391,12 +392,12 @@ func RecommendFollows(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	params Params) (Response, error) {
+	request *Request) (Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	args, err := params.ToRecommendFollowsArgs()
+	args, err := request.ToRecommendFollowsArgs()
 	if err != nil {
 		return nil, err
 	}

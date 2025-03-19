@@ -19,11 +19,12 @@ const (
 )
 
 func TestParse(t *testing.T) {
-	testCases := []struct {
-		name           string
-		filter         *nostr.Filter
-		expectedParams dvm.Params
-		expectedError  error
+	record := dvm.Record{Kind: dvm.KindVerifyReputation, CreatedAt: nostr.Now()}
+	tests := []struct {
+		name          string
+		filter        *nostr.Filter
+		expected      *dvm.Request
+		expectedError error
 	}{
 		{
 			name:          "empty search",
@@ -40,7 +41,8 @@ func TestParse(t *testing.T) {
 					"limit": 100,
 					"search": "jack"
 				}`},
-			expectedParams: dvm.Params{
+			expected: &dvm.Request{
+				Record:    record,
 				Algorithm: dvm.Algorithm{Sort: dvm.Global, Source: fran},
 				Targets:   []string{odell, pip},
 				Limit:     100,
@@ -57,7 +59,8 @@ func TestParse(t *testing.T) {
 					"limit": 100,
 					"search": "jack"
 				}`},
-			expectedParams: dvm.Params{
+			expected: &dvm.Request{
+				Record:    record,
 				Algorithm: dvm.Algorithm{Sort: dvm.Global, Source: fran},
 				Targets:   []string{odell, pip},
 				Limit:     100,
@@ -70,7 +73,8 @@ func TestParse(t *testing.T) {
 				Kinds:  []int{dvm.KindVerifyReputation + 1000, dvm.KindDVMError},
 				Search: "{\"source\":\"04c915daefee38317fa734444acee390a8269fe5810b2241e5e6dd343dfbecc9\", \"targets\":[\"726a1e261cc6474674e8285e3951b3bb139be9a773d1acf49dc868db861a1c11\"]}",
 			},
-			expectedParams: dvm.Params{
+			expected: &dvm.Request{
+				Record:    record,
 				Algorithm: dvm.Algorithm{Sort: dvm.Global, Source: odell},
 				Targets:   []string{fran},
 				Limit:     dvm.DefaultLimit,
@@ -78,7 +82,7 @@ func TestParse(t *testing.T) {
 		},
 	}
 
-	for _, test := range testCases {
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			args, err := Parse(test.filter)
 
@@ -86,8 +90,8 @@ func TestParse(t *testing.T) {
 				t.Fatalf("Parse: expected error %v, got %v", test.expectedError, err)
 			}
 
-			if !reflect.DeepEqual(args, test.expectedParams) {
-				t.Errorf("Parse: expected args %v, got %v", test.expectedParams, args)
+			if !reflect.DeepEqual(args, test.expected) {
+				t.Errorf("Parse: expected request %v, got %v", test.expected, args)
 			}
 		})
 	}

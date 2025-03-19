@@ -47,6 +47,126 @@ type Algorithm struct {
 	Source string `json:"source,omitempty"`
 }
 
+// Request is the internal representation of the DVM request nostr.Event.
+// For each request method (DVM, REQ filter, http...), the [Parse] function should
+// always return a Request, which will then be converted using the appropriate method To<argument's name>.
+// This way, adding a new request method will require writing only one parsing function.
+type Request struct {
+	Record
+	Algorithm
+	Targets []string `json:"targets,omitempty"`
+	Search  string   `json:"search,omitempty"`
+	Limit   int
+}
+
+// NewRequest returns the default values for the Request.
+func NewRequest(rec Record) Request {
+	return Request{
+		Record:    rec,
+		Algorithm: Algorithm{Sort: Global, Source: rec.Pubkey},
+		Limit:     DefaultLimit,
+	}
+}
+
+func (r Request) ToTags() nostr.Tags {
+	tags := r.Record.ToTags()
+	tags = append(tags, nostr.Tag{"sort", r.Sort})
+
+	if r.Sort == Personalized {
+		tags = append(tags, nostr.Tag{"source", r.Source})
+	}
+
+	return tags
+}
+
+// Record encapsulates the relevant fields for identifying the request event.
+type Record struct {
+	ID        string
+	Pubkey    string
+	Kind      int
+	CreatedAt nostr.Timestamp
+}
+
+func NewRecord(req *nostr.Event) Record {
+	return Record{
+		ID:        req.ID,
+		Pubkey:    req.PubKey,
+		Kind:      req.Kind,
+		CreatedAt: req.CreatedAt,
+	}
+}
+
+func (r Record) ToTags() nostr.Tags {
+	tags := make(nostr.Tags, 0, 2)
+	if r.ID != "" {
+		tags = append(tags, nostr.Tag{"e", r.ID})
+	}
+
+	if r.Pubkey != "" {
+		tags = append(tags, nostr.Tag{"p", r.Pubkey})
+	}
+
+	return tags
+}
+
+// Parse() parses all the tags with prefix "param" into a Request structure.
+// If some params are not provided, the default values will be used.
+func Parse(req *nostr.Event) (*Request, error) {
+	if len(req.Tags) > MaxLimit+4 {
+		return nil, ErrTooManyTags
+	}
+
+	record := NewRecord(req)
+	request := NewRequest(record)
+	counter := make(map[string]int, 5)
+
+	for _, tag := range req.Tags {
+		if len(tag) < 3 {
+			continue
+		}
+
+		prefix, key, val := tag[0], tag[1], tag[2]
+		if prefix != "param" {
+			continue
+		}
+
+		counter[key]++
+		switch key {
+
+		case "target":
+			request.Targets = append(request.Targets, val)
+
+		case "source":
+			request.Source = val
+
+		case "sort":
+			request.Sort = val
+
+		case "search":
+			request.Search = val
+
+		case "limit":
+			l, err := strconv.Atoi(val)
+			if err != nil {
+				return nil, fmt.Errorf("%w: limit must be an integer between 1 and %d: %s", ErrInvalidLimit, MaxLimit, val)
+			}
+
+			request.Limit = l
+
+		default:
+			return nil, fmt.Errorf("%w: param must be one between 'target', 'source', 'sort', 'search', 'limit' %v", ErrParamNotSupported, key)
+		}
+	}
+
+	for key, val := range counter {
+		if key != "target" && val > 1 {
+			return nil, fmt.Errorf("%w: at most one '%s' can be provided", ErrMultipleParams, key)
+		}
+	}
+
+	return &request, nil
+}
+
 type VerifyReputationArgs struct {
 	Algorithm
 	Target string
@@ -70,115 +190,19 @@ type SearchProfilesArgs struct {
 	Limit  int
 }
 
-// Params contains all the param fields of all DVMs.
-// For each request method (DVM, REQ filter, http...), the [Parse] function should
-// always return p Params, which will then be converted using the appropriate method To<argument's name>.
-// This way, adding a new request method will require writing only one parsing function.
-type Params struct {
-	Algorithm
-	Targets []string `json:"targets,omitempty"`
-	Search  string   `json:"search,omitempty"`
-	Limit   int
-}
-
-// Record encapsulates the relevant fields for identifying the request.
-type Record struct {
-	ID     string
-	Pubkey string
-	Kind   int
-}
-
-func (r Record) ToTags() nostr.Tags {
-	var tags nostr.Tags
-	if r.ID != "" {
-		tags = append(tags, nostr.Tag{"e", r.ID})
-	}
-
-	if r.Pubkey != "" {
-		tags = append(tags, nostr.Tag{"p", r.Pubkey})
-	}
-
-	return tags
-}
-
-// NewParams returns the default values for the params.
-func NewParams(pubkey string) Params {
-	return Params{
-		Algorithm: Algorithm{Sort: Global, Source: pubkey},
-		Limit:     DefaultLimit,
-	}
-}
-
-// Parse() parses all the tags with prefix "param" into a Params structure.
-// If some params are not provided, the default values will be used.
-func Parse(req *nostr.Event) (Params, error) {
-	params := NewParams(req.PubKey)
-	counter := make(map[string]int, 5)
-
-	if len(req.Tags) > MaxLimit+4 {
-		return Params{}, ErrTooManyTags
-	}
-
-	for _, tag := range req.Tags {
-		if len(tag) < 3 {
-			continue
-		}
-
-		prefix, key, val := tag[0], tag[1], tag[2]
-		if prefix != "param" {
-			continue
-		}
-
-		counter[key]++
-		switch key {
-
-		case "target":
-			params.Targets = append(params.Targets, val)
-
-		case "source":
-			params.Source = val
-
-		case "sort":
-			params.Sort = val
-
-		case "search":
-			params.Search = val
-
-		case "limit":
-			l, err := strconv.Atoi(val)
-			if err != nil {
-				return Params{}, fmt.Errorf("%w: limit must be an integer between 1 and %d: %s", ErrInvalidLimit, MaxLimit, val)
-			}
-
-			params.Limit = l
-
-		default:
-			return Params{}, fmt.Errorf("%w: param must be one between 'target', 'source', 'sort', 'search', 'limit' %v", ErrParamNotSupported, key)
-		}
-	}
-
-	for key, val := range counter {
-		if key != "target" && val > 1 {
-			return Params{}, fmt.Errorf("%w: at most one '%s' can be provided", ErrMultipleParams, key)
-		}
-	}
-
-	return params, nil
-}
-
-func (p Params) ToVerifyReputationArgs() (*VerifyReputationArgs, error) {
-	if len(p.Targets) != 1 {
+func (r *Request) ToVerifyReputationArgs() (*VerifyReputationArgs, error) {
+	if len(r.Targets) != 1 {
 		return nil, fmt.Errorf("%w: VerifyReputation requires exactly one 'target'", ErrInvalidTarget)
 	}
 
-	if len(p.Search) > 0 {
+	if len(r.Search) > 0 {
 		return nil, fmt.Errorf("%w: VerifyReputation doesn't support 'search'", ErrParamNotSupported)
 	}
 
 	args := &VerifyReputationArgs{
-		Algorithm: p.Algorithm,
-		Target:    p.Targets[0],
-		Limit:     p.Limit}
+		Algorithm: r.Algorithm,
+		Target:    r.Targets[0],
+		Limit:     r.Limit}
 
 	if err := args.Normalize(); err != nil {
 		return nil, err
@@ -187,18 +211,18 @@ func (p Params) ToVerifyReputationArgs() (*VerifyReputationArgs, error) {
 	return args, nil
 }
 
-func (p Params) ToRecommendFollowsArgs() (*RecommendFollowsArgs, error) {
-	if len(p.Targets) > 0 {
+func (r *Request) ToRecommendFollowsArgs() (*RecommendFollowsArgs, error) {
+	if len(r.Targets) > 0 {
 		return nil, fmt.Errorf("%w: RecommendFollows doesn't support 'target'", ErrParamNotSupported)
 	}
 
-	if len(p.Search) > 0 {
+	if len(r.Search) > 0 {
 		return nil, fmt.Errorf("%w: RecommendFollows doesn't support 'search'", ErrParamNotSupported)
 	}
 
 	args := &RecommendFollowsArgs{
-		Algorithm: p.Algorithm,
-		Limit:     p.Limit}
+		Algorithm: r.Algorithm,
+		Limit:     r.Limit}
 
 	if err := args.Normalize(); err != nil {
 		return nil, err
@@ -207,15 +231,15 @@ func (p Params) ToRecommendFollowsArgs() (*RecommendFollowsArgs, error) {
 	return args, nil
 }
 
-func (p Params) ToSortProfilesArgs() (*SortProfilesArgs, error) {
-	if len(p.Search) > 0 {
+func (r *Request) ToSortProfilesArgs() (*SortProfilesArgs, error) {
+	if len(r.Search) > 0 {
 		return nil, fmt.Errorf("%w: SortProfiles doesn't support 'search'", ErrParamNotSupported)
 	}
 
 	args := &SortProfilesArgs{
-		Algorithm: p.Algorithm,
-		Targets:   p.Targets,
-		Limit:     p.Limit}
+		Algorithm: r.Algorithm,
+		Targets:   r.Targets,
+		Limit:     r.Limit}
 
 	if err := args.Normalize(); err != nil {
 		return nil, err
@@ -224,15 +248,15 @@ func (p Params) ToSortProfilesArgs() (*SortProfilesArgs, error) {
 	return args, nil
 }
 
-func (p Params) ToSearchProfilesArgs() (*SearchProfilesArgs, error) {
-	if len(p.Targets) > 0 {
+func (r *Request) ToSearchProfilesArgs() (*SearchProfilesArgs, error) {
+	if len(r.Targets) > 0 {
 		return nil, fmt.Errorf("%w: SearchProfiles doesn't support 'target'", ErrParamNotSupported)
 	}
 
 	args := &SearchProfilesArgs{
-		Algorithm: p.Algorithm,
-		Search:    p.Search,
-		Limit:     p.Limit}
+		Algorithm: r.Algorithm,
+		Search:    r.Search,
+		Limit:     r.Limit}
 
 	if err := args.Normalize(); err != nil {
 		return nil, err

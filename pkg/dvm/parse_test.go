@@ -22,7 +22,7 @@ func TestParse(t *testing.T) {
 	tests := []struct {
 		name          string
 		req           *nostr.Event
-		expected      Params
+		expected      *Request
 		expectedError error
 	}{
 		{
@@ -78,7 +78,7 @@ func TestParse(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: Params{
+			expected: &Request{
 				Algorithm: Algorithm{Sort: Personalized, Source: pip},
 				Search:    "jack",
 				Targets:   []string{calle, odell},
@@ -105,48 +105,48 @@ func TestParse(t *testing.T) {
 func TestToVerifyReputation(t *testing.T) {
 	tests := []struct {
 		name          string
-		params        Params
+		req           *Request
 		expected      *VerifyReputationArgs
 		expectedError error
 	}{
 		{
 			name:          "no targets",
-			params:        Params{},
+			req:           &Request{},
 			expectedError: ErrInvalidTarget,
 		},
 		{
 			name:          "too many targets",
-			params:        Params{Targets: []string{pip, calle}},
+			req:           &Request{Targets: []string{pip, calle}},
 			expectedError: ErrInvalidTarget,
 		},
 		{
 			name:          "search",
-			params:        Params{Targets: []string{pip}, Search: "j"},
+			req:           &Request{Targets: []string{pip}, Search: "j"},
 			expectedError: ErrParamNotSupported,
 		},
 		{
 			name:          "invalid source key",
-			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Targets: []string{pip}, Limit: 10},
+			req:           &Request{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Targets: []string{pip}, Limit: 10},
 			expectedError: ErrInvalidSource,
 		},
 		{
 			name:          "invalid target key",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{"xxx"}, Limit: 10},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{"xxx"}, Limit: 10},
 			expectedError: ErrInvalidTarget,
 		},
 		{
 			name:          "negative limit",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: -1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: -1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name:          "limit too high",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name: "valid",
-			params: Params{
+			req: &Request{
 				Algorithm: Algorithm{Sort: Personalized, Source: odell},
 				Targets:   []string{"npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
 				Limit:     69,
@@ -161,7 +161,7 @@ func TestToVerifyReputation(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			args, err := test.params.ToVerifyReputationArgs()
+			args, err := test.req.ToVerifyReputationArgs()
 			if !errors.Is(err, test.expectedError) {
 				t.Fatalf("expected error %v, got %v", test.expectedError, err)
 			}
@@ -176,38 +176,38 @@ func TestToVerifyReputation(t *testing.T) {
 func TestToRecommendFollows(t *testing.T) {
 	tests := []struct {
 		name          string
-		params        Params
+		req           *Request
 		expected      *RecommendFollowsArgs
 		expectedError error
 	}{
 		{
 			name:          "non-empty targets",
-			params:        Params{Targets: []string{pip}},
+			req:           &Request{Targets: []string{pip}},
 			expectedError: ErrParamNotSupported,
 		},
 		{
 			name:          "search",
-			params:        Params{Search: "j"},
+			req:           &Request{Search: "j"},
 			expectedError: ErrParamNotSupported,
 		},
 		{
 			name:          "invalid source key",
-			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10},
+			req:           &Request{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10},
 			expectedError: ErrInvalidSource,
 		},
 		{
 			name:          "negative limit",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: -1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: -1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name:          "limit too high",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name: "valid",
-			params: Params{
+			req: &Request{
 				Algorithm: Algorithm{Sort: Personalized, Source: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
 				Limit:     69,
 			},
@@ -220,7 +220,7 @@ func TestToRecommendFollows(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			args, err := test.params.ToRecommendFollowsArgs()
+			args, err := test.req.ToRecommendFollowsArgs()
 			if !errors.Is(err, test.expectedError) {
 				t.Fatalf("expected error %v, got %v", test.expectedError, err)
 			}
@@ -235,43 +235,43 @@ func TestToRecommendFollows(t *testing.T) {
 func TestToSortProfiles(t *testing.T) {
 	tests := []struct {
 		name          string
-		params        Params
+		req           *Request
 		expected      *SortProfilesArgs
 		expectedError error
 	}{
 		{
 			name:          "search",
-			params:        Params{Search: "j"},
+			req:           &Request{Search: "j"},
 			expectedError: ErrParamNotSupported,
 		},
 		{
 			name:          "invalid source key",
-			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10, Targets: []string{pip}},
+			req:           &Request{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10, Targets: []string{pip}},
 			expectedError: ErrInvalidSource,
 		},
 		{
 			name:          "empty targets",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: 10},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: 10},
 			expectedError: ErrInvalidTarget,
 		},
 		{
 			name:          "invalid target",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: 10, Targets: []string{pip, calle, "xxxx"}},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: 10, Targets: []string{pip, calle, "xxxx"}},
 			expectedError: ErrInvalidTarget,
 		},
 		{
 			name:          "negative limit",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: -1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: -1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name:          "limit too high",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name: "valid",
-			params: Params{
+			req: &Request{
 				Algorithm: Algorithm{Sort: Personalized, Source: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
 				Targets:   []string{calle, pip, odell, fran, "npub16kkn6vg4m8aqw5qtqmxdpwtqtkvg3gsx4jazpg0zu6q7c2gsjwrs3tdflr"},
 				Limit:     69,
@@ -286,7 +286,7 @@ func TestToSortProfiles(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			args, err := test.params.ToSortProfilesArgs()
+			args, err := test.req.ToSortProfilesArgs()
 			if !errors.Is(err, test.expectedError) {
 				t.Fatalf("expected error %v, got %v", test.expectedError, err)
 			}
@@ -301,38 +301,38 @@ func TestToSortProfiles(t *testing.T) {
 func TestToSearchProfiles(t *testing.T) {
 	tests := []struct {
 		name          string
-		params        Params
+		req           *Request
 		expected      *SearchProfilesArgs
 		expectedError error
 	}{
 		{
 			name:          "non-empty targets",
-			params:        Params{Targets: []string{pip, calle}},
+			req:           &Request{Targets: []string{pip, calle}},
 			expectedError: ErrParamNotSupported,
 		},
 		{
 			name:          "invalid source key",
-			params:        Params{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10, Search: "jack"},
+			req:           &Request{Algorithm: Algorithm{Sort: Personalized, Source: "abc"}, Limit: 10, Search: "jack"},
 			expectedError: ErrInvalidSource,
 		},
 		{
 			name:          "search too short",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: 10, Search: "ab"},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: 10, Search: "ab"},
 			expectedError: ErrInvalidSearch,
 		},
 		{
 			name:          "negative limit",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: -1, Search: "jack"},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: -1, Search: "jack"},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name:          "limit too high",
-			params:        Params{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1, Search: "jack"},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1, Search: "jack"},
 			expectedError: ErrInvalidLimit,
 		},
 		{
 			name: "valid",
-			params: Params{
+			req: &Request{
 				Algorithm: Algorithm{Sort: Personalized, Source: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
 				Search:    "   jack   ",
 				Limit:     69,
@@ -347,7 +347,7 @@ func TestToSearchProfiles(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			args, err := test.params.ToSearchProfilesArgs()
+			args, err := test.req.ToSearchProfilesArgs()
 			if !errors.Is(err, test.expectedError) {
 				t.Fatalf("expected error %v, got %v", test.expectedError, err)
 			}

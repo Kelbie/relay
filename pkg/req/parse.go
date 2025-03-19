@@ -21,17 +21,19 @@ var (
 
 // Parse() parses a filter and returns the specified arguments for the DVM.
 // This function should always be called after [ValidateFilter].
-func Parse(filter *nostr.Filter) (dvm.Params, error) {
+func Parse(filter *nostr.Filter) (*dvm.Request, error) {
 	if len(filter.Search) < 1 {
-		return dvm.Params{}, ErrEmptyFieldSearch
+		return nil, ErrEmptyFieldSearch
 	}
 
-	params := dvm.NewParams("")
-	if err := json.Unmarshal([]byte(filter.Search), &params); err != nil {
-		return dvm.Params{}, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
+	record := dvm.Record{Kind: filter.Kinds[0] - 1000, CreatedAt: nostr.Now()}
+	request := dvm.NewRequest(record)
+
+	if err := json.Unmarshal([]byte(filter.Search), &request); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnmarshalling, err)
 	}
 
-	return params, nil
+	return &request, nil
 }
 
 // ValidateFilter checks if the kinds of the filter match the valid format kinds:{<dvm_response_kind>, 7000}.

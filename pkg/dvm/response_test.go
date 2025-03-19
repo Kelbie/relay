@@ -16,32 +16,33 @@ import (
 const maxDist float64 = 0.002
 
 func TestResponseEvent(t *testing.T) {
+	record := Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran, CreatedAt: 420}
 	tests := []struct {
 		name     string
 		res      Response
-		rec      Record
+		req      *Request
 		expected *nostr.Event
 	}{
 		{
 			name: "empty res",
 			res:  Response{},
-			rec:  Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran},
+			req:  &Request{Record: record, Algorithm: Algorithm{Sort: Global}},
 			expected: &nostr.Event{
 				Content:   "[]",
-				CreatedAt: nostr.Now(),
+				CreatedAt: 420,
 				Kind:      KindSortProfiles + 1000,
-				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}},
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}},
 			},
 		},
 		{
 			name: "response from empty ranking and extras",
 			res:  NewResponse(nil),
-			rec:  Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran},
+			req:  &Request{Record: record, Algorithm: Algorithm{Sort: Global}},
 			expected: &nostr.Event{
 				Content:   "[]",
-				CreatedAt: nostr.Now(),
+				CreatedAt: 420,
 				Kind:      KindSortProfiles + 1000,
-				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}},
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}},
 			},
 		},
 		{
@@ -50,28 +51,38 @@ func TestResponseEvent(t *testing.T) {
 				{Pubkey: "abc", Rank: 0.1, Extra: Extra{Follows: intPtr(69), Followers: intPtr(420)}},
 				{Pubkey: "123", Rank: 0.2},
 			},
-			rec: Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran},
+			req: &Request{Record: record, Algorithm: Algorithm{Sort: Global}},
 			expected: &nostr.Event{
 				Content:   "[{\"pubkey\":\"abc\",\"rank\":0.1,\"follows\":69,\"followers\":420},{\"pubkey\":\"123\",\"rank\":0.2}]",
-				CreatedAt: nostr.Now(),
+				CreatedAt: 420,
 				Kind:      KindSortProfiles + 1000,
-				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}},
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}},
+			},
+		},
+		{
+			name: "valid personalized",
+			res: Response{
+				{Pubkey: "abc", Rank: 0.1, Extra: Extra{Follows: intPtr(69), Followers: intPtr(420)}},
+				{Pubkey: "123", Rank: 0.2},
+			},
+			req: &Request{Record: record, Algorithm: Algorithm{Sort: Personalized, Source: pip}},
+			expected: &nostr.Event{
+				Content:   "[{\"pubkey\":\"abc\",\"rank\":0.1,\"follows\":69,\"followers\":420},{\"pubkey\":\"123\",\"rank\":0.2}]",
+				CreatedAt: 420,
+				Kind:      KindSortProfiles + 1000,
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Personalized}, {"source", pip}},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			event := ResponseEvent(test.res, test.rec)
+			event := ResponseEvent(test.res, test.req)
 			if !reflect.DeepEqual(event, test.expected) {
 				t.Fatalf("ResponseEvent(): expected %v, got %v", test.expected, event)
 			}
 		})
 	}
-}
-
-func intPtr(i int) *int {
-	return &i
 }
 
 func TestVerifyReputation(t *testing.T) {
@@ -424,4 +435,8 @@ func distance(r1, r2 Ranking) float64 {
 	}
 
 	return distance
+}
+
+func intPtr(i int) *int {
+	return &i
 }

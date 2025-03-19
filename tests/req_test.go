@@ -19,7 +19,7 @@ func TestREQ_VerifyReputation(t *testing.T) {
 	}
 
 	expectedKind := req.Kinds[0]
-	expectedTags := nostr.Tags{}
+	expectedTags := nostr.Tags{{"sort", dvm.Global}}
 
 	res, err := reqResponse(req, localhost)
 	if err != nil {

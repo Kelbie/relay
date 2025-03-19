@@ -17,29 +17,28 @@ func HandleDVMRequest(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	eventStore *eventstore.Store,
-	request *nostr.Event,
+	event *nostr.Event,
 	responseHandler func(context.Context, *nostr.Event) error) error {
 
-	if request == nil {
+	if event == nil {
 		return fmt.Errorf("nil event pointer")
 	}
 
-	record := dvm.Record{ID: request.ID, Pubkey: request.PubKey, Kind: request.Kind}
-	params, err := dvm.Parse(request)
+	request, err := dvm.Parse(event)
 	if err != nil {
-		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+		return responseHandler(ctx, dvm.ErrorEvent(err, dvm.NewRecord(event)))
 	}
 
-	paid, err := limiter.Pay(request.PubKey, cost(params))
+	paid, err := limiter.Pay(request.Pubkey, cost(request))
 	if err != nil {
-		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+		return responseHandler(ctx, dvm.ErrorEvent(err, request.Record))
 	}
 
 	if !paid {
-		return responseHandler(ctx, dvm.ErrorEvent(dvm.ErrNoCredits, record))
+		return responseHandler(ctx, dvm.ErrorEvent(dvm.ErrNoCredits, request.Record))
 	}
 
-	return ProcessRequest(ctx, DB, RWS, eventStore, params, record, responseHandler)
+	return ProcessRequest(ctx, DB, RWS, eventStore, request, responseHandler)
 }
 
 func HandleREQRequest(
@@ -61,12 +60,12 @@ func HandleREQRequest(
 	}
 
 	record := dvm.Record{Kind: filter.Kinds[0] - 1000}
-	params, err := req.Parse(filter)
+	request, err := req.Parse(filter)
 	if err != nil {
 		return responseHandler(ctx, dvm.ErrorEvent(err, record))
 	}
 
-	return ProcessRequest(ctx, DB, RWS, eventStore, params, record, responseHandler)
+	return ProcessRequest(ctx, DB, RWS, eventStore, request, responseHandler)
 }
 
 func ProcessRequest(
@@ -74,32 +73,31 @@ func ProcessRequest(
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	eventStore *eventstore.Store,
-	params dvm.Params,
-	record dvm.Record,
+	request *dvm.Request,
 	responseHandler func(context.Context, *nostr.Event) error) error {
 
-	var res dvm.Response
+	var response dvm.Response
 	var err error
 
-	switch record.Kind {
+	switch request.Kind {
 	case dvm.KindVerifyReputation:
-		res, err = dvm.VerifyReputation(ctx, DB, RWS, params)
+		response, err = dvm.VerifyReputation(ctx, DB, RWS, request)
 
 	case dvm.KindRecommendFollows:
-		res, err = dvm.RecommendFollows(ctx, DB, RWS, params)
+		response, err = dvm.RecommendFollows(ctx, DB, RWS, request)
 
 	case dvm.KindSortProfiles:
-		res, err = dvm.SortProfiles(ctx, DB, RWS, params)
+		response, err = dvm.SortProfiles(ctx, DB, RWS, request)
 
 	case dvm.KindSearchProfiles:
-		res, err = dvm.SearchProfiles(ctx, DB, RWS, eventStore, params)
+		response, err = dvm.SearchProfiles(ctx, DB, RWS, eventStore, request)
 
 	default:
-		err = fmt.Errorf("%w: %v", dvm.ErrInvalidKind, record.Kind)
+		err = fmt.Errorf("%w: %v", dvm.ErrInvalidKind, request.Kind)
 	}
 
 	if err != nil {
-		return responseHandler(ctx, dvm.ErrorEvent(err, record))
+		return responseHandler(ctx, dvm.ErrorEvent(err, request.Record))
 	}
 
 	requestCounter.Add(1)
@@ -107,12 +105,12 @@ func ProcessRequest(
 		log.Info("processed %d requests", requestCounter.Load())
 	}
 
-	return responseHandler(ctx, dvm.ResponseEvent(res, record))
+	return responseHandler(ctx, dvm.ResponseEvent(response, request))
 }
 
 // This function estimates the cost of processing a request with the provided params.
-func cost(params dvm.Params) int {
-	switch params.Sort {
+func cost(r *dvm.Request) int {
+	switch r.Sort {
 	case dvm.Personalized:
 		return 100
 
