@@ -370,7 +370,7 @@ func ToHexPubkey(key string) (string, error) {
 			return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
 		}
 
-		return pk, err
+		return pk, nil
 	}
 
 	return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)

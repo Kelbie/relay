@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/vertex-lab/crawler/pkg/models"
 	"github.com/vertex-lab/crawler/pkg/pagerank"
 	"github.com/vertex-lab/crawler/pkg/utils/sliceutils"
@@ -275,7 +274,7 @@ func searchProfiles(
 	eventStore *eventstore.Store,
 	args *SearchProfilesArgs) (Ranking, error) {
 
-	ranking, err := fts(ctx, eventStore, args.Search)
+	ranking, err := fts5(ctx, eventStore, args.Search)
 	if err != nil {
 		return nil, err
 	}
@@ -311,38 +310,27 @@ func searchProfiles(
 	return ranking.Top(args.Limit), nil
 }
 
-// The function fts() performs full text seach on the profiles (kind:0s) using the specified search term.
+// The function fts5() performs full text seach on the profiles (kind:0s) using the specified search term.
 // It returns the pubkeys and search scores (positives, higher is better) of the SQL query.
-func fts(
+func fts5(
 	ctx context.Context,
 	eventStore *eventstore.Store,
 	search string) (Ranking, error) {
 
-	if nostr.IsValidPublicKey(search) {
-		return pairs.Pairs[string, float64]{{Key: search, Val: 1}}, nil
-	}
-
-	if strings.HasPrefix(search, "npub") {
-		_, pubkey, err := nip19.Decode(search)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrBadlyFormattedKey, err)
-		}
-
-		pk, ok := pubkey.(string)
-		if !ok {
-			return nil, ErrBadlyFormattedKey
-		}
-
+	if pk, err := ToHexPubkey(search); err == nil {
+		// if the search term IS a pubkey, then we don't search further
 		return pairs.Pairs[string, float64]{{Key: pk, Val: 1}}, nil
 	}
 
+	search = escapeString(search)
 	var matches int
+
 	row := eventStore.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM profiles_fts WHERE profiles_fts MATCH ?", search)
 	if err := row.Scan(&matches); err != nil {
 		return nil, fmt.Errorf("failed to count matches: %w", err)
 	}
 
-	var d, limit = dampening(matches), limit(matches)
+	var d, limit = dampening(matches), min(matches, maxSearchLimit)
 	var name, displayName, about, website, nip05 float64 = 10, 12, 1 * d, 1 * d, 3 * d
 
 	query := `SELECT pubkey, bm25(profiles_fts, 0.0, 0.0, ?, ?, ?, ?, ?) AS score
@@ -377,6 +365,13 @@ func fts(
 	return ranking, nil
 }
 
+// escapeString prepares a search term for SQLite FTS5
+func escapeString(term string) string {
+	term = strings.ReplaceAll(term, `'`, `''`)
+	term = strings.ReplaceAll(term, `"`, `""`)
+	return `"` + term + `"`
+}
+
 // The default and max `LIMIT` for the full-text-search query.
 const (
 	defaultSearchLimit = 700
@@ -395,13 +390,6 @@ or common terms like 'bitcoin' and 'nostr'.
 func dampening(matches int) float64 {
 	m, l := float64(matches), float64(defaultSearchLimit)
 	return math.Max(1-math.Pow(m/l, 2), 0)
-}
-
-// This function returns the `limit` to be used for the full-text search query.
-// It is proportional to the number of `matches`, but no smaller than `defaultSearchLimit` and
-// no bigger than `maxSearchLimit`.
-func limit(matches int) int {
-	return max(defaultSearchLimit, min(matches, maxSearchLimit))
 }
 
 // RecommendFollows() uses the specified args.Algorithm to return a list of recommendations for args.Source.
