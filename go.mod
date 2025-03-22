@@ -4,6 +4,8 @@ go 1.23.3
 
 replace github.com/vertex-lab/crawler => ../crawler
 
+replace github.com/nbd-wtf/go-nostr => ../go-nostr
+
 require (
 	github.com/fiatjaf/khatru v0.15.0
 	github.com/joho/godotenv v1.5.1
