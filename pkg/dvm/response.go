@@ -322,7 +322,7 @@ func fts5(
 		return pairs.Pairs[string, float64]{{Key: pk, Val: 1}}, nil
 	}
 
-	search = escapeString(search)
+	search = escapeFTS5(search)
 	var matches int
 
 	row := eventStore.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM profiles_fts WHERE profiles_fts MATCH ?", search)
@@ -365,9 +365,8 @@ func fts5(
 	return ranking, nil
 }
 
-// escapeString prepares a search term for SQLite FTS5
-func escapeString(term string) string {
-	term = strings.ReplaceAll(term, `'`, `''`)
+// escapeFTS5 prepares a search term for SQLite FTS5
+func escapeFTS5(term string) string {
 	term = strings.ReplaceAll(term, `"`, `""`)
 	return `"` + term + `"`
 }
