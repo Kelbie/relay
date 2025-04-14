@@ -112,9 +112,9 @@ func ProcessRequest(
 func cost(r *dvm.Request) int {
 	switch r.Sort {
 	case dvm.Personalized:
-		return 100
+		return 10
 
 	default:
-		return 10
+		return 1
 	}
 }
