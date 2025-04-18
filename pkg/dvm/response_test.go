@@ -154,6 +154,18 @@ func TestVerifyReputation(t *testing.T) {
 			ranking: Ranking{{Key: "2", Val: 0.280855199}, {Key: "1", Val: 0.330417881}},
 			extras:  []Extra{{Follows: intPtr(1), Followers: intPtr(1)}},
 		},
+		{
+			name:    "valid followers (triangle)",
+			DBType:  "triangle",
+			RWSType: "triangle",
+			args: &VerifyReputationArgs{
+				Algorithm: Algorithm{Sort: Followers},
+				Target:    "2",
+				Limit:     1,
+			},
+			ranking: Ranking{{Key: "2", Val: 1}, {Key: "1", Val: 1}},
+			extras:  []Extra{{Follows: intPtr(1), Followers: intPtr(1)}},
+		},
 	}
 
 	for _, test := range tests {
@@ -249,6 +261,22 @@ func TestSortProfiles(t *testing.T) {
 				{Key: "2", Val: 0.280855199},
 			},
 		},
+		{
+			name:    "valid followers (triangle)",
+			DBType:  "triangle",
+			RWSType: "triangle",
+			args: &SortProfilesArgs{
+				Algorithm: Algorithm{Sort: Followers},
+				Targets:   []string{"0", "1", "2", "69"},
+				Limit:     4,
+			},
+			expected: Ranking{
+				{Key: "0", Val: 1},
+				{Key: "1", Val: 1},
+				{Key: "2", Val: 1},
+				{Key: "69", Val: 0},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -264,7 +292,7 @@ func TestSortProfiles(t *testing.T) {
 
 			dist := distance(ranking, test.expected)
 			if dist > maxDist {
-				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
 			}
 		})

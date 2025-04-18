@@ -3,6 +3,7 @@ package dvm
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -12,8 +13,10 @@ import (
 
 // DVM parameters and defaults
 var (
+	ValidSorts          = []string{Global, Personalized, Followers}
 	Global       string = "globalPagerank"
 	Personalized string = "personalizedPagerank"
+	Followers    string = "followerCount"
 
 	DefaultLimit int = 5
 	MaxLimit     int = 1000
@@ -49,8 +52,9 @@ type Algorithm struct {
 
 // Request is the internal representation of the DVM request nostr.Event.
 // For each request method (DVM, REQ filter, http...), the [Parse] function should
-// always return a Request, which will then be converted using the appropriate method To<argument's name>.
-// This way, adding a new request method will require writing only one parsing function.
+// always return a [Request], which will then be converted using the appropriate
+// method To<argument's name>. This way, adding a new request method will require
+// writing only one parsing function.
 type Request struct {
 	Record
 	Algorithm
@@ -266,7 +270,7 @@ func (r *Request) ToSearchProfilesArgs() (*SearchProfilesArgs, error) {
 }
 
 func (a *Algorithm) Normalize() error {
-	if a.Sort != Global && a.Sort != Personalized {
+	if !slices.Contains(ValidSorts, a.Sort) {
 		return fmt.Errorf("%w: %v", ErrInvalidSort, a.Sort)
 	}
 

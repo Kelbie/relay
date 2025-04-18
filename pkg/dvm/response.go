@@ -34,7 +34,7 @@ type ResponseItem struct {
 	Extra
 }
 
-// Extra groups optional information about a pubkey. If a field is nil, it means the information is missing.
+// Extra groups optional information about a pubkey. Nil means the field is missing.
 type Extra struct {
 	Follows   *int `json:"follows,omitempty"`
 	Followers *int `json:"followers,omitempty"`
@@ -95,15 +95,15 @@ func ResponseEvent(res Response, req *Request) *nostr.Event {
 
 	return &nostr.Event{
 		Content:   string(json),
-		CreatedAt: req.CreatedAt, // shows how old the ranking data is
+		CreatedAt: req.CreatedAt, // show how old the ranking data is
 		Kind:      req.Kind + 1000,
 		Tags:      req.ToTags(),
 	}
 }
 
 // VerifyReputation() returns the rank of the target and its highest ranked followers.
-// All ranks use the specified args.Algorithm.
-// For more info read: https://vertexlab.io/docs/nips/verify-reputation-dvm/
+// All ranks use the specified [Algorithm].
+// For more info read: https://vertexlab.io/docs/services/verify-reputation/
 func VerifyReputation(
 	ctx context.Context,
 	DB models.Database,
@@ -163,18 +163,17 @@ func verifyReputation(
 		return nil, nil, err
 	}
 
-	// this is inefficient, we should just query for the cardinality of that set.
-	IDs, err = DB.Follows(ctx, target.ID)
+	follows, err := DB.FollowCounts(ctx, target.ID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch the follows of the target: %w", err)
 	}
 
-	follows := len(IDs[0])
-	followers := len(followerIDs)
+	followCount := follows[0]
+	followerCount := len(followerIDs)
 
 	extras := []Extra{{
-		Follows:   &follows,
-		Followers: &followers,
+		Follows:   &followCount,
+		Followers: &followerCount,
 	}}
 
 	return ranking, extras, nil
@@ -182,7 +181,7 @@ func verifyReputation(
 
 // SortProfiles() returns the rank of each specified target.
 // All ranks use the specified args.Algorithm.
-// For more info read: https://vertexlab.io/docs/nips/sort-profiles-dvm/
+// For more info read: https://vertexlab.io/docs/services/sort-profiles/
 func SortProfiles(
 	ctx context.Context,
 	DB models.Database,
@@ -243,7 +242,7 @@ func sortProfiles(
 
 // SearchProfiles() returns the top ranked pubkeys whose kind:0s contain the provided string.
 // All ranks use the specified args.Algorithm.
-// For more info read: https://vertexlab.io/docs/nips/search-profiles-dvm/
+// For more info read: https://vertexlab.io/docs/services/search-profiles/
 func SearchProfiles(
 	ctx context.Context,
 	DB models.Database,
@@ -393,7 +392,7 @@ func dampening(matches int) float64 {
 
 // RecommendFollows() uses the specified args.Algorithm to return a list of recommendations for args.Source.
 // The recommended pubkeys are the highest ranked, excluding args.Source and its follows (if any).
-// For more info read: https://vertexlab.io/docs/nips/recommend-follows-dvm/
+// For more info read: https://vertexlab.io/docs/services/recommend-follows/
 func RecommendFollows(
 	ctx context.Context,
 	DB models.Database,
@@ -422,14 +421,18 @@ func recommendFollows(
 	RWS models.RandomWalkStore,
 	args *RecommendFollowsArgs) (Ranking, error) {
 
-	var ranks models.PagerankMap
+	var nodeRanking nodeRanking
 	var err error
+
 	switch args.Sort {
 	case Global:
-		ranks, err = recommendFollowsGlobal(ctx, DB, RWS, args.Source)
+		nodeRanking, err = recommendByGlobal(ctx, DB, RWS, args.Source, args.Limit)
 
 	case Personalized:
-		ranks, err = recommendFollowsPersonalized(ctx, DB, RWS, args.Source, 30)
+		nodeRanking, err = recommendByPersonalized(ctx, DB, RWS, args.Source, args.Limit)
+
+	case Followers:
+		nodeRanking, err = recommendByFollowers(ctx, DB, args.Source, args.Limit)
 
 	default:
 		err = fmt.Errorf("%w: %s", ErrInvalidSort, args.Sort)
@@ -439,15 +442,15 @@ func recommendFollows(
 		return nil, err
 	}
 
-	topNodes := pairs.Top(ranks, args.Limit)
-	return resolveIDs(ctx, DB, topNodes)
+	return resolveIDs(ctx, DB, nodeRanking)
 }
 
-func recommendFollowsGlobal(
+func recommendByGlobal(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	source string) (models.PagerankMap, error) {
+	source string,
+	limit int) (nodeRanking, error) {
 
 	var avoid []uint32 // a slice of nodeIDs that should not be recommended, like self, follows, mutes...
 	node, err := DB.NodeByKey(ctx, source)
@@ -477,17 +480,21 @@ func recommendFollowsGlobal(
 	}
 
 	candidates = sliceutils.Difference(candidates, avoid)
-	return pagerank.Global(ctx, RWS, candidates...)
+	ranks, err := pagerank.Global(ctx, RWS, candidates...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to recommend with %s: %w", Global, err)
+	}
+
+	return pairs.Top(ranks, limit), nil
 }
 
-func recommendFollowsPersonalized(
+func recommendByPersonalized(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
 	source string,
-	limit int) (models.PagerankMap, error) {
+	limit int) (nodeRanking, error) {
 
-	var avoid []uint32 // a slice of nodeIDs that should not be recommended, like self, follows, mutes...
 	node, err := DB.NodeByKey(ctx, source)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the ID of source: %w", err)
@@ -498,9 +505,8 @@ func recommendFollowsPersonalized(
 		return nil, fmt.Errorf("failed to fetch follows of %s", source)
 	}
 
-	avoid = append(follows[0], node.ID) // remove follows and self from the recommendations
-
-	pp, err := pagerank.Personalized(ctx, DB, RWS, node.ID, uint16(limit))
+	avoid := append(follows[0], node.ID) // remove follows and self from the recommendations
+	pp, err := pagerank.Personalized(ctx, DB, RWS, node.ID, 50)
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +515,54 @@ func recommendFollowsPersonalized(
 		delete(pp, ID)
 	}
 
-	return pp, nil
+	return pairs.Top(pp, limit), nil
+}
+
+func recommendByFollowers(
+	ctx context.Context,
+	DB models.Database,
+	source string,
+	limit int) (nodeRanking, error) {
+
+	var avoid []uint32 // a slice of nodeIDs that should not be recommended, like self, follows, mutes...
+	node, err := DB.NodeByKey(ctx, source)
+
+	switch {
+	case errors.Is(err, models.ErrNodeNotFoundDB):
+		// do nothing, as we can still recommend.
+
+	case err != nil:
+		// this means there are issue with our DB, so it's better to fail.
+		return nil, fmt.Errorf("failed to fetch the ID of source: %w", err)
+
+	default:
+		follows, err := DB.Follows(ctx, node.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch follows of %s", source)
+		}
+
+		avoid = append(follows[0], node.ID) // remove follows and self from the recommendations
+	}
+
+	// this should be faster than using DB.AllNodes(). It might happen that some nodeIDs
+	// are not associated with any node, but this is not a problem since their followers will be 0.
+	candidates := make([]uint32, DB.Size(ctx))
+	for i := 0; i < len(candidates); i++ {
+		candidates[i] = uint32(i)
+	}
+
+	candidates = sliceutils.Difference(candidates, avoid)
+	ranks, err := DB.FollowerCounts(ctx, candidates...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to recommend with %s: %w", Followers, err)
+	}
+
+	nodeRanking := make(nodeRanking, len(candidates))
+	for i, ID := range candidates {
+		nodeRanking[i] = pairs.Pair[uint32, float64]{Key: ID, Val: float64(ranks[i])}
+	}
+
+	return nodeRanking.Top(limit), nil
 }
 
 // rankNodes() associates a rank to each node ID by applying the specified algorithm.
@@ -525,38 +578,73 @@ func rankNodes(
 		return nil, nil
 	}
 
-	var ranks models.PagerankMap
-	var err error
-
 	switch algo.Sort {
 	case Global:
-		ranks, err = pagerank.Global(ctx, RWS, IDs...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to sort with %s: %w", algo.Sort, err)
-		}
+		return rankByGlobal(ctx, RWS, IDs)
 
 	case Personalized:
-		source, err := DB.NodeIDs(ctx, algo.Source)
-		if err != nil {
-			return nil, fmt.Errorf("failed to sort with %s: %w", algo.Sort, err)
-		}
+		return rankByPersonalized(ctx, DB, RWS, IDs, algo.Source)
 
-		if source[0] == nil {
-			return nil, fmt.Errorf("%w: pubkey was not found", ErrInvalidSource)
-		}
-
-		ranks, err = pagerank.Personalized(ctx, DB, RWS, *source[0], 100)
-		if err != nil {
-			return nil, fmt.Errorf("failed to sort with %s: %w", algo.Sort, err)
-		}
+	case Followers:
+		return rankByFollowers(ctx, DB, IDs)
 
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrInvalidSort, algo.Sort)
+	}
+}
+
+func rankByGlobal(ctx context.Context, RWS models.RandomWalkStore, IDs []uint32) (nodeRanking, error) {
+	ranks, err := pagerank.Global(ctx, RWS, IDs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sort with '%s': %w", Global, err)
 	}
 
 	nodeRanking := make(nodeRanking, len(IDs))
 	for i, ID := range IDs {
 		nodeRanking[i] = pairs.Pair[uint32, float64]{Key: ID, Val: ranks[ID]}
+	}
+
+	return nodeRanking, nil
+}
+
+func rankByPersonalized(
+	ctx context.Context,
+	DB models.Database,
+	RWS models.RandomWalkStore,
+	IDs []uint32,
+	source string) (nodeRanking, error) {
+
+	sourceID, err := DB.NodeIDs(ctx, source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sort with '%s': %w", Personalized, err)
+	}
+
+	if sourceID[0] == nil {
+		return nil, fmt.Errorf("%w: pubkey was not found", ErrInvalidSource)
+	}
+
+	ranks, err := pagerank.Personalized(ctx, DB, RWS, *sourceID[0], 100)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sort with '%s': %w", Personalized, err)
+	}
+
+	nodeRanking := make(nodeRanking, len(IDs))
+	for i, ID := range IDs {
+		nodeRanking[i] = pairs.Pair[uint32, float64]{Key: ID, Val: ranks[ID]}
+	}
+
+	return nodeRanking, nil
+}
+
+func rankByFollowers(ctx context.Context, DB models.Database, IDs []uint32) (nodeRanking, error) {
+	ranks, err := DB.FollowerCounts(ctx, IDs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sort with '%s': %w", Followers, err)
+	}
+
+	nodeRanking := make(nodeRanking, len(IDs))
+	for i, ID := range IDs {
+		nodeRanking[i] = pairs.Pair[uint32, float64]{Key: ID, Val: float64(ranks[i])}
 	}
 
 	return nodeRanking, nil
