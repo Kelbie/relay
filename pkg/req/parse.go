@@ -26,7 +26,7 @@ func Parse(filter *nostr.Filter) (*dvm.Request, error) {
 		return nil, ErrEmptyFieldSearch
 	}
 
-	record := dvm.Record{Kind: filter.Kinds[0] - 1000, CreatedAt: nostr.Now()}
+	record := dvm.Record{Kind: filter.Kinds[0] - 1000, Timestamp: nostr.Now()}
 	request := dvm.NewRequest(record)
 
 	if err := json.Unmarshal([]byte(filter.Search), &request); err != nil {

@@ -94,7 +94,7 @@ type Record struct {
 	ID        string
 	Pubkey    string
 	Kind      int
-	CreatedAt nostr.Timestamp
+	Timestamp nostr.Timestamp
 }
 
 func NewRecord(req *nostr.Event) Record {
@@ -102,7 +102,7 @@ func NewRecord(req *nostr.Event) Record {
 		ID:        req.ID,
 		Pubkey:    req.PubKey,
 		Kind:      req.Kind,
-		CreatedAt: req.CreatedAt,
+		Timestamp: nostr.Now(),
 	}
 }
 

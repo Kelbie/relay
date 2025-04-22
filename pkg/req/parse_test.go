@@ -19,7 +19,7 @@ const (
 )
 
 func TestParse(t *testing.T) {
-	record := dvm.Record{Kind: dvm.KindVerifyReputation, CreatedAt: nostr.Now()}
+	record := dvm.Record{Kind: dvm.KindVerifyReputation, Timestamp: nostr.Now()}
 	tests := []struct {
 		name          string
 		filter        *nostr.Filter

@@ -16,7 +16,7 @@ import (
 const maxDist float64 = 0.002
 
 func TestResponseEvent(t *testing.T) {
-	record := Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran, CreatedAt: 420}
+	record := Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran, Timestamp: 420}
 	tests := []struct {
 		name     string
 		res      Response
@@ -181,7 +181,7 @@ func TestVerifyReputation(t *testing.T) {
 
 			dist := distance(ranking, test.ranking)
 			if dist > maxDist {
-				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
+				t.Errorf(" expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected ranking %v, got %v", test.ranking, ranking)
 			}
 
@@ -380,7 +380,7 @@ func TestSearchAuthors(t *testing.T) {
 
 			dist := distance(ranking, test.expected)
 			if dist > maxDist {
-				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
 			}
 		})
@@ -443,7 +443,7 @@ func TestRecommendFollows(t *testing.T) {
 
 			dist := distance(ranking, test.expected)
 			if dist > maxDist {
-				t.Errorf("VerifyReputation: expected distance %v, got %v", maxDist, dist)
+				t.Errorf("expected distance %v, got %v", maxDist, dist)
 				t.Errorf("expected ranking %v, got %v", test.expected, ranking)
 			}
 		})

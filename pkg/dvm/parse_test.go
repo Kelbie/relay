@@ -79,6 +79,7 @@ func TestParse(t *testing.T) {
 				},
 			},
 			expected: &Request{
+				Record:    Record{Timestamp: nostr.Now()},
 				Algorithm: Algorithm{Sort: Personalized, Source: pip},
 				Search:    "jack",
 				Targets:   []string{calle, odell},
@@ -266,7 +267,7 @@ func TestToSortProfiles(t *testing.T) {
 		},
 		{
 			name:          "limit too high",
-			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimitSortProfiles + 1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
