@@ -18,8 +18,9 @@ var (
 	Personalized string = "personalizedPagerank"
 	Followers    string = "followerCount"
 
-	DefaultLimit int = 5
-	MaxLimit     int = 1000
+	DefaultLimit         int = 5
+	MaxLimit             int = 100 // for all DVMs except SortProfiles
+	MaxLimitSortProfiles int = 1000
 )
 
 var (
@@ -76,14 +77,19 @@ func (r Request) ToTags() nostr.Tags {
 	tags := r.Record.ToTags()
 	tags = append(tags, nostr.Tag{"sort", r.Sort})
 
-	if r.Sort == Personalized {
+	if r.IsPersonalized() {
 		tags = append(tags, nostr.Tag{"source", r.Source})
 	}
 
 	return tags
 }
 
-// Record encapsulates the relevant fields for identifying the request event.
+// IsPersonalized returns whether the request is personalized to the source pubkey.
+func (r Request) IsPersonalized() bool {
+	return r.Sort == Personalized || r.Record.Kind == KindRecommendFollows
+}
+
+// Record encapsulates the relevant fields for identifying the request.
 type Record struct {
 	ID        string
 	Pubkey    string
@@ -136,7 +142,6 @@ func Parse(req *nostr.Event) (*Request, error) {
 
 		counter[key]++
 		switch key {
-
 		case "target":
 			request.Targets = append(request.Targets, val)
 
@@ -152,7 +157,7 @@ func Parse(req *nostr.Event) (*Request, error) {
 		case "limit":
 			l, err := strconv.Atoi(val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: limit must be an integer between 1 and %d: %s", ErrInvalidLimit, MaxLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", ErrInvalidLimit, val)
 			}
 
 			request.Limit = l
@@ -316,7 +321,7 @@ func (a *RecommendFollowsArgs) Normalize() error {
 }
 
 func (a *SortProfilesArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > MaxLimit {
+	if a.Limit < 1 || a.Limit > MaxLimitSortProfiles {
 		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, MaxLimit, a.Limit)
 	}
 
