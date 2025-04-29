@@ -97,7 +97,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -142,7 +142,7 @@ func TestDVM_SortProfiles(t *testing.T) {
 	}
 
 	expectedSorted := []string{calle, fran, randomKey}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -189,7 +189,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 
 	// this list is dependent on the specific database
 	expectedRecommendations := []string{damus, jack_dorsey, jb55}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -236,7 +236,7 @@ func TestDVM_SearchProfiles(t *testing.T) {
 	}
 
 	expectedJacks := []string{jack_dorsey, jack_mallers, jack_spirko}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -287,9 +287,7 @@ func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error
 
 	filter := nostr.Filter{
 		Kinds: []int{req.Kind + 1000, dvm.KindDVMError},
-		Tags: nostr.TagMap{
-			"e": {req.ID},
-		},
+		Tags:  nostr.TagMap{"e": {req.ID}},
 	}
 
 	ch, err := relay.QueryEvents(ctx, filter)
@@ -358,25 +356,38 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 	return nil
 }
 
-// checkFormat() checks that the kind and tags of the event matche what they should be.
+// checkFormat() checks that the event's kind and tags match the expected values.
 func checkFormat(event *nostr.Event, kind int, tags nostr.Tags) error {
 	if event.Kind != kind {
 		return fmt.Errorf("expected kind %d, got %d:\n event %v", kind, event.Kind, event)
 	}
 
-	if !reflect.DeepEqual(tags, event.Tags) {
-		return fmt.Errorf("expected tags %v, got %v:\n event %v", tags, event.Tags, event)
+	for _, tag := range tags {
+		if !contains(event.Tags, tag) {
+			return fmt.Errorf("expected tags %v, got %v:\n event %v", tags, event.Tags, event)
+		}
 	}
 
 	return nil
 }
 
-// contains() returns whether tags contains a specified tag
+// contains() returns whether tags contains the specified tag.
+// Tag might be strictly contained in tags, for example:
+// {{"a", "b"}...} contains {"a"} and {"a", "b"}
 func contains(tags nostr.Tags, tag nostr.Tag) bool {
+outer:
 	for _, t := range tags {
-		if reflect.DeepEqual(tag, t) {
-			return true
+		if len(t) < len(tag) {
+			continue outer
 		}
+
+		for i := range tag {
+			if t[i] != tag[i] {
+				continue outer
+			}
+		}
+
+		return true
 	}
 
 	return false

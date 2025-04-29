@@ -95,7 +95,7 @@ func ResponseEvent(res Response, req *Request) *nostr.Event {
 
 	return &nostr.Event{
 		Content:   string(json),
-		CreatedAt: req.Timestamp, // show how old the ranking data is
+		CreatedAt: req.Timestamp, // shows how old the ranking data is
 		Kind:      req.Kind + 1000,
 		Tags:      req.ToTags(),
 	}

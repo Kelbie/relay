@@ -76,6 +76,7 @@ func ProcessRequest(
 	request *dvm.Request,
 	responseHandler func(context.Context, *nostr.Event) error) error {
 
+	request.Nodes = DB.Size(ctx)
 	var response dvm.Response
 	var err error
 

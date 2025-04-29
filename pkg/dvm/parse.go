@@ -55,7 +55,7 @@ type Algorithm struct {
 // For each request method (DVM, REQ filter, http...), the [Parse] function should
 // always return a [Request], which will then be converted using the appropriate
 // method To<argument's name>. This way, adding a new request method will require
-// writing only one parsing function.
+// writing just one parsing function.
 type Request struct {
 	Record
 	Algorithm
@@ -81,6 +81,7 @@ func (r Request) ToTags() nostr.Tags {
 		tags = append(tags, nostr.Tag{"source", r.Source})
 	}
 
+	tags = append(tags, nostr.Tag{"nodes", strconv.Itoa(r.Nodes)})
 	return tags
 }
 
@@ -89,11 +90,13 @@ func (r Request) IsPersonalized() bool {
 	return r.Sort == Personalized || r.Record.Kind == KindRecommendFollows
 }
 
-// Record encapsulates the relevant fields for identifying the request.
+// Record contains metadata about the request event.
+// It also contains a snapshot of relevant system data at the time the request was received.
 type Record struct {
 	ID        string
 	Pubkey    string
 	Kind      int
+	Nodes     int // the number of nodes in the graph when the request was received
 	Timestamp nostr.Timestamp
 }
 
@@ -107,16 +110,7 @@ func NewRecord(req *nostr.Event) Record {
 }
 
 func (r Record) ToTags() nostr.Tags {
-	tags := make(nostr.Tags, 0, 2)
-	if r.ID != "" {
-		tags = append(tags, nostr.Tag{"e", r.ID})
-	}
-
-	if r.Pubkey != "" {
-		tags = append(tags, nostr.Tag{"p", r.Pubkey})
-	}
-
-	return tags
+	return nostr.Tags{{"e", r.ID}, {"p", r.Pubkey}}
 }
 
 // Parse() parses all the tags with prefix "param" into a Request structure.
