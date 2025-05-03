@@ -16,7 +16,7 @@ import (
 const maxDist float64 = 0.002
 
 func TestResponseEvent(t *testing.T) {
-	record := Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran, Timestamp: 420}
+	record := Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran, Timestamp: 420, Nodes: 69}
 	tests := []struct {
 		name     string
 		res      Response
@@ -31,7 +31,7 @@ func TestResponseEvent(t *testing.T) {
 				Content:   "[]",
 				CreatedAt: 420,
 				Kind:      KindSortProfiles + 1000,
-				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}},
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}, {"nodes", "69"}},
 			},
 		},
 		{
@@ -42,7 +42,7 @@ func TestResponseEvent(t *testing.T) {
 				Content:   "[]",
 				CreatedAt: 420,
 				Kind:      KindSortProfiles + 1000,
-				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}},
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}, {"nodes", "69"}},
 			},
 		},
 		{
@@ -56,7 +56,7 @@ func TestResponseEvent(t *testing.T) {
 				Content:   "[{\"pubkey\":\"abc\",\"rank\":0.1,\"follows\":69,\"followers\":420},{\"pubkey\":\"123\",\"rank\":0.2}]",
 				CreatedAt: 420,
 				Kind:      KindSortProfiles + 1000,
-				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}},
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}, {"nodes", "69"}},
 			},
 		},
 		{
@@ -70,7 +70,7 @@ func TestResponseEvent(t *testing.T) {
 				Content:   "[{\"pubkey\":\"abc\",\"rank\":0.1,\"follows\":69,\"followers\":420},{\"pubkey\":\"123\",\"rank\":0.2}]",
 				CreatedAt: 420,
 				Kind:      KindSortProfiles + 1000,
-				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Personalized}, {"source", pip}},
+				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Personalized}, {"source", pip}, {"nodes", "69"}},
 			},
 		},
 	}

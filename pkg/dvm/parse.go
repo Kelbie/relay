@@ -18,9 +18,9 @@ var (
 	Personalized string = "personalizedPagerank"
 	Followers    string = "followerCount"
 
-	DefaultLimit         int = 5
-	MaxLimit             int = 100 // for all DVMs except SortProfiles
-	MaxLimitSortProfiles int = 1000
+	DefaultLimit     int = 5
+	StandardMaxLimit int = 100
+	ExtendedMaxLimit int = 1000
 )
 
 var (
@@ -32,7 +32,7 @@ var (
 
 	// value errors
 	ErrInvalidSource     error = errors.New("invalid source")
-	ErrInvalidSort       error = errors.New(fmt.Sprintf("sort must be one of the following: %s, %s", Global, Personalized))
+	ErrInvalidSort       error = errors.New(fmt.Sprintf("sort must be one of the following: %v", ValidSorts))
 	ErrInvalidTarget     error = errors.New("invalid target")
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidSearch     error = errors.New("invalid search")
@@ -116,7 +116,7 @@ func (r Record) ToTags() nostr.Tags {
 // Parse() parses all the tags with prefix "param" into a Request structure.
 // If some params are not provided, the default values will be used.
 func Parse(req *nostr.Event) (*Request, error) {
-	if len(req.Tags) > MaxLimit+4 {
+	if len(req.Tags) > ExtendedMaxLimit+4 {
 		return nil, ErrTooManyTags
 	}
 
@@ -285,8 +285,8 @@ func (a *Algorithm) Normalize() error {
 }
 
 func (a *VerifyReputationArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > MaxLimit {
-		return fmt.Errorf("%w: limit must be an integer between 1 and %d: %d", ErrInvalidLimit, MaxLimit, a.Limit)
+	if a.Limit < 1 || a.Limit > StandardMaxLimit {
+		return fmt.Errorf("%w: limit must be an integer between 1 and %d: %d", ErrInvalidLimit, StandardMaxLimit, a.Limit)
 	}
 
 	err := a.Algorithm.Normalize()
@@ -303,8 +303,8 @@ func (a *VerifyReputationArgs) Normalize() error {
 }
 
 func (a *RecommendFollowsArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > MaxLimit {
-		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, MaxLimit, a.Limit)
+	if a.Limit < 1 || a.Limit > StandardMaxLimit {
+		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, StandardMaxLimit, a.Limit)
 	}
 
 	if err := a.Algorithm.Normalize(); err != nil {
@@ -315,8 +315,8 @@ func (a *RecommendFollowsArgs) Normalize() error {
 }
 
 func (a *SortProfilesArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > MaxLimitSortProfiles {
-		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, MaxLimit, a.Limit)
+	if a.Limit < 1 || a.Limit > ExtendedMaxLimit {
+		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, ExtendedMaxLimit, a.Limit)
 	}
 
 	err := a.Algorithm.Normalize()
@@ -340,8 +340,8 @@ func (a *SortProfilesArgs) Normalize() error {
 }
 
 func (a *SearchProfilesArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > MaxLimit {
-		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, MaxLimit, a.Limit)
+	if a.Limit < 1 || a.Limit > StandardMaxLimit {
+		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, StandardMaxLimit, a.Limit)
 	}
 
 	if err := a.Algorithm.Normalize(); err != nil {

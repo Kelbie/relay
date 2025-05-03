@@ -142,7 +142,7 @@ func TestToVerifyReputation(t *testing.T) {
 		},
 		{
 			name:          "limit too high",
-			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimit + 1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: StandardMaxLimit + 1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
@@ -203,7 +203,7 @@ func TestToRecommendFollows(t *testing.T) {
 		},
 		{
 			name:          "limit too high",
-			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: StandardMaxLimit + 1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
@@ -267,7 +267,7 @@ func TestToSortProfiles(t *testing.T) {
 		},
 		{
 			name:          "limit too high",
-			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: MaxLimitSortProfiles + 1},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Targets: []string{pip}, Limit: ExtendedMaxLimit + 1},
 			expectedError: ErrInvalidLimit,
 		},
 		{
@@ -328,7 +328,7 @@ func TestToSearchProfiles(t *testing.T) {
 		},
 		{
 			name:          "limit too high",
-			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: MaxLimit + 1, Search: "jack"},
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: StandardMaxLimit + 1, Search: "jack"},
 			expectedError: ErrInvalidLimit,
 		},
 		{
@@ -369,8 +369,8 @@ func BenchmarkParse(b *testing.B) {
 		{"param", "search", "jack"},
 	}
 
-	tags := make(nostr.Tags, MaxLimit)
-	for i := 0; i < MaxLimit; i++ {
+	tags := make(nostr.Tags, ExtendedMaxLimit)
+	for i := 0; i < ExtendedMaxLimit; i++ {
 		index := rand.IntN(len(candidates))
 		tags[i] = candidates[index]
 	}
