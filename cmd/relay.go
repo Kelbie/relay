@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
 
+var config *Config
+var err error
 var log *logger.Aggregate
 var requestCounter = &atomic.Uint32{}
 var sqlite *eventstore.Store
@@ -34,7 +37,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	config, err := LoadConfig()
+	config, err = LoadConfig()
 	if err != nil {
 		panic("failed to load config: " + err.Error())
 	}
@@ -104,7 +107,7 @@ func main() {
 		return sqlite.Delete(ctx, event.ID)
 	})
 
-	relay.QueryEvents = append(relay.QueryEvents, QueryNoSearch, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	relay.QueryEvents = append(relay.QueryEvents, AuthedInfo, QueryNoSearch, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 		if filter.Search == "" {
 			return nil, nil
 		}
@@ -148,6 +151,42 @@ func main() {
 }
 
 // ---------------------------------HELPERS-------------------------------------
+
+func AuthedInfo(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	if len(filter.Kinds) != 1 || filter.Kinds[0] != 22243 {
+		return nil, nil
+	}
+
+	pubkey := khatru.GetAuthed(ctx)
+	if pubkey == "" {
+		khatru.RequestAuth(ctx)
+		return nil, fmt.Errorf("auth-required: you must be authenticated to request your credit balance")
+	}
+
+	bucket, err := limiter.Bucket(pubkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bucket: %w", err)
+	}
+
+	info := nostr.Event{
+		Kind:      22243,
+		CreatedAt: nostr.Now(),
+		Tags: nostr.Tags{
+			{"credits", strconv.Itoa(bucket.Tokens)},
+			{"lastRequest", strconv.FormatInt(bucket.LastModified, 10)},
+		},
+	}
+
+	if err := info.Sign(config.secret); err != nil {
+		return nil, fmt.Errorf("failed to sign auth info: %w", err)
+	}
+
+	ch := make(chan *nostr.Event, 1)
+	defer close(ch)
+
+	ch <- &info
+	return ch, nil
+}
 
 // QueryNoSearch() simply translates the slice of events returned by sqlite.Query
 // into a channel, making it compatible with Khatru.
