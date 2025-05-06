@@ -83,6 +83,7 @@ func main() {
 	relay.Info.PubKey = config.public
 	relay.Info.SupportedNIPs = []any{11, 42, 86, 90}
 
+	relay.RejectFilter = append(relay.RejectFilter, RejectWhenNotAuthed)
 	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs)
 
 	relay.StoreEvent = append(relay.StoreEvent, sqlite.Save, func(ctx context.Context, event *nostr.Event) error {
@@ -151,6 +152,15 @@ func main() {
 }
 
 // ---------------------------------HELPERS-------------------------------------
+
+func RejectWhenNotAuthed(ctx context.Context, filter nostr.Filter) (reject bool, msg string) {
+	if len(filter.Kinds) == 1 && filter.Kinds[0] == 22243 {
+		if khatru.GetAuthed(ctx) == "" {
+			return true, "auth-required: you must be authenticated to request your credit balance"
+		}
+	}
+	return false, ""
+}
 
 func AuthedInfo(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	if len(filter.Kinds) != 1 || filter.Kinds[0] != 22243 {
