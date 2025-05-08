@@ -87,8 +87,8 @@ func ProcessRequest(
 	case dvm.KindRecommendFollows:
 		response, err = dvm.RecommendFollows(ctx, DB, RWS, request)
 
-	case dvm.KindSortProfiles:
-		response, err = dvm.SortProfiles(ctx, DB, RWS, request)
+	case dvm.KindRankProfiles:
+		response, err = dvm.RankProfiles(ctx, DB, RWS, request)
 
 	case dvm.KindSearchProfiles:
 		response, err = dvm.SearchProfiles(ctx, DB, RWS, eventStore, request)

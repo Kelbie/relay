@@ -124,10 +124,10 @@ func TestDVM_VerifyReputation(t *testing.T) {
 	}
 }
 
-func TestDVM_SortProfiles(t *testing.T) {
+func TestDVM_RankProfiles(t *testing.T) {
 	// step 1. publishing a DVM request
 	req := &nostr.Event{
-		Kind:      dvm.KindSortProfiles,
+		Kind:      dvm.KindRankProfiles,
 		CreatedAt: nostr.Now(),
 		Tags: nostr.Tags{
 			{"param", "source", odell},

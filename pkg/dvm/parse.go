@@ -176,7 +176,7 @@ type VerifyReputationArgs struct {
 	Limit  int
 }
 
-type SortProfilesArgs struct {
+type RankProfilesArgs struct {
 	Algorithm
 	Targets []string
 	Limit   int
@@ -234,12 +234,12 @@ func (r *Request) ToRecommendFollowsArgs() (*RecommendFollowsArgs, error) {
 	return args, nil
 }
 
-func (r *Request) ToSortProfilesArgs() (*SortProfilesArgs, error) {
+func (r *Request) ToRankProfilesArgs() (*RankProfilesArgs, error) {
 	if len(r.Search) > 0 {
-		return nil, fmt.Errorf("%w: SortProfiles doesn't support 'search'", ErrParamNotSupported)
+		return nil, fmt.Errorf("%w: RankProfiles doesn't support 'search'", ErrParamNotSupported)
 	}
 
-	args := &SortProfilesArgs{
+	args := &RankProfilesArgs{
 		Algorithm: r.Algorithm,
 		Targets:   r.Targets,
 		Limit:     r.Limit}
@@ -314,7 +314,7 @@ func (a *RecommendFollowsArgs) Normalize() error {
 	return nil
 }
 
-func (a *SortProfilesArgs) Normalize() error {
+func (a *RankProfilesArgs) Normalize() error {
 	if a.Limit < 1 || a.Limit > ExtendedMaxLimit {
 		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, ExtendedMaxLimit, a.Limit)
 	}
@@ -325,7 +325,7 @@ func (a *SortProfilesArgs) Normalize() error {
 	}
 
 	if len(a.Targets) < 1 {
-		return fmt.Errorf("%w: at least one target must be supplied for SortProfiles", ErrInvalidTarget)
+		return fmt.Errorf("%w: at least one target must be supplied for RankProfiles", ErrInvalidTarget)
 	}
 
 	for i, target := range a.Targets {

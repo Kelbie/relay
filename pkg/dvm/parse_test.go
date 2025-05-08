@@ -233,11 +233,11 @@ func TestToRecommendFollows(t *testing.T) {
 	}
 }
 
-func TestToSortProfiles(t *testing.T) {
+func TestToRankProfiles(t *testing.T) {
 	tests := []struct {
 		name          string
 		req           *Request
-		expected      *SortProfilesArgs
+		expected      *RankProfilesArgs
 		expectedError error
 	}{
 		{
@@ -277,7 +277,7 @@ func TestToSortProfiles(t *testing.T) {
 				Targets:   []string{calle, pip, odell, fran, "npub16kkn6vg4m8aqw5qtqmxdpwtqtkvg3gsx4jazpg0zu6q7c2gsjwrs3tdflr"},
 				Limit:     69,
 			},
-			expected: &SortProfilesArgs{
+			expected: &RankProfilesArgs{
 				Algorithm: Algorithm{Sort: Personalized, Source: pip},
 				Targets:   []string{calle, pip, odell, fran, randomKey},
 				Limit:     5,
@@ -287,7 +287,7 @@ func TestToSortProfiles(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			args, err := test.req.ToSortProfilesArgs()
+			args, err := test.req.ToRankProfilesArgs()
 			if !errors.Is(err, test.expectedError) {
 				t.Fatalf("expected error %v, got %v", test.expectedError, err)
 			}

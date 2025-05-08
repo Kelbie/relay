@@ -16,7 +16,7 @@ import (
 const maxDist float64 = 0.002
 
 func TestResponseEvent(t *testing.T) {
-	record := Record{ID: "xxx", Kind: KindSortProfiles, Pubkey: fran, Timestamp: 420, Nodes: 69}
+	record := Record{ID: "xxx", Kind: KindRankProfiles, Pubkey: fran, Timestamp: 420, Nodes: 69}
 	tests := []struct {
 		name     string
 		res      Response
@@ -30,7 +30,7 @@ func TestResponseEvent(t *testing.T) {
 			expected: &nostr.Event{
 				Content:   "[]",
 				CreatedAt: 420,
-				Kind:      KindSortProfiles + 1000,
+				Kind:      KindRankProfiles + 1000,
 				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}, {"nodes", "69"}},
 			},
 		},
@@ -41,7 +41,7 @@ func TestResponseEvent(t *testing.T) {
 			expected: &nostr.Event{
 				Content:   "[]",
 				CreatedAt: 420,
-				Kind:      KindSortProfiles + 1000,
+				Kind:      KindRankProfiles + 1000,
 				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}, {"nodes", "69"}},
 			},
 		},
@@ -55,7 +55,7 @@ func TestResponseEvent(t *testing.T) {
 			expected: &nostr.Event{
 				Content:   "[{\"pubkey\":\"abc\",\"rank\":0.1,\"follows\":69,\"followers\":420},{\"pubkey\":\"123\",\"rank\":0.2}]",
 				CreatedAt: 420,
-				Kind:      KindSortProfiles + 1000,
+				Kind:      KindRankProfiles + 1000,
 				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Global}, {"nodes", "69"}},
 			},
 		},
@@ -69,7 +69,7 @@ func TestResponseEvent(t *testing.T) {
 			expected: &nostr.Event{
 				Content:   "[{\"pubkey\":\"abc\",\"rank\":0.1,\"follows\":69,\"followers\":420},{\"pubkey\":\"123\",\"rank\":0.2}]",
 				CreatedAt: 420,
-				Kind:      KindSortProfiles + 1000,
+				Kind:      KindRankProfiles + 1000,
 				Tags:      nostr.Tags{{"e", "xxx"}, {"p", fran}, {"sort", Personalized}, {"source", pip}, {"nodes", "69"}},
 			},
 		},
@@ -192,19 +192,19 @@ func TestVerifyReputation(t *testing.T) {
 	}
 }
 
-func TestSortProfiles(t *testing.T) {
+func TestRankProfiles(t *testing.T) {
 	tests := []struct {
 		name     string
 		DBType   string
 		RWSType  string
-		args     *SortProfilesArgs
+		args     *RankProfilesArgs
 		expected Ranking
 	}{
 		{
 			name:    "valid global (one target not found in the DB)",
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
-			args: &SortProfilesArgs{
+			args: &RankProfilesArgs{
 				Algorithm: Algorithm{Sort: Global},
 				Targets:   []string{randomKey, calle, pip},
 				Limit:     3,
@@ -219,7 +219,7 @@ func TestSortProfiles(t *testing.T) {
 			name:    "valid global (triangle)",
 			DBType:  "triangle",
 			RWSType: "triangle",
-			args: &SortProfilesArgs{
+			args: &RankProfilesArgs{
 				Algorithm: Algorithm{Sort: Global},
 				Targets:   []string{"0", "1", "2", "69"},
 				Limit:     4,
@@ -235,7 +235,7 @@ func TestSortProfiles(t *testing.T) {
 			name:    "valid personalized (simple)",
 			DBType:  "simple-with-pks",
 			RWSType: "simple",
-			args: &SortProfilesArgs{
+			args: &RankProfilesArgs{
 				Algorithm: Algorithm{Sort: Personalized, Source: odell},
 				Targets:   []string{odell, calle, pip},
 				Limit:     3,
@@ -250,7 +250,7 @@ func TestSortProfiles(t *testing.T) {
 			name:    "valid personalized (triangle)",
 			DBType:  "triangle",
 			RWSType: "triangle",
-			args: &SortProfilesArgs{
+			args: &RankProfilesArgs{
 				Algorithm: Algorithm{Sort: Personalized, Source: "0"},
 				Targets:   []string{"0", "1", "2"},
 				Limit:     3,
@@ -265,7 +265,7 @@ func TestSortProfiles(t *testing.T) {
 			name:    "valid followers (triangle)",
 			DBType:  "triangle",
 			RWSType: "triangle",
-			args: &SortProfilesArgs{
+			args: &RankProfilesArgs{
 				Algorithm: Algorithm{Sort: Followers},
 				Targets:   []string{"0", "1", "2", "69"},
 				Limit:     4,
@@ -285,7 +285,7 @@ func TestSortProfiles(t *testing.T) {
 			DB := mockdb.SetupDB(test.DBType)
 			RWS := mockstore.SetupRWS(test.RWSType)
 
-			ranking, err := sortProfiles(ctx, DB, RWS, test.args)
+			ranking, err := rankProfiles(ctx, DB, RWS, test.args)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}

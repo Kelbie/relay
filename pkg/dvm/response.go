@@ -21,7 +21,7 @@ import (
 var (
 	KindVerifyReputation int = 5312
 	KindRecommendFollows int = 5313
-	KindSortProfiles     int = 5314
+	KindRankProfiles     int = 5314
 	KindSearchProfiles   int = 5315
 	KindDVMError         int = 7000
 )
@@ -179,10 +179,10 @@ func verifyReputation(
 	return ranking, extras, nil
 }
 
-// SortProfiles() returns the rank of each specified target.
+// RankProfiles() returns the rank of each specified target.
 // All ranks use the specified args.Algorithm.
 // For more info read: https://vertexlab.io/docs/services/sort-profiles/
-func SortProfiles(
+func RankProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
@@ -191,24 +191,24 @@ func SortProfiles(
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	args, err := request.ToSortProfilesArgs()
+	args, err := request.ToRankProfilesArgs()
 	if err != nil {
 		return nil, err
 	}
 
-	ranking, err := sortProfiles(ctx, DB, RWS, args)
+	ranking, err := rankProfiles(ctx, DB, RWS, args)
 	if err != nil {
-		return nil, fmt.Errorf("SortProfiles %w: %w", ErrInternal, err)
+		return nil, fmt.Errorf("RankProfiles %w: %w", ErrInternal, err)
 	}
 
 	return NewResponse(ranking), nil
 }
 
-func sortProfiles(
+func rankProfiles(
 	ctx context.Context,
 	DB models.Database,
 	RWS models.RandomWalkStore,
-	args *SortProfilesArgs) (Ranking, error) {
+	args *RankProfilesArgs) (Ranking, error) {
 
 	IDs, err := DB.NodeIDs(ctx, args.Targets...)
 	if err != nil {
