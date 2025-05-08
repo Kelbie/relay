@@ -132,8 +132,10 @@ func TestDVM_RankProfiles(t *testing.T) {
 		Tags: nostr.Tags{
 			{"param", "source", odell},
 			{"param", "target", calle},
+			{"param", "target", calle}, // duplicate
 			{"param", "target", fran},
 			{"param", "target", randomKey},
+			{"param", "target", "zzz"}, // invalid key
 		},
 	}
 
@@ -141,7 +143,7 @@ func TestDVM_RankProfiles(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedSorted := []string{calle, fran, randomKey}
+	expectedSorted := []string{calle, fran, randomKey, "zzz"}
 	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
