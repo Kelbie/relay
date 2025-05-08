@@ -317,7 +317,7 @@ func fts5(
 	search string) (Ranking, error) {
 
 	if pk, err := ToHexPubkey(search); err == nil {
-		// if the search term IS a pubkey, then we don't search further
+		// the search term IS a pubkey or npub, so we don't search further
 		return pairs.Pairs[string, float64]{{Key: pk, Val: 1}}, nil
 	}
 

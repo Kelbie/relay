@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -256,8 +257,8 @@ func TestToRankProfiles(t *testing.T) {
 			expectedError: ErrInvalidTarget,
 		},
 		{
-			name:          "invalid target",
-			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: 10, Targets: []string{pip, calle, "xxxx"}},
+			name:          "too many targets",
+			req:           &Request{Algorithm: Algorithm{Sort: Global}, Limit: 10, Targets: slice(ExtendedMaxLimit + 1)},
 			expectedError: ErrInvalidTarget,
 		},
 		{
@@ -274,12 +275,12 @@ func TestToRankProfiles(t *testing.T) {
 			name: "valid",
 			req: &Request{
 				Algorithm: Algorithm{Sort: Personalized, Source: "npub176p7sup477k5738qhxx0hk2n0cty2k5je5uvalzvkvwmw4tltmeqw7vgup"},
-				Targets:   []string{calle, pip, odell, fran, "npub16kkn6vg4m8aqw5qtqmxdpwtqtkvg3gsx4jazpg0zu6q7c2gsjwrs3tdflr"},
+				Targets:   []string{odell, calle, pip, pip, "npub16kkn6vg4m8aqw5qtqmxdpwtqtkvg3gsx4jazpg0zu6q7c2gsjwrs3tdflr", "zzz"},
 				Limit:     69,
 			},
 			expected: &RankProfilesArgs{
 				Algorithm: Algorithm{Sort: Personalized, Source: pip},
-				Targets:   []string{calle, pip, odell, fran, randomKey},
+				Targets:   []string{odell, calle, pip, randomKey, "zzz"},
 				Limit:     5,
 			},
 		},
@@ -381,4 +382,14 @@ func BenchmarkParse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Parse(req)
 	}
+}
+
+// ---------------------------------- HELPERS ---------------------------------
+
+func slice(n int) []string {
+	slice := make([]string, n)
+	for i := range n {
+		slice[i] = strconv.Itoa(i)
+	}
+	return slice
 }

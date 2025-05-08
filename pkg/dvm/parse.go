@@ -9,6 +9,7 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
+	"github.com/vertex-lab/crawler/pkg/utils/sliceutils"
 )
 
 // DVM parameters and defaults
@@ -198,7 +199,7 @@ func (r *Request) ToVerifyReputationArgs() (*VerifyReputationArgs, error) {
 		return nil, fmt.Errorf("%w: VerifyReputation requires exactly one 'target'", ErrInvalidTarget)
 	}
 
-	if len(r.Search) > 0 {
+	if r.Search != "" {
 		return nil, fmt.Errorf("%w: VerifyReputation doesn't support 'search'", ErrParamNotSupported)
 	}
 
@@ -219,7 +220,7 @@ func (r *Request) ToRecommendFollowsArgs() (*RecommendFollowsArgs, error) {
 		return nil, fmt.Errorf("%w: RecommendFollows doesn't support 'target'", ErrParamNotSupported)
 	}
 
-	if len(r.Search) > 0 {
+	if r.Search != "" {
 		return nil, fmt.Errorf("%w: RecommendFollows doesn't support 'search'", ErrParamNotSupported)
 	}
 
@@ -235,7 +236,7 @@ func (r *Request) ToRecommendFollowsArgs() (*RecommendFollowsArgs, error) {
 }
 
 func (r *Request) ToRankProfilesArgs() (*RankProfilesArgs, error) {
-	if len(r.Search) > 0 {
+	if r.Search != "" {
 		return nil, fmt.Errorf("%w: RankProfiles doesn't support 'search'", ErrParamNotSupported)
 	}
 
@@ -289,11 +290,11 @@ func (a *VerifyReputationArgs) Normalize() error {
 		return fmt.Errorf("%w: limit must be an integer between 1 and %d: %d", ErrInvalidLimit, StandardMaxLimit, a.Limit)
 	}
 
-	err := a.Algorithm.Normalize()
-	if err != nil {
+	if err := a.Algorithm.Normalize(); err != nil {
 		return err
 	}
 
+	var err error
 	a.Target, err = ToHexPubkey(a.Target)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidTarget, err)
@@ -319,23 +320,27 @@ func (a *RankProfilesArgs) Normalize() error {
 		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, ExtendedMaxLimit, a.Limit)
 	}
 
-	err := a.Algorithm.Normalize()
-	if err != nil {
-		return err
-	}
-
-	if len(a.Targets) < 1 {
-		return fmt.Errorf("%w: at least one target must be supplied for RankProfiles", ErrInvalidTarget)
-	}
-
-	for i, target := range a.Targets {
-		a.Targets[i], err = ToHexPubkey(target)
-		if err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidTarget, err)
-		}
+	a.Targets = sliceutils.Unique(a.Targets)
+	if len(a.Targets) < 1 || len(a.Targets) > ExtendedMaxLimit {
+		return fmt.Errorf("%w: the number of targets must be between 1 and %d: %d", ErrInvalidTarget, ExtendedMaxLimit, len(a.Targets))
 	}
 
 	a.Limit = min(a.Limit, len(a.Targets))
+	if err := a.Algorithm.Normalize(); err != nil {
+		return err
+	}
+
+	for i, target := range a.Targets {
+		pk, err := ToHexPubkey(target)
+		if err != nil {
+			// do nothing on invalid pubkeys; they will simply receive a rank of 0.
+			continue
+		}
+
+		if pk != target {
+			a.Targets[i] = pk
+		}
+	}
 	return nil
 }
 
@@ -358,6 +363,7 @@ func (a *SearchProfilesArgs) Normalize() error {
 
 // ToHexPubkey() returns a parsed hex pubkey from the specified string.
 func ToHexPubkey(key string) (string, error) {
+	key = strings.TrimSpace(key)
 	if nostr.IsValidPublicKey(key) {
 		return key, nil
 	}
