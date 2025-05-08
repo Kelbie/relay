@@ -12,7 +12,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/nbd-wtf/go-nostr v0.49.7
 	github.com/redis/go-redis/v9 v9.7.0
-	github.com/vertex-lab/crawler v0.0.0-20250214114033-734ae68a025a
+	github.com/vertex-lab/crawler v0.0.0-20250418100641-5572bdcec891
 )
 
 require (
