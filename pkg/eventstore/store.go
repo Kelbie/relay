@@ -31,9 +31,7 @@ type QueryLimits struct {
 	maxKinds   int
 	maxAuthors int
 	maxTags    int
-
-	defaultLimit int
-	maxLimit     int
+	maxLimit   int
 }
 
 // NewQueryLimits() returns a default query limits struct.
@@ -43,10 +41,7 @@ func NewQueryLimits() QueryLimits {
 		maxKinds:   10,
 		maxAuthors: 100,
 		maxTags:    5,
-
-		// the default and maximum number of events returned per query
-		defaultLimit: 10,
-		maxLimit:     50,
+		maxLimit:   1000,
 	}
 }
 
@@ -295,14 +290,9 @@ func (s *Store) validate(filter *nostr.Filter) error {
 		return ErrEmptyFilter
 	}
 
-	if filter.Limit > s.maxLimit {
+	if filter.Limit < 1 || filter.Limit > s.maxLimit {
 		// overwrite the limit with the maximum allowed
 		filter.Limit = s.maxLimit
-	}
-
-	if filter.Limit < 1 {
-		// overwrite the limit with the default value
-		filter.Limit = s.defaultLimit
 	}
 
 	return nil
