@@ -48,7 +48,7 @@ func TestSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(URL)
+	defer Remove(URL)
 
 	// step 1; save into the event
 	if err := store.Save(ctx, &event1); err != nil {
@@ -91,7 +91,7 @@ func TestDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(URL)
+	defer Remove(URL)
 
 	// step 1; save into the events table
 	if err := store.Save(ctx, &event1); err != nil {
@@ -157,7 +157,7 @@ func TestReplace(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer os.Remove(URL)
+			defer Remove(URL)
 
 			if err := store.Save(ctx, &test.storedEvent); err != nil {
 				t.Fatal(err)
@@ -244,7 +244,7 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(URL)
+	defer Remove(URL)
 
 	if err := store.Save(ctx, &eventWithTags); err != nil {
 		t.Fatal(err)
@@ -320,4 +320,10 @@ func TestQuery(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Remove(URL string) {
+	os.Remove(URL)
+	os.Remove(URL + "-shm")
+	os.Remove(URL + "-wal")
 }

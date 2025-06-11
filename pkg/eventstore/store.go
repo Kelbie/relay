@@ -122,6 +122,10 @@ func New(DatabaseURL string) (*Store, error) {
 		return nil, fmt.Errorf("failed to apply data schema: %w", err)
 	}
 
+	if _, err := s.DB.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+		return nil, fmt.Errorf("failed to set WAL mode: %w", err)
+	}
+
 	return s, nil
 }
 
