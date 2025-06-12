@@ -7,11 +7,12 @@ import (
 	"io"
 	"log"
 	"os"
-	"reflect"
+	"slices"
 	"sync/atomic"
 	"time"
 
 	. "github.com/pippellia-btc/rely"
+	"github.com/vertex-lab/crawler_v2/pkg/redb"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/eventstore"
@@ -19,8 +20,6 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
-	"github.com/vertex-lab/crawler/pkg/database/redisdb"
-	"github.com/vertex-lab/crawler/pkg/store/redistore"
 )
 
 var (
@@ -33,8 +32,7 @@ var (
 	err    error
 
 	store *eventstore.Store
-	DB    *redisdb.Database
-	RWS   *redistore.RandomWalkStore
+	db    redb.RedisDB
 
 	limiter   rate.Limiter
 	processed atomic.Int32
@@ -47,8 +45,14 @@ func main() {
 
 	config, err = cfg.Load()
 	if err != nil {
-		panic("failed to load config: " + err.Error())
+		panic(err)
 	}
+
+	nostr.DebugLogger.SetOutput(os.Stdout)
+	nostr.InfoLogger.SetOutput(io.Discard) // discarding info logs
+
+	log.Println("starting up the relay")
+	defer log.Println("shutdown")
 
 	relay = NewRelay(
 		WithDomain("vertexlab.io"),
@@ -57,29 +61,14 @@ func main() {
 		WithMaxProcessors(10),
 	)
 
-	nostr.DebugLogger.SetOutput(os.Stdout)
-	nostr.InfoLogger.SetOutput(io.Discard) // discarding info logs
-
-	log.Println("starting up the relay")
-	defer log.Println("shutdown")
-
 	store, err = eventstore.New(config.SQLitePath)
 	if err != nil {
 		panic(err)
 	}
 	log.Printf("sqlite connected to %s", config.SQLitePath)
 
-	redis := redis.NewClient(&redis.Options{Addr: config.RedisAddress})
-	limiter = rate.NewLimiterWithPolicy(redis, config.Limits)
-
-	DB, err = redisdb.NewDatabaseConnection(ctx, redis)
-	if err != nil {
-		panic(err)
-	}
-	RWS, err = redistore.NewRWSConnection(ctx, redis)
-	if err != nil {
-		panic(err)
-	}
+	db = redb.New(&redis.Options{Addr: config.RedisAddress})
+	limiter = rate.NewLimiterWithPolicy(db.Client, config.Limits)
 	log.Printf("redis connected at %s", config.RedisAddress)
 
 	relay.RejectEvent = append(relay.RejectEvent, NonDVMs)
@@ -102,7 +91,7 @@ func NonDVMs(_ Client, event *nostr.Event) error {
 
 func UnauthedCredits(client Client, filters nostr.Filters) error {
 	for _, filter := range filters {
-		if IsCreditQuery(filter) && client.Pubkey() == "" {
+		if ContainsCreditQuery(filter) && client.Pubkey() == "" {
 			client.SendAuthChallenge()
 			return ErrUnathedCreditsQuery
 		}
@@ -114,8 +103,8 @@ func UnauthedCredits(client Client, filters nostr.Filters) error {
 func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.Event, error) {
 	events := make([]nostr.Event, 0, len(filters))
 	for _, filter := range filters {
-		switch {
-		case IsCreditQuery(filter):
+
+		if ContainsCreditQuery(filter) {
 			bucket, err := limiter.Bucket(client.Pubkey())
 			if err != nil {
 				log.Println(err)
@@ -128,35 +117,40 @@ func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.E
 				return nil, fmt.Errorf("failed to sign credit event: %w", err)
 			}
 
-			events = append(events, bucket.ToEvent())
-
-		default:
-			found, err := store.Query(ctx, &filter)
-			if err != nil {
-				log.Printf("failed to query for %v: %v", filter, err)
-				return nil, fmt.Errorf("failed to query for %v: %w", filter, err)
-			}
-
-			events = append(events, found...)
+			events = append(events, info)
 		}
+
+		found, err := store.Query(ctx, &filter)
+		if err != nil {
+			log.Printf("failed to query for %v: %v", filter, err)
+			return nil, fmt.Errorf("failed to query for %v: %w", filter, err)
+		}
+
+		events = append(events, found...)
+
 	}
 
 	return events, nil
 }
 
-func IsCreditQuery(filter nostr.Filter) bool {
-	return reflect.DeepEqual(filter.Kinds, []int{22243})
+func ContainsCreditQuery(filter nostr.Filter) bool {
+	return slices.Contains(filter.Kinds, 22243)
 }
 
 func Process(_ Client, event *nostr.Event) error {
-	return process(event, func(e *nostr.Event) error {
-		if err := e.Sign(config.Secret); err != nil {
-			return fmt.Errorf("failed to sign the response %s: %w", e.ID, err)
+	err := process(event, func(event *nostr.Event) error {
+		if err := event.Sign(config.Secret); err != nil {
+			return fmt.Errorf("failed to sign the response %s: %w", event.ID, err)
 		}
 
-		relay.Broadcast(e)
-		return store.Save(context.Background(), e)
+		relay.Broadcast(event)
+		return store.Save(context.Background(), event)
 	})
+
+	if err != nil {
+		log.Printf("failed to process request: %v", err)
+	}
+	return err
 }
 
 func process(event *nostr.Event, reply func(*nostr.Event) error) error {
@@ -167,7 +161,6 @@ func process(event *nostr.Event, reply func(*nostr.Event) error) error {
 	if err != nil {
 		return reply(dvm.ErrorEvent(err, dvm.NewRecord(event)))
 	}
-	request.Nodes = DB.Size(ctx)
 
 	paid, err := limiter.Pay(request.Pubkey, cost(request))
 	if err != nil {
@@ -178,20 +171,24 @@ func process(event *nostr.Event, reply func(*nostr.Event) error) error {
 		return reply(dvm.ErrorEvent(dvm.ErrNoCredits, request.Record))
 	}
 
-	var response dvm.Response
+	request.Nodes, err = db.NodeCount(ctx)
+	if err != nil {
+		return err
+	}
 
+	var response dvm.Response
 	switch request.Kind {
 	case dvm.KindVerifyReputation:
-		response, err = dvm.VerifyReputation(ctx, DB, RWS, request)
+		response, err = dvm.VerifyReputation(ctx, db, request)
 
 	case dvm.KindRecommendFollows:
-		response, err = dvm.RecommendFollows(ctx, DB, RWS, request)
+		response, err = dvm.RecommendFollows(ctx, db, request)
 
 	case dvm.KindRankProfiles:
-		response, err = dvm.RankProfiles(ctx, DB, RWS, request)
+		response, err = dvm.RankProfiles(ctx, db, request)
 
 	case dvm.KindSearchProfiles:
-		response, err = dvm.SearchProfiles(ctx, DB, RWS, store, request)
+		response, err = dvm.SearchProfiles(ctx, db, store, request)
 
 	default:
 		err = fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, request.Kind)
