@@ -26,7 +26,7 @@ var (
 
 var (
 	// parsing errors
-	ErrInvalidKind       error = errors.New("invalid kind: we only support kinds 5312 to 5315")
+	ErrUnsupportedKind   error = errors.New("unsupported kind: we only support kinds 5312 to 5315")
 	ErrTooManyTags       error = errors.New("too many tags")
 	ErrParamNotSupported error = errors.New("unsupported parameter")
 	ErrMultipleParams    error = errors.New("too many parameters of the same type")

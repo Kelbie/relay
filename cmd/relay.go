@@ -5,234 +5,217 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
+	"log"
 	"os"
-	"os/signal"
-	"strconv"
+	"reflect"
 	"sync/atomic"
-	"syscall"
+	"time"
 
+	. "github.com/pippellia-btc/rely"
+	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/eventstore"
 	"github.com/vertex-lab/relay/pkg/rate"
-	"github.com/vertex-lab/relay/pkg/req"
 
-	"github.com/fiatjaf/khatru"
-	_ "github.com/joho/godotenv/autoload"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler/pkg/database/redisdb"
 	"github.com/vertex-lab/crawler/pkg/store/redistore"
-	"github.com/vertex-lab/crawler/pkg/utils/logger"
 )
 
-var config *Config
-var err error
-var log *logger.Aggregate
-var requestCounter = &atomic.Uint32{}
-var sqlite *eventstore.Store
-var limiter rate.Limiter
+var (
+	ErrUnathedCreditsQuery = errors.New("auth-required: you must be authenticated to request your credit balance")
+)
+
+var (
+	relay  *Relay
+	config *cfg.Config
+	err    error
+
+	store *eventstore.Store
+	DB    *redisdb.Database
+	RWS   *redistore.RandomWalkStore
+
+	limiter   rate.Limiter
+	processed atomic.Int32
+)
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	go HandleSignals(cancel)
 
-	config, err = LoadConfig()
+	config, err = cfg.Load()
 	if err != nil {
 		panic("failed to load config: " + err.Error())
 	}
 
-	relay := khatru.NewRelay()
-	mux := relay.Router()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("content-type", "text/html")
-		fmt.Fprintf(w, "Welcome to Vertex Relay")
-	})
+	relay = NewRelay(
+		WithDomain("vertexlab.io"),
+		WithOverloadLogs(),
+		WithQueueCapacity(2000),
+		WithMaxProcessors(10),
+	)
 
-	log = logger.New(os.Stdout)
-	relay.Log.SetOutput(os.Stdout)
 	nostr.DebugLogger.SetOutput(os.Stdout)
 	nostr.InfoLogger.SetOutput(io.Discard) // discarding info logs
 
-	PrintTitle(log)
-	defer PrintShutdown(log)
+	log.Println("starting up the relay")
+	defer log.Println("shutdown")
 
-	sqlite, err = eventstore.New(config.SQLitePath)
+	store, err = eventstore.New(config.SQLitePath)
 	if err != nil {
-		panic("failed to initialize sqlite with path " + config.SQLitePath + ": " + err.Error())
+		panic(err)
 	}
-	log.Info("sqlite connected to %s", config.SQLitePath)
+	log.Printf("sqlite connected to %s", config.SQLitePath)
 
 	redis := redis.NewClient(&redis.Options{Addr: config.RedisAddress})
 	limiter = rate.NewLimiterWithPolicy(redis, config.Limits)
-	DB, err := redisdb.NewDatabaseConnection(ctx, redis)
+
+	DB, err = redisdb.NewDatabaseConnection(ctx, redis)
 	if err != nil {
-		panic("failed to connect to redis on " + config.RedisAddress + ": " + err.Error())
+		panic(err)
 	}
-
-	RWS, err := redistore.NewRWSConnection(ctx, redis)
+	RWS, err = redistore.NewRWSConnection(ctx, redis)
 	if err != nil {
-		panic("failed to connect to redis on " + config.RedisAddress + ": " + err.Error())
+		panic(err)
 	}
-	log.Info("redis connected at %s", config.RedisAddress)
+	log.Printf("redis connected at %s", config.RedisAddress)
 
-	relay.Info.Name = "Vertex Relay"
-	relay.Info.Software = "Vertex Relay based on Khatru"
-	relay.Info.Version = "0.0.1"
-	relay.Info.PubKey = config.public
-	relay.Info.SupportedNIPs = []any{11, 42, 86, 90}
+	relay.RejectEvent = append(relay.RejectEvent, NonDVMs)
+	relay.RejectReq = append(relay.RejectReq, UnauthedCredits)
+	relay.OnEvent = Process
+	relay.OnReq = Query
 
-	relay.RejectFilter = append(relay.RejectFilter, RejectWhenNotAuthed)
-	relay.RejectEvent = append(relay.RejectEvent, RejectNonDVMs)
-
-	relay.StoreEvent = append(relay.StoreEvent, sqlite.Save, func(ctx context.Context, event *nostr.Event) error {
-		err := HandleDVMRequest(ctx, DB, RWS, sqlite, event, func(ctx context.Context, res *nostr.Event) error {
-			if err := res.Sign(config.secret); err != nil {
-				return fmt.Errorf("error signing the response eventID %s: %w", res.ID, err)
-			}
-
-			relay.BroadcastEvent(res)
-			return sqlite.Save(ctx, res)
-		})
-
-		if err != nil {
-			log.Error("error processing event: %v", err)
-			return fmt.Errorf("error processing event: %w", err)
-		}
-
-		return nil
-	})
-
-	relay.DeleteEvent = append(relay.DeleteEvent, func(ctx context.Context, event *nostr.Event) error {
-		return sqlite.Delete(ctx, event.ID)
-	})
-
-	relay.QueryEvents = append(relay.QueryEvents, AuthedInfo, QueryNoSearch, func(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-		if filter.Search == "" {
-			return nil, nil
-		}
-
-		ch := make(chan *nostr.Event, 1)
-		defer close(ch)
-
-		err := HandleREQRequest(ctx, DB, RWS, sqlite, &filter, func(ctx context.Context, res *nostr.Event) error {
-			if err := res.Sign(config.secret); err != nil {
-				return fmt.Errorf("failed to sign eventID %v: %v", res.ID, err)
-			}
-
-			if err := sqlite.Save(ctx, res); err != nil {
-				log.Error("failed to save eventID: %v, %v", res.ID, err)
-			}
-
-			ch <- res
-			return nil
-		})
-
-		if err != nil && !errors.Is(err, req.ErrInvalidKindsFormat) {
-			log.Error("error processing event: %v", err)
-			return nil, fmt.Errorf("error processing event: %w", err)
-		}
-
-		return ch, nil
-	})
-
-	go func() {
-		if err := http.ListenAndServe(config.RelayAddress, relay); err != nil {
-			panic("failed to run relay on " + config.RelayAddress + ": " + err.Error())
-		}
-	}()
-	log.Info("relay running on %s", config.RelayAddress)
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	<-signalChan
-	log.Info("signal received. Shutting down...")
-	log.Info("total events processed: %d", requestCounter.Load())
+	log.Printf("relay running at %s", config.RelayAddress)
+	if err := relay.StartAndServe(ctx, config.RelayAddress); err != nil {
+		panic(err)
+	}
 }
 
-// ---------------------------------HELPERS-------------------------------------
-
-func RejectWhenNotAuthed(ctx context.Context, filter nostr.Filter) (reject bool, msg string) {
-	if len(filter.Kinds) == 1 && filter.Kinds[0] == 22243 {
-		if khatru.GetAuthed(ctx) == "" {
-			return true, "auth-required: you must be authenticated to request your credit balance"
-		}
-	}
-	return false, ""
-}
-
-func AuthedInfo(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-	if len(filter.Kinds) != 1 || filter.Kinds[0] != 22243 {
-		return nil, nil
-	}
-
-	pubkey := khatru.GetAuthed(ctx)
-	if pubkey == "" {
-		khatru.RequestAuth(ctx)
-		return nil, fmt.Errorf("auth-required: you must be authenticated to request your credit balance")
-	}
-
-	bucket, err := limiter.Bucket(pubkey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch bucket: %w", err)
-	}
-
-	info := nostr.Event{
-		Kind:      22243,
-		CreatedAt: nostr.Now(),
-		Tags: nostr.Tags{
-			{"credits", strconv.Itoa(bucket.Tokens)},
-			{"lastRequest", strconv.FormatInt(bucket.LastModified, 10)},
-		},
-	}
-
-	if err := info.Sign(config.secret); err != nil {
-		return nil, fmt.Errorf("failed to sign auth info: %w", err)
-	}
-
-	ch := make(chan *nostr.Event, 1)
-	defer close(ch)
-
-	ch <- &info
-	return ch, nil
-}
-
-// QueryNoSearch() simply translates the slice of events returned by sqlite.Query
-// into a channel, making it compatible with Khatru.
-func QueryNoSearch(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-	if filter.Search != "" {
-		return nil, nil
-	}
-
-	events, err := sqlite.Query(ctx, &filter)
-	if err != nil {
-		return nil, err
-	}
-
-	ch := make(chan *nostr.Event, len(events))
-	defer close(ch)
-
-	for _, e := range events {
-		ch <- &e
-	}
-
-	return ch, nil
-}
-
-func RejectNonDVMs(ctx context.Context, event *nostr.Event) (bool, string) {
+func NonDVMs(_ Client, event *nostr.Event) error {
 	if event.Kind < 5312 || event.Kind > 5315 {
-		return true, fmt.Sprintf("%v: %v", dvm.ErrInvalidKind, event.Kind)
+		return fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, event.Kind)
 	}
-	return false, ""
+	return nil
 }
 
-func PrintTitle(l *logger.Aggregate) {
-	l.Info("----------------------")
-	l.Info("Starting up the relay")
+func UnauthedCredits(client Client, filters nostr.Filters) error {
+	for _, filter := range filters {
+		if IsCreditQuery(filter) && client.Pubkey() == "" {
+			client.SendAuthChallenge()
+			return ErrUnathedCreditsQuery
+		}
+	}
+	return nil
 }
 
-func PrintShutdown(l *logger.Aggregate) {
-	l.Info("Relay stopped")
-	l.Info("----------------------")
+// Query the event store, or redis for the credit balance, and log every error.
+func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.Event, error) {
+	events := make([]nostr.Event, 0, len(filters))
+	for _, filter := range filters {
+		switch {
+		case IsCreditQuery(filter):
+			bucket, err := limiter.Bucket(client.Pubkey())
+			if err != nil {
+				log.Println(err)
+				return nil, err
+			}
+
+			info := bucket.ToEvent()
+			if err := info.Sign(config.Secret); err != nil {
+				log.Printf("failed to sign credit event for %s: %v", client.Pubkey(), err)
+				return nil, fmt.Errorf("failed to sign credit event: %w", err)
+			}
+
+			events = append(events, bucket.ToEvent())
+
+		default:
+			found, err := store.Query(ctx, &filter)
+			if err != nil {
+				log.Printf("failed to query for %v: %v", filter, err)
+				return nil, fmt.Errorf("failed to query for %v: %w", filter, err)
+			}
+
+			events = append(events, found...)
+		}
+	}
+
+	return events, nil
+}
+
+func IsCreditQuery(filter nostr.Filter) bool {
+	return reflect.DeepEqual(filter.Kinds, []int{22243})
+}
+
+func Process(_ Client, event *nostr.Event) error {
+	return process(event, func(e *nostr.Event) error {
+		if err := e.Sign(config.Secret); err != nil {
+			return fmt.Errorf("failed to sign the response %s: %w", e.ID, err)
+		}
+
+		relay.Broadcast(e)
+		return store.Save(context.Background(), e)
+	})
+}
+
+func process(event *nostr.Event, reply func(*nostr.Event) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	request, err := dvm.Parse(event)
+	if err != nil {
+		return reply(dvm.ErrorEvent(err, dvm.NewRecord(event)))
+	}
+	request.Nodes = DB.Size(ctx)
+
+	paid, err := limiter.Pay(request.Pubkey, cost(request))
+	if err != nil {
+		return reply(dvm.ErrorEvent(err, request.Record))
+	}
+
+	if !paid {
+		return reply(dvm.ErrorEvent(dvm.ErrNoCredits, request.Record))
+	}
+
+	var response dvm.Response
+
+	switch request.Kind {
+	case dvm.KindVerifyReputation:
+		response, err = dvm.VerifyReputation(ctx, DB, RWS, request)
+
+	case dvm.KindRecommendFollows:
+		response, err = dvm.RecommendFollows(ctx, DB, RWS, request)
+
+	case dvm.KindRankProfiles:
+		response, err = dvm.RankProfiles(ctx, DB, RWS, request)
+
+	case dvm.KindSearchProfiles:
+		response, err = dvm.SearchProfiles(ctx, DB, RWS, store, request)
+
+	default:
+		err = fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, request.Kind)
+	}
+
+	if err != nil {
+		return reply(dvm.ErrorEvent(err, request.Record))
+	}
+
+	tot := processed.Add(1)
+	if tot%1000 == 0 {
+		log.Printf("processed %d dvm requests", tot)
+	}
+
+	return reply(dvm.ResponseEvent(response, request))
+}
+
+// This function estimates the cost of processing a request with the provided params.
+func cost(r *dvm.Request) int {
+	switch r.Sort {
+	case dvm.Personalized:
+		return 10
+
+	default:
+		return 1
+	}
 }

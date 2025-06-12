@@ -3,8 +3,10 @@ package rate
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -18,6 +20,18 @@ const (
 type Bucket struct {
 	Tokens       int   `redis:"tokens"`
 	LastModified int64 `redis:"last_modified"` // unix time
+}
+
+// ToEvent returns the bucket as an unsigned kind 22243 nostr event
+func (b *Bucket) ToEvent() nostr.Event {
+	return nostr.Event{
+		Kind:      22243,
+		CreatedAt: nostr.Now(),
+		Tags: nostr.Tags{
+			{"credits", strconv.Itoa(b.Tokens)},
+			{"lastRequest", strconv.FormatInt(b.LastModified, 10)},
+		},
+	}
 }
 
 type PagerankRefillPolicy struct {
@@ -49,7 +63,7 @@ type Limiter struct {
 	policy PagerankRefillPolicy
 }
 
-// NewLimiter() returns a limiter with a default [PagerankRefillPolicy].
+// NewLimiter returns a limiter with a default [PagerankRefillPolicy].
 func NewLimiter(client *redis.Client) Limiter {
 	return NewLimiterWithPolicy(client, NewPagerankRefillPolicy())
 }
@@ -61,7 +75,7 @@ func NewLimiterWithPolicy(client *redis.Client, policy PagerankRefillPolicy) Lim
 	}
 }
 
-// Pay() tries to deduct `cost` tokens from the bucket of `pubkey` and returns whether the payment was successful.
+// Pay tries to deduct `cost` tokens from the bucket of `pubkey` and returns whether the payment was successful.
 func (l Limiter) Pay(pubkey string, cost int) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -85,7 +99,7 @@ func (l Limiter) Pay(pubkey string, cost int) (bool, error) {
 	return code == "paid", nil
 }
 
-// Bucket() returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
+// Bucket returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
 func (l Limiter) Bucket(pubkey string) (*Bucket, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -101,7 +115,7 @@ func (l Limiter) Bucket(pubkey string) (*Bucket, error) {
 	return &bucket, nil
 }
 
-// TopUp() increases the tokens of `pubkey` by `tokens`, and returns the total after the increase.
+// TopUp the tokens of `pubkey` by `tokens`, and return the total after the increase.
 func (l Limiter) TopUp(pubkey string, tokens int) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
