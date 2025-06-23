@@ -11,8 +11,8 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/nbd-wtf/go-nostr v0.51.12
 	github.com/pippellia-btc/rely v0.7.0
+	github.com/pippellia-btc/slicex v0.2.3
 	github.com/redis/go-redis/v9 v9.8.0
-	github.com/vertex-lab/crawler v0.0.0-20250611144025-744dbeb124e2
 	github.com/vertex-lab/crawler_v2 v1.0.1
 
 )

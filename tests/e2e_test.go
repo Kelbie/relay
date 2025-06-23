@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/vertex-lab/crawler_v2/pkg/pipe"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/vertex-lab/crawler/pkg/crawler"
 )
 
 var (
@@ -323,16 +323,14 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 	defer cancel()
 
 	pool := nostr.NewSimplePool(ctx)
-	filter := nostr.Filters{
-		{
-			Authors: pubkeys,
-			Kinds:   []int{nostr.KindFollowList},
-		},
+	filter := nostr.Filter{
+		Authors: pubkeys,
+		Kinds:   []int{nostr.KindFollowList},
 	}
 
 	// getting only the newest follow list for each pubkey.
 	newest := make(map[string]*nostr.Event, len(pubkeys))
-	for event := range pool.SubManyEose(ctx, defaultRelays, filter) {
+	for event := range pool.FetchMany(ctx, defaultRelays, filter) {
 
 		if _, exists := newest[event.PubKey]; !exists {
 			newest[event.PubKey] = event.Event
@@ -349,7 +347,7 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 	}
 
 	for pubkey, event := range newest {
-		follows := crawler.ParsePubkeys(event)
+		follows := pipe.ParsePubkeys(event)
 		if !slices.Contains(follows, target) {
 			return fmt.Errorf("%v doesn't follow %v, but the response showed otherwise", pubkey, target)
 		}
