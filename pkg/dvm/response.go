@@ -11,12 +11,11 @@ import (
 	"strings"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/vertex-lab/crawler/pkg/utils/sliceutils"
+	"github.com/pippellia-btc/slicex"
 	"github.com/vertex-lab/crawler_v2/pkg/graph"
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
 	"github.com/vertex-lab/relay/pkg/eventstore"
-	"github.com/vertex-lab/relay/pkg/pairs"
 )
 
 var (
@@ -42,11 +41,11 @@ type Extra struct {
 }
 
 type (
-	ranking     = pairs.Pairs[string, float64]   // a slice of (pubkey, rank)
-	nodeRanking = pairs.Pairs[graph.ID, float64] // a slice of (node, rank)
+	ranking     = slicex.Pairs[string, float64]   // a slice of (pubkey, rank)
+	nodeRanking = slicex.Pairs[graph.ID, float64] // a slice of (node, rank)
 )
 
-// NewResponse combines the ranking and the optional extras into a [Response].
+// NewResponse combines the ranking and the optional [Extra]s into a [Response].
 func NewResponse(ranking ranking, extras ...Extra) Response {
 	res := make(Response, len(ranking))
 	for i, pair := range ranking {
@@ -131,7 +130,7 @@ func verifyReputation(ctx context.Context, db redb.RedisDB, args *VerifyReputati
 	}
 
 	// place target in the first position, regardless of its rank
-	nodeRanking = append(nodeRanking[0:1], nodeRanking[1:].Top(args.Limit)...)
+	nodeRanking = append(nodeRanking[0:1], nodeRanking[1:].MaxK(args.Limit)...)
 	ranking, err := resolveIDs(ctx, db, nodeRanking)
 	if err != nil {
 		return nil, nil, err
@@ -180,11 +179,8 @@ func rankProfiles(ctx context.Context, db redb.RedisDB, args *RankProfilesArgs) 
 		return nil, err
 	}
 
-	ranking, err := pairs.Pack(args.Targets, ranks)
-	if err != nil {
-		return nil, err
-	}
-	return ranking.Top(args.Limit), nil
+	ranking := slicex.Pack(args.Targets, ranks)
+	return ranking.MaxK(args.Limit), nil
 }
 
 // SearchProfiles returns the top ranked pubkeys whose kind:0s contain the provided string.
@@ -220,11 +216,11 @@ func searchProfiles(ctx context.Context, db redb.RedisDB, store *eventstore.Stor
 		return nil, err
 	}
 
-	for i, reputation := range reputations {
+	for i := range reputations {
 		// merge reputational and search ranks
-		ranking[i].Val = math.Pow(searchRanks[i], 3) * reputation
+		ranking[i].Val = math.Pow(searchRanks[i], 3) * reputations[i]
 	}
-	return ranking.Top(args.Limit), nil
+	return ranking.MaxK(args.Limit), nil
 }
 
 // fts5 performs full text seach on the profiles (kind:0s) using the specified search term.
@@ -232,7 +228,7 @@ func searchProfiles(ctx context.Context, db redb.RedisDB, store *eventstore.Stor
 func fts5(ctx context.Context, store *eventstore.Store, search string) (ranking, error) {
 	if pk, err := ToHexPubkey(search); err == nil {
 		// the search term IS a pubkey or npub, so we don't search further
-		return pairs.Pairs[string, float64]{{Key: pk, Val: 1}}, nil
+		return slicex.Pairs[string, float64]{{Key: pk, Val: 1}}, nil
 	}
 
 	search = escapeFTS5(search)
@@ -268,7 +264,7 @@ func fts5(ctx context.Context, store *eventstore.Store, search string) (ranking,
 		}
 
 		// convert bm25 scores (negative) to positive to have best is highest
-		ranking = append(ranking, pairs.Pair[string, float64]{Key: pk, Val: -rank})
+		ranking = append(ranking, slicex.Pair[string, float64]{Key: pk, Val: -rank})
 	}
 
 	if err := rows.Err(); err != nil {
@@ -370,17 +366,14 @@ func recommendByGlobal(ctx context.Context, db redb.RedisDB, args *RecommendFoll
 		candidates[i] = graph.ID(strconv.FormatInt(int64(i), 10))
 	}
 
-	candidates = sliceutils.Difference(candidates, avoid)
+	candidates = slicex.Difference(candidates, avoid)
 	ranks, err := pagerank.Global(ctx, db, candidates...)
 	if err != nil {
 		return nil, err
 	}
 
-	nodeRanking, err := pairs.Pack(candidates, ranks)
-	if err != nil {
-		return nil, err
-	}
-	return nodeRanking.Top(args.Limit), nil
+	nodeRanking := slicex.Pack(candidates, ranks)
+	return nodeRanking.MaxK(args.Limit), nil
 }
 
 func recommendByFollowers(ctx context.Context, db redb.RedisDB, args *RecommendFollowsArgs) (nodeRanking, error) {
@@ -410,7 +403,7 @@ func recommendByFollowers(ctx context.Context, db redb.RedisDB, args *RecommendF
 		candidates[i] = graph.ID(strconv.FormatInt(int64(i), 10))
 	}
 
-	candidates = sliceutils.Difference(candidates, avoid)
+	candidates = slicex.Difference(candidates, avoid)
 	counts, err := db.FollowerCounts(ctx, candidates...)
 	if err != nil {
 		return nil, err
@@ -418,9 +411,9 @@ func recommendByFollowers(ctx context.Context, db redb.RedisDB, args *RecommendF
 
 	nodeRanking := make(nodeRanking, len(candidates))
 	for i, node := range candidates {
-		nodeRanking[i] = pairs.Pair[graph.ID, float64]{Key: node, Val: float64(counts[i])}
+		nodeRanking[i] = slicex.Pair[graph.ID, float64]{Key: node, Val: float64(counts[i])}
 	}
-	return nodeRanking.Top(args.Limit), nil
+	return nodeRanking.MaxK(args.Limit), nil
 }
 
 func recommendByPersonalized(ctx context.Context, db redb.RedisDB, args *RecommendFollowsArgs) (nodeRanking, error) {
@@ -443,7 +436,9 @@ func recommendByPersonalized(ctx context.Context, db redb.RedisDB, args *Recomme
 	for _, ID := range append(follows, source.ID) {
 		delete(pp, ID)
 	}
-	return pairs.Top(pp, args.Limit), nil
+
+	nodeRanking := slicex.ToPairs(pp)
+	return nodeRanking.MaxK(args.Limit), nil
 }
 
 func rankNodes(ctx context.Context, db redb.RedisDB, nodes []graph.ID, algo Algorithm) (nodeRanking, error) {
@@ -451,7 +446,7 @@ func rankNodes(ctx context.Context, db redb.RedisDB, nodes []graph.ID, algo Algo
 	if err != nil {
 		return nil, err
 	}
-	return pairs.Pack(nodes, ranks)
+	return slicex.Pack(nodes, ranks), nil
 }
 
 // rank the nodes according to the provided [Algorithm].
@@ -505,7 +500,7 @@ func resolveIDs(
 			return nil, fmt.Errorf("failed to fetch the pubkey of node ID %s", IDs[i])
 		}
 
-		ranking[i] = pairs.Pair[string, float64]{Key: pk, Val: ranks[i]}
+		ranking[i] = slicex.Pair[string, float64]{Key: pk, Val: ranks[i]}
 	}
 
 	return ranking, nil

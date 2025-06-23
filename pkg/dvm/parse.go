@@ -9,7 +9,7 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
-	"github.com/vertex-lab/crawler/pkg/utils/sliceutils"
+	"github.com/pippellia-btc/slicex"
 )
 
 // DVM parameters and defaults
@@ -320,7 +320,7 @@ func (a *RankProfilesArgs) Normalize() error {
 		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, ExtendedMaxLimit, a.Limit)
 	}
 
-	a.Targets = sliceutils.Unique(a.Targets)
+	a.Targets = slicex.Unique(a.Targets)
 	if len(a.Targets) < 1 || len(a.Targets) > ExtendedMaxLimit {
 		return fmt.Errorf("%w: the number of targets must be between 1 and %d: %d", ErrInvalidTarget, ExtendedMaxLimit, len(a.Targets))
 	}
