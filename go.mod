@@ -4,16 +4,14 @@ go 1.24.1
 
 toolchain go1.24.4
 
-replace github.com/vertex-lab/crawler_v2 => ../crawler_v2
-
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/nbd-wtf/go-nostr v0.51.12
 	github.com/pippellia-btc/rely v0.7.0
-	github.com/pippellia-btc/slicex v0.2.3
+	github.com/pippellia-btc/slicex v0.2.4
 	github.com/redis/go-redis/v9 v9.8.0
-	github.com/vertex-lab/crawler_v2 v1.0.1
+	github.com/vertex-lab/crawler_v2 v1.1.1
 
 )
 
