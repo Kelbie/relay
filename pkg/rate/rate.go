@@ -3,6 +3,7 @@ package rate
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -75,28 +76,31 @@ func NewLimiterWithPolicy(client *redis.Client, policy PagerankRefillPolicy) Lim
 	}
 }
 
-// Pay tries to deduct `cost` tokens from the bucket of `pubkey` and returns whether the payment was successful.
-func (l Limiter) Pay(pubkey string, cost int) (bool, error) {
+// Allow tries to deduct the cost from the pubkey's tokens and reports whether it suceeded.
+func (l Limiter) Allow(pubkey string, cost int) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
 	if cost < 0 {
 		// cost can be 0 to allow for easier testing. See rate_test.go
-		return false, fmt.Errorf("cost cannot be negative: %d", cost)
+		log.Printf("cost cannot be negative: %d", cost)
+		return false
 	}
 
 	args := []any{pubkey, cost, l.policy.RefillTokens, l.policy.RefillIntervalSeconds, l.policy.MaxTokensBeforeRefill, l.policy.WalksThreshold}
 	res, err := l.client.FCall(ctx, "pay", nil, args...).Result()
 	if err != nil {
-		return false, fmt.Errorf("failed to pay: %w", err)
+		log.Printf("Limiter: failed to pay: %v", err)
+		return false
 	}
 
 	code, ok := res.(string)
 	if !ok {
-		return false, fmt.Errorf("failed to pay: failed to type assert the result as a string: %v", res)
+		log.Printf("Limiter: failed to pay: failed to type assert the result as a string: %v", res)
+		return false
 	}
 
-	return code == "paid", nil
+	return code == "paid"
 }
 
 // Bucket returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
@@ -115,19 +119,19 @@ func (l Limiter) Bucket(pubkey string) (*Bucket, error) {
 	return &bucket, nil
 }
 
-// TopUp the tokens of `pubkey` by `tokens`, and return the total after the increase.
-func (l Limiter) TopUp(pubkey string, tokens int) (int, error) {
+// TopUp the tokens of pubkey by amount, and return the total after the increase.
+func (l Limiter) TopUp(pubkey string, amount int) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	if tokens < 0 {
-		return -1, fmt.Errorf("tokens cannot be negative: %d", tokens)
+	if amount < 0 {
+		return -1, fmt.Errorf("tokens cannot be negative: %d", amount)
 	}
 
 	key := "creditBucket:" + pubkey
 	pipe := l.client.TxPipeline()
 
-	cmd := pipe.HIncrBy(ctx, key, "tokens", int64(tokens))
+	cmd := pipe.HIncrBy(ctx, key, "tokens", int64(amount))
 	pipe.HSet(ctx, key, "last_modified", time.Now().Unix())
 
 	if _, err := pipe.Exec(ctx); err != nil {

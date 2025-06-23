@@ -10,9 +10,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/vertex-lab/crawler/pkg/database/redisdb"
-	"github.com/vertex-lab/crawler/pkg/store/redistore"
-	"github.com/vertex-lab/crawler/pkg/utils/redisutils"
+	"github.com/vertex-lab/crawler_v2/pkg/redb"
 )
 
 type pubkeyData struct {
@@ -23,6 +21,8 @@ type pubkeyData struct {
 }
 
 var (
+	testAddress = "localhost:6380"
+
 	reputableKeyWithBucket    = pubkeyData{pubkey: "reputable1", ID: "0", Bucket: Bucket{Tokens: 100, LastModified: 420}, walks: DefaultWalksThreshold}
 	reputableKeyWithoutBucket = pubkeyData{pubkey: "reputable2", ID: "1", walks: DefaultWalksThreshold}
 	lowReputationKey          = pubkeyData{pubkey: "spammer1", ID: "2"}
@@ -30,11 +30,11 @@ var (
 )
 
 func TestBucket(t *testing.T) {
-	redis := redisutils.SetupTestClient()
-	defer redisutils.CleanupRedis(redis)
+	db := redis.NewClient(&redis.Options{Addr: testAddress})
+	defer db.FlushAll(context.Background())
 
 	bucket := Bucket{Tokens: 69, LastModified: 420}
-	if err := addBucket(redis, "reputable", bucket); err != nil {
+	if err := addBucket(db, "reputable", bucket); err != nil {
 		t.Fatalf("setup failed: %v", err)
 	}
 
@@ -57,7 +57,7 @@ func TestBucket(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			limiter := NewLimiter(redis)
+			limiter := NewLimiter(db)
 			bucket, err := limiter.Bucket(test.pubkey)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
@@ -73,8 +73,8 @@ func TestBucket(t *testing.T) {
 // We simulate running the Lua function automatic_refill() by calling the pay()
 // function with a cost of 0.
 func TestAutomaticRefill(t *testing.T) {
-	redis := redisutils.SetupTestClient()
-	defer redisutils.CleanupRedis(redis)
+	db := redis.NewClient(&redis.Options{Addr: testAddress})
+	defer db.FlushAll(context.Background())
 
 	now := time.Now().Unix()
 	tests := []struct {
@@ -124,17 +124,17 @@ func TestAutomaticRefill(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			limiter := Limiter{
-				client: redis,
+				client: db,
 				policy: test.policy,
 			}
 
-			if err := setup(redis, test.pubkeyData); err != nil {
+			if err := setup(db, test.pubkeyData); err != nil {
 				t.Fatalf("setup failed: %v", err)
 			}
 
-			_, err := limiter.Pay(test.pubkeyData.pubkey, 0)
-			if err != nil {
-				t.Fatalf("expected error nil, got %v", err)
+			paid := limiter.Allow(test.pubkeyData.pubkey, 0)
+			if !paid {
+				t.Fatalf("failed to pay 0 cost")
 			}
 
 			bucket, err := limiter.Bucket(test.pubkeyData.pubkey)
@@ -151,9 +151,9 @@ func TestAutomaticRefill(t *testing.T) {
 
 // We simulate running the Lua function pay() without automatic refills by using
 // the policy maxTokensBeforeRefill = 0
-func TestPay(t *testing.T) {
-	redis := redisutils.SetupTestClient()
-	defer redisutils.CleanupRedis(redis)
+func TestAllow(t *testing.T) {
+	db := redis.NewClient(&redis.Options{Addr: testAddress})
+	defer db.FlushAll(context.Background())
 
 	tests := []struct {
 		name       string
@@ -187,19 +187,15 @@ func TestPay(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			limiter := Limiter{
-				client: redis,
+				client: db,
 				policy: test.policy,
 			}
 
-			if err := setup(redis, test.pubkeyData); err != nil {
+			if err := setup(db, test.pubkeyData); err != nil {
 				t.Fatalf("setup failed: %v", err)
 			}
 
-			paid, err := limiter.Pay(test.pubkeyData.pubkey, test.cost)
-			if err != nil {
-				t.Fatalf("expected error nil, got %v", err)
-			}
-
+			paid := limiter.Allow(test.pubkeyData.pubkey, test.cost)
 			if paid != test.expectedPaid {
 				t.Fatalf("expected paid %v, got %v", test.expectedPaid, paid)
 			}
@@ -217,10 +213,10 @@ func TestPay(t *testing.T) {
 }
 
 func TestTopUp(t *testing.T) {
-	redis := redisutils.SetupTestClient()
-	defer redisutils.CleanupRedis(redis)
+	db := redis.NewClient(&redis.Options{Addr: testAddress})
+	defer db.FlushAll(context.Background())
 
-	limiter := NewLimiter(redis)
+	limiter := NewLimiter(db)
 	_, err := limiter.TopUp("whatever", 100)
 	if err != nil {
 		t.Fatalf("expected error nil, got %v", err)
@@ -248,17 +244,15 @@ func TestTopUp(t *testing.T) {
 // ---------------------------------BENCHMARKS---------------------------------
 
 func BenchmarkPay(b *testing.B) {
-	redis := redisutils.SetupTestClient()
-	defer redisutils.CleanupRedis(redis)
+	db := redis.NewClient(&redis.Options{Addr: testAddress})
+	defer db.FlushAll(context.Background())
 
-	limiter := NewLimiter(redis)
+	limiter := NewLimiter(db)
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		pubkey := strconv.FormatInt(int64(i), 10)
-		if _, err := limiter.Pay(pubkey, 1); err != nil {
-			b.Fatalf("bechmark failed: %v", err)
-		}
+		limiter.Allow(pubkey, 1)
 	}
 }
 
@@ -283,7 +277,7 @@ func setup(redis *redis.Client, data pubkeyData) error {
 
 // adds key to the keyIndex
 func addKey(redis *redis.Client, pubkey, ID string) error {
-	if err := redis.HSet(context.Background(), redisdb.KeyKeyIndex, pubkey, ID).Err(); err != nil {
+	if err := redis.HSet(context.Background(), redb.KeyKeyIndex, pubkey, ID).Err(); err != nil {
 		return fmt.Errorf("failed to add pubkey %s to the keyIndex: %w", pubkey, err)
 	}
 
@@ -301,7 +295,7 @@ func addWalks(redis *redis.Client, ID string, walks int) error {
 		walksToAdd[i] = i
 	}
 
-	set := redistore.KeyWalksVisitingPrefix + ID
+	set := redb.KeyWalksVisitingPrefix + ID
 	if err := redis.SAdd(context.Background(), set, walksToAdd...).Err(); err != nil {
 		return fmt.Errorf("failed to add walks to %s: %w", set, err)
 	}
@@ -309,7 +303,7 @@ func addWalks(redis *redis.Client, ID string, walks int) error {
 	return nil
 }
 
-// adds bucket to a pubkey is the bucket is not empty
+// adds bucket to a pubkey if the bucket is not empty
 func addBucket(redis *redis.Client, pubkey string, bucket Bucket) error {
 	if bucket.Tokens == 0 && bucket.LastModified == 0 {
 		return nil

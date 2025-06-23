@@ -162,11 +162,7 @@ func process(event *nostr.Event, reply func(*nostr.Event) error) error {
 		return reply(dvm.ErrorEvent(err, dvm.NewRecord(event)))
 	}
 
-	paid, err := limiter.Pay(request.Pubkey, cost(request))
-	if err != nil {
-		return reply(dvm.ErrorEvent(err, request.Record))
-	}
-
+	paid := limiter.Allow(request.Pubkey, cost(request))
 	if !paid {
 		return reply(dvm.ErrorEvent(dvm.ErrNoCredits, request.Record))
 	}
