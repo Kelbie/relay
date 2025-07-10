@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"reflect"
 	"slices"
 	"testing"
@@ -19,7 +20,6 @@ import (
 )
 
 var (
-	// pubkeys for testing
 	jack_dorsey  string = "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2"
 	jack_mallers string = "c4eabae1be3cf657bc1855ee05e69de9f059cb7a059227168b80b89761cbc4e0"
 	jack_spirko  string = "a1fc5dfd7ffcf563c89155b466751b580d115e136e2f8c90e8913385bbedb1cf"
@@ -32,23 +32,19 @@ var (
 	pip          string = "f683e87035f7ad4f44e0b98cfbd9537e16455a92cd38cefc4cb31db7557f5ef2"
 	randomKey    string = "d5ad3d3115d9fa07500b06ccd0b9605d9888a206acba20a1e2e681ec29109387"
 
-	// relay URLs
 	vertexURL     string = "wss://relay.vertexlab.io"
 	localhost     string = "http://localhost:3334"
 	defaultRelays        = []string{"wss://relay.primal.net", "wss://relay.nostr.band", "wss://relay.damus.io"}
 
-	// secret not so secret key
 	sk = "140494e2df64262cf14849db6e6e5333bca3e1d465cdd1acf2329a20a11b0b9c"
 	pk = "3b0bc9a352e3b471b39879892c2116c1dc70f2aaff374f3cd01473ce19b2dcb4"
 )
 
-// add tokens to the bucket of `pk` so the subsequent tests will not be rejected
-func TestInit(t *testing.T) {
+func init() {
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 	limiter := rate.NewLimiter(redis)
-
 	if _, err := limiter.TopUp(pk, 100); err != nil {
-		t.Fatalf("failed to add credits to test pubkey: %v", err)
+		log.Printf("init: failed to top-up: %v", err)
 	}
 }
 
@@ -271,7 +267,7 @@ func TestDVM_SearchProfiles(t *testing.T) {
 
 // -----------------------------------HELPERS----------------------------------
 
-// dvmResponse() connects to the relay, send the request and fetches the response using the request ID.
+// dvmResponse connects to the relay, send the request and fetches the response using the request ID.
 func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -284,8 +280,6 @@ func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error
 	if err := relay.Publish(ctx, *req); err != nil {
 		return nil, fmt.Errorf("failed to publish to %s: %v", relayURL, err)
 	}
-
-	time.Sleep(1 * time.Second)
 
 	filter := nostr.Filter{
 		Kinds: []int{req.Kind + 1000, dvm.KindDVMError},
@@ -310,7 +304,7 @@ func dvmResponse(req *nostr.Event, relayURL string) (res *nostr.Event, err error
 	return res, nil
 }
 
-// checkPubkeysFollowTarget() checks that each of the pubkeys listed in the response follows the target.
+// checkPubkeysFollowTarget checks that each of the pubkeys listed in the response follows the target.
 func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 	for _, pk := range pubkeys {
 		if !nostr.IsValidPublicKey(pk) {
@@ -318,7 +312,6 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 		}
 	}
 
-	// now we query the relays for the follow-lists of the pubkeys contained in the response
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -328,10 +321,8 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 		Kinds:   []int{nostr.KindFollowList},
 	}
 
-	// getting only the newest follow list for each pubkey.
 	newest := make(map[string]*nostr.Event, len(pubkeys))
 	for event := range pool.FetchMany(ctx, defaultRelays, filter) {
-
 		if _, exists := newest[event.PubKey]; !exists {
 			newest[event.PubKey] = event.Event
 			continue
@@ -343,7 +334,7 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 	}
 
 	if len(newest) != len(pubkeys) {
-		return fmt.Errorf("expected to receive one follow-list per pubkey (%d), got %d", len(pubkeys), len(newest))
+		return fmt.Errorf("expected to receive %d follow-lists, got %d", len(pubkeys), len(newest))
 	}
 
 	for pubkey, event := range newest {
@@ -356,7 +347,7 @@ func checkPubkeysFollowTarget(pubkeys []string, target string) error {
 	return nil
 }
 
-// checkFormat() checks that the event's kind and tags match the expected values.
+// checkFormat checks that the event's kind and tags match the expected values.
 func checkFormat(event *nostr.Event, kind int, tags nostr.Tags) error {
 	if event.Kind != kind {
 		return fmt.Errorf("expected kind %d, got %d:\n event %v", kind, event.Kind, event)
@@ -371,7 +362,7 @@ func checkFormat(event *nostr.Event, kind int, tags nostr.Tags) error {
 	return nil
 }
 
-// contains() returns whether tags contains the specified tag.
+// contains returns whether tags contains the specified tag.
 // Tag might be strictly contained in tags, for example:
 // {{"a", "b"}...} contains {"a"} and {"a", "b"}
 func contains(tags nostr.Tags, tag nostr.Tag) bool {
@@ -386,9 +377,7 @@ outer:
 				continue outer
 			}
 		}
-
 		return true
 	}
-
 	return false
 }
