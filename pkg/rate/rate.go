@@ -82,7 +82,6 @@ func (l Limiter) Allow(pubkey string, cost int) bool {
 	defer cancel()
 
 	if cost < 0 {
-		// cost can be 0 to allow for easier testing. See rate_test.go
 		log.Printf("cost cannot be negative: %d", cost)
 		return false
 	}
