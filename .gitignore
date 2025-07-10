@@ -1,9 +1,9 @@
 **/*.env
+
+# ignore all sqlite files
 **/*.sqlite
-tmp/
+**/*-shm
+**/*-wal
 
-# Ignore all log files
+# ignore all log files
 **/*.log
-
-.vscode
-.air.toml

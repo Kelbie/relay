@@ -11,12 +11,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pippellia-btc/nastro/sqlite"
 	. "github.com/pippellia-btc/rely"
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/dvm"
-	"github.com/vertex-lab/relay/pkg/eventstore"
 	"github.com/vertex-lab/relay/pkg/rate"
+	eventstore "github.com/vertex-lab/relay/pkg/store"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
@@ -31,7 +32,7 @@ var (
 	config *cfg.Config
 	err    error
 
-	store *eventstore.Store
+	store *sqlite.Store
 	db    redb.RedisDB
 
 	limiter   rate.Limiter
@@ -49,10 +50,10 @@ func main() {
 	}
 
 	nostr.DebugLogger.SetOutput(os.Stdout)
-	nostr.InfoLogger.SetOutput(io.Discard) // discarding info logs
+	nostr.InfoLogger.SetOutput(io.Discard)
 
-	log.Println("starting up the relay")
-	defer log.Println("shutdown")
+	log.Printf("---------starting up the relay --------")
+	defer log.Printf("-----------------------------------------")
 
 	relay = NewRelay(
 		WithDomain("vertexlab.io"),
@@ -90,11 +91,9 @@ func NonDVMs(_ Client, event *nostr.Event) error {
 }
 
 func UnauthedCredits(client Client, filters nostr.Filters) error {
-	for _, filter := range filters {
-		if ContainsCreditQuery(filter) && client.Pubkey() == "" {
-			client.SendAuthChallenge()
-			return ErrUnathedCreditsQuery
-		}
+	if client.Pubkey() == "" && ContainCreditQuery(filters) {
+		client.SendAuthChallenge()
+		return ErrUnathedCreditsQuery
 	}
 	return nil
 }
@@ -102,39 +101,29 @@ func UnauthedCredits(client Client, filters nostr.Filters) error {
 // Query the event store, or redis for the credit balance, and log every error.
 func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.Event, error) {
 	events := make([]nostr.Event, 0, len(filters))
-	for _, filter := range filters {
-
-		if ContainsCreditQuery(filter) {
-			bucket, err := limiter.Bucket(client.Pubkey())
-			if err != nil {
-				log.Println(err)
-				return nil, err
-			}
-
-			info := bucket.ToEvent()
-			if err := info.Sign(config.Secret); err != nil {
-				log.Printf("failed to sign credit event for %s: %v", client.Pubkey(), err)
-				return nil, fmt.Errorf("failed to sign credit event: %w", err)
-			}
-
-			events = append(events, info)
-		}
-
-		found, err := store.Query(ctx, &filter)
+	if ContainCreditQuery(filters) {
+		bucket, err := limiter.Bucket(client.Pubkey())
 		if err != nil {
-			log.Printf("failed to query for %v: %v", filter, err)
-			return nil, fmt.Errorf("failed to query for %v: %w", filter, err)
+			log.Println(err)
+			return nil, err
 		}
 
-		events = append(events, found...)
+		info := bucket.ToEvent()
+		if err := info.Sign(config.Secret); err != nil {
+			log.Printf("failed to sign credit event for %s: %v", client.Pubkey(), err)
+			return nil, fmt.Errorf("failed to sign credit event: %w", err)
+		}
 
+		events = append(events, info)
 	}
 
-	return events, nil
-}
+	found, err := store.Query(ctx, filters...)
+	if err != nil {
+		return nil, err
+	}
 
-func ContainsCreditQuery(filter nostr.Filter) bool {
-	return slices.Contains(filter.Kinds, 22243)
+	events = append(events, found...)
+	return events, nil
 }
 
 func Process(_ Client, event *nostr.Event) error {
@@ -162,14 +151,13 @@ func process(event *nostr.Event, reply func(*nostr.Event) error) error {
 		return reply(dvm.ErrorEvent(err, dvm.NewRecord(event)))
 	}
 
-	paid := limiter.Allow(request.Pubkey, cost(request))
-	if !paid {
+	if !limiter.Allow(request.Pubkey, cost(request)) {
 		return reply(dvm.ErrorEvent(dvm.ErrNoCredits, request.Record))
 	}
 
 	request.Nodes, err = db.NodeCount(ctx)
 	if err != nil {
-		return err
+		return reply(dvm.ErrorEvent(err, request.Record))
 	}
 
 	var response dvm.Response
@@ -211,4 +199,13 @@ func cost(r *dvm.Request) int {
 	default:
 		return 1
 	}
+}
+
+func ContainCreditQuery(filters nostr.Filters) bool {
+	for _, f := range filters {
+		if slices.Contains(f.Kinds, 22243) {
+			return true
+		}
+	}
+	return false
 }

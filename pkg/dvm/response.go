@@ -11,11 +11,11 @@ import (
 	"strings"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/pippellia-btc/nastro/sqlite"
 	"github.com/pippellia-btc/slicex"
 	"github.com/vertex-lab/crawler_v2/pkg/graph"
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
-	"github.com/vertex-lab/relay/pkg/eventstore"
 )
 
 var (
@@ -186,7 +186,7 @@ func rankProfiles(ctx context.Context, db redb.RedisDB, args *RankProfilesArgs) 
 // SearchProfiles returns the top ranked pubkeys whose kind:0s contain the provided string.
 // All ranks use the specified args.Algorithm.
 // For more info read: https://vertexlab.io/docs/services/search-profiles/
-func SearchProfiles(ctx context.Context, db redb.RedisDB, store *eventstore.Store, request *Request) (Response, error) {
+func SearchProfiles(ctx context.Context, db redb.RedisDB, store *sqlite.Store, request *Request) (Response, error) {
 	args, err := request.ToSearchProfilesArgs()
 	if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func SearchProfiles(ctx context.Context, db redb.RedisDB, store *eventstore.Stor
 	return NewResponse(ranking), nil
 }
 
-func searchProfiles(ctx context.Context, db redb.RedisDB, store *eventstore.Store, args *SearchProfilesArgs) (ranking, error) {
+func searchProfiles(ctx context.Context, db redb.RedisDB, store *sqlite.Store, args *SearchProfilesArgs) (ranking, error) {
 	ranking, err := fts5(ctx, store, args.Search)
 	if err != nil {
 		return nil, err
@@ -225,9 +225,9 @@ func searchProfiles(ctx context.Context, db redb.RedisDB, store *eventstore.Stor
 
 // fts5 performs full text seach on the profiles (kind:0s) using the specified search term.
 // It returns the pubkeys and search scores (positives, higher is better) of the SQL query.
-func fts5(ctx context.Context, store *eventstore.Store, search string) (ranking, error) {
+func fts5(ctx context.Context, store *sqlite.Store, search string) (ranking, error) {
 	if pk, err := ToHexPubkey(search); err == nil {
-		// the search term IS a pubkey or npub, so we don't search further
+		// the search term is a pubkey or npub, so we don't search further
 		return slicex.Pairs[string, float64]{{Key: pk, Val: 1}}, nil
 	}
 

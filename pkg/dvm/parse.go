@@ -361,7 +361,7 @@ func (a *SearchProfilesArgs) Normalize() error {
 	return nil
 }
 
-// ToHexPubkey() returns a parsed hex pubkey from the specified string.
+// ToHexPubkey returns a parsed hex pubkey from the specified string.
 func ToHexPubkey(key string) (string, error) {
 	key = strings.TrimSpace(key)
 	if nostr.IsValidPublicKey(key) {
