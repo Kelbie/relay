@@ -52,7 +52,7 @@ func main() {
 	nostr.DebugLogger.SetOutput(os.Stdout)
 	nostr.InfoLogger.SetOutput(io.Discard)
 
-	log.Printf("---------starting up the relay --------")
+	log.Printf("---------starting up the relay--------")
 	defer log.Printf("-----------------------------------------")
 
 	relay = NewRelay(
