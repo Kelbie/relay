@@ -57,6 +57,7 @@ func New(URL string) (*sqlite.Store, error) {
 	return sqlite.New(URL,
 		sqlite.WithAdditionalSchema(fts),
 		sqlite.WithAdditionalSchema(responseTagsIndex),
+		sqlite.WithRetries(2),
 	)
 }
 

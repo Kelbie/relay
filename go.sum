@@ -111,6 +111,8 @@ github.com/pippellia-btc/nastro v0.1.3 h1:fL2AUy/1ZcBwIW9tqnlxTC3tg8e8AC/DABqv/B
 github.com/pippellia-btc/nastro v0.1.3/go.mod h1:K5EWZqmFjSvPwZceUL3VfJRMagVydXeb1Adnd1rXwkI=
 github.com/pippellia-btc/nastro v0.1.4 h1:kHLanE265med/w0waUoqyprK8zwwm+p66uUQjEMenDE=
 github.com/pippellia-btc/nastro v0.1.4/go.mod h1:K5EWZqmFjSvPwZceUL3VfJRMagVydXeb1Adnd1rXwkI=
+github.com/pippellia-btc/nastro v0.2.0 h1:KzjQUosn7yPDGJe5ahP+NS/M0qfSNxKc4JT0/Lbzv/Y=
+github.com/pippellia-btc/nastro v0.2.0/go.mod h1:K5EWZqmFjSvPwZceUL3VfJRMagVydXeb1Adnd1rXwkI=
 github.com/pippellia-btc/rely v0.7.0 h1:U0PDvEzPlfzQg0NmLaRE1RAECGJoOC+uH0qZlruaeVA=
 github.com/pippellia-btc/rely v0.7.0/go.mod h1:zi1rPk3j74AqSSia4J+6JcH4WD/JaQtdtX1wJzdJAbs=
 github.com/pippellia-btc/slicex v0.2.4 h1:zVZ7c0pZu01LL0f+cWPrgBdPJHQ3iMyGjf7ucGoO6RY=
