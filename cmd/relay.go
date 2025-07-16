@@ -124,7 +124,7 @@ func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.E
 
 	events = append(events, found...)
 	if len(events) > 1000 {
-		log.Printf("client with IP %s is receiving %d events", client.IP(), len(events))
+		log.Printf("client with IP %s is receiving %d events for these filters %v", client.IP(), len(events), filters)
 	}
 	return events, nil
 }
