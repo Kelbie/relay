@@ -52,7 +52,7 @@ func main() {
 	nostr.DebugLogger.SetOutput(os.Stdout)
 	nostr.InfoLogger.SetOutput(io.Discard)
 
-	log.Printf("---------starting up the relay--------")
+	log.Printf("--------- starting up the relay --------")
 	defer log.Printf("-----------------------------------------")
 
 	relay = NewRelay(
@@ -123,6 +123,9 @@ func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.E
 	}
 
 	events = append(events, found...)
+	if len(events) > 1000 {
+		log.Printf("client with IP %s is receiving %d events", client.IP(), len(events))
+	}
 	return events, nil
 }
 
