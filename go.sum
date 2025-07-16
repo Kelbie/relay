@@ -107,14 +107,10 @@ github.com/onsi/gomega v1.4.1/go.mod h1:C1qb7wdrVGGVU+Z6iS04AVkA3Q65CEZX59MT0QO5
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
-github.com/pippellia-btc/nastro v0.1.3 h1:fL2AUy/1ZcBwIW9tqnlxTC3tg8e8AC/DABqv/Bpe998=
-github.com/pippellia-btc/nastro v0.1.3/go.mod h1:K5EWZqmFjSvPwZceUL3VfJRMagVydXeb1Adnd1rXwkI=
-github.com/pippellia-btc/nastro v0.1.4 h1:kHLanE265med/w0waUoqyprK8zwwm+p66uUQjEMenDE=
-github.com/pippellia-btc/nastro v0.1.4/go.mod h1:K5EWZqmFjSvPwZceUL3VfJRMagVydXeb1Adnd1rXwkI=
 github.com/pippellia-btc/nastro v0.2.0 h1:KzjQUosn7yPDGJe5ahP+NS/M0qfSNxKc4JT0/Lbzv/Y=
 github.com/pippellia-btc/nastro v0.2.0/go.mod h1:K5EWZqmFjSvPwZceUL3VfJRMagVydXeb1Adnd1rXwkI=
-github.com/pippellia-btc/rely v0.7.0 h1:U0PDvEzPlfzQg0NmLaRE1RAECGJoOC+uH0qZlruaeVA=
-github.com/pippellia-btc/rely v0.7.0/go.mod h1:zi1rPk3j74AqSSia4J+6JcH4WD/JaQtdtX1wJzdJAbs=
+github.com/pippellia-btc/rely v0.8.1 h1:mbbawVfHZbYfgwtiVQQ3DrOuIvyEyHw5AHRfe5i1lOI=
+github.com/pippellia-btc/rely v0.8.1/go.mod h1:zi1rPk3j74AqSSia4J+6JcH4WD/JaQtdtX1wJzdJAbs=
 github.com/pippellia-btc/slicex v0.2.4 h1:zVZ7c0pZu01LL0f+cWPrgBdPJHQ3iMyGjf7ucGoO6RY=
 github.com/pippellia-btc/slicex v0.2.4/go.mod h1:fu7VjA9Cdk76wIUlkzWOYiMG8/VEs1fJiUhkKqEopd8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
