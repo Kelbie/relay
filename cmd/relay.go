@@ -25,6 +25,7 @@ import (
 
 var (
 	ErrUnathedCreditsQuery = errors.New("auth-required: you must be authenticated to request your credit balance")
+	ErrUnsupportedSearch   = errors.New("NIP-50 search is not supported")
 )
 
 var (
@@ -73,7 +74,7 @@ func main() {
 	log.Printf("redis connected at %s", config.RedisAddress)
 
 	relay.RejectEvent = append(relay.RejectEvent, NonDVMs)
-	relay.RejectReq = append(relay.RejectReq, UnauthedCredits)
+	relay.RejectReq = append(relay.RejectReq, WithSearch, UnauthedCredits)
 	relay.OnEvent = Process
 	relay.OnReq = Query
 
@@ -90,12 +91,30 @@ func NonDVMs(_ Client, event *nostr.Event) error {
 	return nil
 }
 
+func WithSearch(_ Client, filters nostr.Filters) error {
+	for _, f := range filters {
+		if f.Search != "" {
+			return ErrUnsupportedSearch
+		}
+	}
+	return nil
+}
+
 func UnauthedCredits(client Client, filters nostr.Filters) error {
 	if client.Pubkey() == "" && ContainCreditQuery(filters) {
 		client.SendAuthChallenge()
 		return ErrUnathedCreditsQuery
 	}
 	return nil
+}
+
+func ContainCreditQuery(filters nostr.Filters) bool {
+	for _, f := range filters {
+		if slices.Contains(f.Kinds, 22243) {
+			return true
+		}
+	}
+	return false
 }
 
 // Query the event store, or redis for the credit balance, and log every error.
@@ -202,13 +221,4 @@ func cost(r *dvm.Request) int {
 	default:
 		return 1
 	}
-}
-
-func ContainCreditQuery(filters nostr.Filters) bool {
-	for _, f := range filters {
-		if slices.Contains(f.Kinds, 22243) {
-			return true
-		}
-	}
-	return false
 }
