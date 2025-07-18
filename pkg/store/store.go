@@ -1,6 +1,7 @@
 package store
 
 import (
+	"github.com/pippellia-btc/nastro"
 	"github.com/pippellia-btc/nastro/sqlite"
 )
 
@@ -51,12 +52,19 @@ var (
 			AND typeof(json_extract(value, '$[0]')) = 'text'
 			AND json_extract(value, '$[0]') GLOB '[a-zA-Z]';
 	END;`
+
+	// increasing write limits
+	writeLimits = nastro.WriteLimits{
+		MaxTags:          30000,
+		MaxContentLenght: 200000,
+	}
 )
 
 func New(URL string) (*sqlite.Store, error) {
 	return sqlite.New(URL,
 		sqlite.WithAdditionalSchema(fts),
 		sqlite.WithAdditionalSchema(responseTagsIndex),
+		sqlite.WithWriteLimits(writeLimits),
 		sqlite.WithRetries(2),
 	)
 }
