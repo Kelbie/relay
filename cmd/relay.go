@@ -58,7 +58,7 @@ func main() {
 
 	relay = NewRelay(
 		WithDomain("vertexlab.io"),
-		// WithOverloadLogs(),
+		WithOverloadLogs(),
 		WithQueueCapacity(2000),
 		WithMaxProcessors(10),
 	)
