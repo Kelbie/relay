@@ -114,7 +114,7 @@ func (r Record) ToTags() nostr.Tags {
 	return nostr.Tags{{"e", r.ID}, {"p", r.Pubkey}}
 }
 
-// Parse() parses all the tags with prefix "param" into a Request structure.
+// Parse all the tags with prefix "param" into a Request structure.
 // If some params are not provided, the default values will be used.
 func Parse(req *nostr.Event) (*Request, error) {
 	if len(req.Tags) > ExtendedMaxLimit+4 {
@@ -167,7 +167,6 @@ func Parse(req *nostr.Event) (*Request, error) {
 			return nil, fmt.Errorf("%w: at most one '%s' can be provided", ErrMultipleParams, key)
 		}
 	}
-
 	return &request, nil
 }
 
