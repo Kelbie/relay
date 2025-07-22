@@ -10,7 +10,7 @@ local LAST_MODIFIED = 'last_modified'
 local NOT_PAID = 'unable to pay'
 local PAID = 'paid'
 
--- automatic_refill() refills the bucket of `pubkey` when conditions are met, and returns the number of tokens it holds at the end.
+-- automatic_refill the bucket of `pubkey` when conditions are met, and returns the number of tokens it holds at the end.
 local function automatic_refill(pubkey, refill_tokens, refill_interval, max_tokens_before_refill, walks_threshold)
     local tokens = tonumber(redis.call('HGET', BUCKET .. pubkey, TOKENS)) or 0
     if tokens > max_tokens_before_refill then

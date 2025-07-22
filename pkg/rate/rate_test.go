@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"reflect"
 	"strconv"
 	"testing"
@@ -28,6 +29,19 @@ var (
 	lowReputationKey          = pubkeyData{pubkey: "spammer1", ID: "2"}
 	unknownKey                = pubkeyData{pubkey: "spammer2"}
 )
+
+func init() {
+	code, err := os.ReadFile("rate.lua")
+	if err != nil {
+		panic(fmt.Errorf("failed to read rate.lua file: %w", err))
+	}
+
+	redis := redis.NewClient(&redis.Options{Addr: testAddress})
+	_, err = redis.FunctionLoadReplace(context.Background(), string(code)).Result()
+	if err != nil {
+		panic(fmt.Errorf("failed to load redis function: %w", err))
+	}
+}
 
 func TestBucket(t *testing.T) {
 	db := redis.NewClient(&redis.Options{Addr: testAddress})

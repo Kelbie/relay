@@ -89,17 +89,27 @@ func (l Limiter) Allow(pubkey string, cost int) bool {
 	args := []any{pubkey, cost, l.policy.RefillTokens, l.policy.RefillIntervalSeconds, l.policy.MaxTokensBeforeRefill, l.policy.WalksThreshold}
 	res, err := l.client.FCall(ctx, "pay", nil, args...).Result()
 	if err != nil {
-		log.Printf("Limiter: failed to pay: %v", err)
+		log.Printf("Limiter: failed to pay1: %v", err)
 		return false
 	}
 
 	code, ok := res.(string)
 	if !ok {
-		log.Printf("Limiter: failed to pay: failed to type assert the result as a string: %v", res)
+		log.Printf("Limiter: failed to pay2: failed to type assert the result as a string: %v", res)
 		return false
 	}
 
-	return code == "paid"
+	switch code {
+	case "paid":
+		return true
+
+	case "unable to pay":
+		return false
+
+	default:
+		log.Printf("Limiter: failed to pay: %s", code)
+		return false
+	}
 }
 
 // Bucket returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
