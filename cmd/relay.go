@@ -14,10 +14,10 @@ import (
 	"github.com/pippellia-btc/nastro/sqlite"
 	. "github.com/pippellia-btc/rely"
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
+	eventstore "github.com/vertex-lab/crawler_v2/pkg/store"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
-	eventstore "github.com/vertex-lab/relay/pkg/store"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
