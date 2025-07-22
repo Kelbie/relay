@@ -1,12 +1,11 @@
 package store
 
 import (
-	"github.com/pippellia-btc/nastro"
 	"github.com/pippellia-btc/nastro/sqlite"
 )
 
 var (
-	fts = `
+	profileFTS = `
 	CREATE VIRTUAL TABLE IF NOT EXISTS profiles_fts USING fts5(
 		id UNINDEXED,
 		pubkey UNINDEXED,
@@ -52,21 +51,25 @@ var (
 			AND typeof(json_extract(value, '$[0]')) = 'text'
 			AND json_extract(value, '$[0]') GLOB '[a-zA-Z]';
 	END;`
-
-	// increasing write limits
-	writeLimits = nastro.WriteLimits{
-		MaxTags:          30000,
-		MaxContentLenght: 200000,
-	}
 )
 
-func New(URL string) (*sqlite.Store, error) {
-	return sqlite.New(URL,
-		sqlite.WithAdditionalSchema(fts),
+func New(URL string, opts ...sqlite.Option) (*sqlite.Store, error) {
+	store, err := sqlite.New(URL,
+		sqlite.WithAdditionalSchema(profileFTS),
 		sqlite.WithAdditionalSchema(responseTagsIndex),
-		sqlite.WithWriteLimits(writeLimits),
 		sqlite.WithRetries(2),
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, opt := range opts {
+		if err := opt(store); err != nil {
+			return nil, err
+		}
+	}
+	return store, nil
 }
 
 // Profile represent the internal representation of the content of kind:0s, used for full-text-search.
