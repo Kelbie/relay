@@ -69,8 +69,14 @@ func main() {
 	}
 	log.Printf("sqlite connected to %s", config.SQLitePath)
 
-	db = redb.New(&redis.Options{Addr: config.RedisAddress})
-	limiter = rate.NewLimiterWithPolicy(db.Client, config.Limits)
+	db = redb.New(&redis.Options{
+		Addr: config.RedisAddress,
+	})
+
+	limiter = rate.NewLimiterWithPolicy(
+		db.Client,
+		config.Limits,
+	)
 	log.Printf("redis connected at %s", config.RedisAddress)
 
 	relay.RejectEvent = append(relay.RejectEvent, NonDVMs)
