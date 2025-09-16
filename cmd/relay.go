@@ -45,6 +45,9 @@ func main() {
 	defer cancel()
 	go HandleSignals(cancel)
 
+	log.Printf("--------- starting up the relay --------")
+	defer log.Printf("-----------------------------------------")
+
 	config, err = cfg.Load()
 	if err != nil {
 		panic(err)
@@ -52,9 +55,6 @@ func main() {
 
 	nostr.DebugLogger.SetOutput(os.Stdout)
 	nostr.InfoLogger.SetOutput(io.Discard)
-
-	log.Printf("--------- starting up the relay --------")
-	defer log.Printf("-----------------------------------------")
 
 	relay = NewRelay(
 		WithDomain("vertexlab.io"),
@@ -142,9 +142,6 @@ func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.E
 	}
 
 	events = append(events, found...)
-	if len(events) > 1000 {
-		log.Printf("client with IP %s is receiving %d events for these filters %v", client.IP(), len(events), filters)
-	}
 	return events, nil
 }
 
