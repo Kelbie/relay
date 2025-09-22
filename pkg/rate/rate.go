@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -75,19 +77,38 @@ type Limiter struct {
 	refill RefillPolicy
 }
 
-// NewLimiterWithPolicy returns a limiter with the specified [RefillPolicy].
+// NewLimiter returns a limiter with the specified [RefillPolicy].
 func NewLimiter(client *redis.Client, refill RefillPolicy) (Limiter, error) {
-	code, err := os.ReadFile("rate.lua")
-	if err != nil {
-		return Limiter{}, fmt.Errorf("failed to read rate.lua file: %w", err)
+	limiter := Limiter{client: client, refill: refill}
+	if err := limiter.init(); err != nil {
+		return Limiter{}, fmt.Errorf("NewLimiter: %w", err)
+	}
+	return limiter, nil
+}
+
+// init loads the Lua "rate.lua" script from the same directory as this source file
+// and registers (or replaces) it as a Redis function.
+func (l Limiter) init() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return errors.New("cannot determine caller directory")
 	}
 
-	err = client.FunctionLoadReplace(context.Background(), string(code)).Err()
+	dir := filepath.Dir(filename)
+	path := filepath.Join(dir, "rate.lua")
+	code, err := os.ReadFile(path)
 	if err != nil {
-		return Limiter{}, fmt.Errorf("failed to load redis function: %w", err)
+		return fmt.Errorf("failed to read %s: %w", path, err)
 	}
 
-	return Limiter{client: client, refill: refill}, nil
+	err = l.client.FunctionLoadReplace(ctx, string(code)).Err()
+	if err != nil {
+		return fmt.Errorf("failed to load redis function: %w", err)
+	}
+	return nil
 }
 
 var (
