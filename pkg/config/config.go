@@ -41,24 +41,35 @@ func (c Config) Print() {
 }
 
 type RelayConfig struct {
-	RelayAddress string `envconfig:"RELAY_ADDRESS"`
-	RedisAddress string `envconfig:"REDIS_ADDRESS"`
-	SQLiteURL    string `envconfig:"SQLITE_URL"`
-
-	SecretKey string `envconfig:"SECRET_KEY"`
-	PublicKey string
+	RelayAddress  string `envconfig:"RELAY_ADDRESS"`
+	RedisAddress  string `envconfig:"REDIS_ADDRESS"`
+	SQLiteURL     string `envconfig:"SQLITE_URL"`
+	QueueCapacity int    `envconfig:"QUEUE_CAPACITY"`
+	Processors    int    `envconfig:"PROCESSORS"`
+	SecretKey     string `envconfig:"SECRET_KEY"`
+	PublicKey     string ``
 }
 
 // NewRelayConfig returns a relay configuration structure with default paramenters.
 func NewRelayConfig() RelayConfig {
 	return RelayConfig{
-		RelayAddress: "localhost:3334",
-		RedisAddress: "localhost:6379",
-		SQLiteURL:    "relay.sqlite",
+		RelayAddress:  "localhost:3334",
+		RedisAddress:  "localhost:6379",
+		SQLiteURL:     "relay.sqlite",
+		QueueCapacity: 1000,
+		Processors:    4,
 	}
 }
 
 func (c RelayConfig) Validate() error {
+	if c.QueueCapacity < 0 {
+		return fmt.Errorf("queue capacity value must be positiveL %d", c.QueueCapacity)
+	}
+
+	if c.Processors < 0 {
+		return fmt.Errorf("processors value must be positive: %d", c.Processors)
+	}
+
 	pk, err := nostr.GetPublicKey(c.SecretKey)
 	if err != nil {
 		return fmt.Errorf("secret key is not a valid: %w", err)
@@ -72,11 +83,13 @@ func (c RelayConfig) Validate() error {
 
 func (c RelayConfig) Print() {
 	fmt.Println("Relay:")
-	fmt.Printf("  SecretKey: %s\n", c.SecretKey)
-	fmt.Printf("  PublicKey: %s\n", c.PublicKey)
 	fmt.Printf("  RedisAddress: %s\n", c.RedisAddress)
 	fmt.Printf("  RelayAddress: %s\n", c.RelayAddress)
 	fmt.Printf("  SQLiteURL: %s\n", c.SQLiteURL)
+	fmt.Printf("  QueueCapacity: %d\n", c.QueueCapacity)
+	fmt.Printf("  Processors: %d\n", c.Processors)
+	fmt.Printf("  SecretKey: %s\n", c.SecretKey)
+	fmt.Printf("  PublicKey: %s\n", c.PublicKey)
 }
 
 // Load creates a new [Config] with default parameters.

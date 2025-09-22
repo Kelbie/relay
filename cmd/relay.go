@@ -59,8 +59,8 @@ func main() {
 	relay = NewRelay(
 		WithDomain("vertexlab.io"),
 		WithOverloadLogs(),
-		WithQueueCapacity(2000),
-		WithMaxProcessors(10),
+		WithQueueCapacity(config.QueueCapacity),
+		WithMaxProcessors(config.Processors),
 	)
 
 	store, err = eventstore.New(config.SQLiteURL)
