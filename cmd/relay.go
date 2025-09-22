@@ -30,7 +30,7 @@ var (
 
 var (
 	relay  *Relay
-	config *cfg.Config
+	config cfg.Config
 	err    error
 
 	store *sqlite.Store
@@ -63,20 +63,21 @@ func main() {
 		WithMaxProcessors(10),
 	)
 
-	store, err = eventstore.New(config.SQLitePath)
+	store, err = eventstore.New(config.SQLiteURL)
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("sqlite connected to %s", config.SQLitePath)
+	log.Printf("sqlite connected to %s", config.SQLiteURL)
 
 	db = redb.New(&redis.Options{
 		Addr: config.RedisAddress,
 	})
 
-	limiter = rate.NewLimiterWithPolicy(
-		db.Client,
-		config.Limits,
-	)
+	limiter, err = rate.NewLimiter(db.Client, config.Refill)
+	if err != nil {
+		panic(err)
+	}
+
 	log.Printf("redis connected at %s", config.RedisAddress)
 
 	relay.RejectEvent = append(relay.RejectEvent, NonDVMs)
@@ -134,7 +135,7 @@ func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.E
 		}
 
 		info := bucket.ToEvent()
-		if err := info.Sign(config.Secret); err != nil {
+		if err := info.Sign(config.SecretKey); err != nil {
 			log.Printf("failed to sign credit event for %s: %v", client.Pubkey(), err)
 			return nil, fmt.Errorf("failed to sign credit event: %w", err)
 		}
@@ -153,7 +154,7 @@ func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.E
 
 func Process(_ Client, event *nostr.Event) error {
 	err := process(event, func(event *nostr.Event) error {
-		if err := event.Sign(config.Secret); err != nil {
+		if err := event.Sign(config.SecretKey); err != nil {
 			return fmt.Errorf("failed to sign the response %s: %w", event.ID, err)
 		}
 
