@@ -3,8 +3,6 @@ package rate
 import (
 	"context"
 	"fmt"
-	"math"
-	"os"
 	"reflect"
 	"strconv"
 	"testing"
@@ -14,213 +12,185 @@ import (
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
 )
 
-type pubkeyData struct {
-	pubkey string
-	ID     string
-	walks  int
+type user struct {
+	pubkey      string
+	isReputable bool
 	Bucket
 }
 
 var (
+	ctx         = context.Background()
 	testAddress = "localhost:6380"
+	Sep2025     = int64(1758047781)
 
-	reputableKeyWithBucket    = pubkeyData{pubkey: "reputable1", ID: "0", Bucket: Bucket{Tokens: 100, LastModified: 420}, walks: DefaultWalksThreshold}
-	reputableKeyWithoutBucket = pubkeyData{pubkey: "reputable2", ID: "1", walks: DefaultWalksThreshold}
-	lowReputationKey          = pubkeyData{pubkey: "spammer1", ID: "2"}
-	unknownKey                = pubkeyData{pubkey: "spammer2"}
+	reputableFull     = user{pubkey: "reputable1", isReputable: true, Bucket: Bucket{Tokens: DefaultAmount, LastModified: Sep2025}}
+	reputableToRefill = user{pubkey: "reputable2", isReputable: true, Bucket: Bucket{Tokens: DefaultAmount / 2, LastModified: Sep2025}}
+	reputableEmpty    = user{pubkey: "reputable3", isReputable: true}
+	spammer           = user{pubkey: "spammer1"}
+	unknown           = user{pubkey: "spammer2"}
+	users             = []user{reputableFull, reputableToRefill, reputableEmpty, spammer, unknown}
 )
 
-func init() {
-	code, err := os.ReadFile("rate.lua")
-	if err != nil {
-		panic(fmt.Errorf("failed to read rate.lua file: %w", err))
-	}
+// setup redis with the user, adding keys walks, and buckets.
+func setup(db redb.RedisDB) error {
+	ctx := context.Background()
 
-	redis := redis.NewClient(&redis.Options{Addr: testAddress})
-	_, err = redis.FunctionLoadReplace(context.Background(), string(code)).Result()
-	if err != nil {
-		panic(fmt.Errorf("failed to load redis function: %w", err))
-	}
-}
+	for i, user := range users {
+		if _, err := db.AddNode(ctx, user.pubkey); err != nil {
+			return fmt.Errorf("setup failed: %w", err)
+		}
 
-func TestBucket(t *testing.T) {
-	db := redis.NewClient(&redis.Options{Addr: testAddress})
-	defer db.FlushAll(context.Background())
+		err := db.Client.HSet(ctx, creditBucket(user.pubkey), KeyTokens, user.Tokens, KeyLastModified, user.LastModified).Err()
+		if err != nil {
+			return fmt.Errorf("setup failed: %w", err)
+		}
 
-	bucket := Bucket{Tokens: 69, LastModified: 420}
-	if err := addBucket(db, "reputable", bucket); err != nil {
-		t.Fatalf("setup failed: %v", err)
-	}
-
-	tests := []struct {
-		name           string
-		pubkey         string
-		expectedBucket *Bucket
-	}{
-		{
-			name:           "bucket not found",
-			pubkey:         "random",
-			expectedBucket: &Bucket{},
-		},
-		{
-			name:           "bucket found",
-			pubkey:         "reputable",
-			expectedBucket: &bucket,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			limiter := NewLimiter(db)
-			bucket, err := limiter.Bucket(test.pubkey)
-			if err != nil {
-				t.Fatalf("expected error nil, got %v", err)
+		if user.isReputable {
+			walks := make([]any, 100)
+			for i := range 100 {
+				walks[i] = i
 			}
 
-			if !reflect.DeepEqual(bucket, test.expectedBucket) {
-				t.Fatalf("expected bucket %v, got %v", test.expectedBucket, bucket)
+			key := redb.KeyWalksVisitingPrefix + strconv.Itoa(i)
+			if err := db.Client.SAdd(ctx, key, walks...).Err(); err != nil {
+				return fmt.Errorf("setup failed: %w", err)
 			}
-		})
+		}
 	}
+
+	return nil
 }
 
-// We simulate running the Lua function automatic_refill() by calling the pay()
-// function with a cost of 0.
+// We simulate running the Lua function "automatic_refill" by calling [Allow] with a cost of 0.
 func TestAutomaticRefill(t *testing.T) {
-	db := redis.NewClient(&redis.Options{Addr: testAddress})
-	defer db.FlushAll(context.Background())
+	db := redb.New(&redis.Options{Addr: testAddress})
+	defer db.Client.FlushAll(ctx)
+
+	if err := setup(db); err != nil {
+		t.Fatal(err)
+	}
 
 	now := time.Now().Unix()
 	tests := []struct {
-		name           string
-		pubkeyData     pubkeyData
-		policy         PagerankRefillPolicy
-		expectedBucket *Bucket
+		name   string
+		user   user
+		refill RefillPolicy
+		bucket Bucket
 	}{
 		{
-			name:           "too many tokens, no refill",
-			pubkeyData:     reputableKeyWithBucket,
-			policy:         PagerankRefillPolicy{MaxTokensBeforeRefill: 0},
-			expectedBucket: &Bucket{Tokens: 100, LastModified: now},
+			name:   "too many tokens, no refill",
+			user:   reputableFull,
+			refill: RefillPolicy{Amount: 0},
+			bucket: reputableFull.Bucket,
 		},
 		{
-			name:           "not enough time passed, no refill",
-			pubkeyData:     reputableKeyWithBucket,
-			policy:         PagerankRefillPolicy{RefillIntervalSeconds: math.MaxInt},
-			expectedBucket: &Bucket{Tokens: 100, LastModified: now},
+			name:   "too soon, no refill",
+			user:   reputableToRefill,
+			refill: RefillPolicy{Interval: 7 * 24 * time.Hour},
+			bucket: reputableToRefill.Bucket,
 		},
 		{
-			name:           "unknown key, no refill",
-			pubkeyData:     unknownKey,
-			policy:         NewPagerankRefillPolicy(),
-			expectedBucket: &Bucket{LastModified: now},
+			name:   "unknown key, no refill",
+			user:   unknown,
+			refill: NewRefillPolicy(),
+			bucket: unknown.Bucket,
 		},
 		{
-			name:           "low reputation key, no refill",
-			pubkeyData:     lowReputationKey,
-			policy:         NewPagerankRefillPolicy(),
-			expectedBucket: &Bucket{LastModified: now},
+			name:   "low reputation key, no refill",
+			user:   spammer,
+			refill: NewRefillPolicy(),
+			bucket: spammer.Bucket,
 		},
 		{
-			name:           "reputable without bucket, refill",
-			pubkeyData:     reputableKeyWithoutBucket,
-			policy:         NewPagerankRefillPolicy(),
-			expectedBucket: &Bucket{Tokens: DefaultRefillTokens, LastModified: now},
+			name:   "reputable without bucket, refill",
+			user:   reputableEmpty,
+			refill: NewRefillPolicy(),
+			bucket: Bucket{Tokens: DefaultAmount, LastModified: now},
 		},
 		{
-			name:           "reputable with bucket, refill",
-			pubkeyData:     reputableKeyWithBucket,
-			policy:         NewPagerankRefillPolicy(),
-			expectedBucket: &Bucket{Tokens: 100 + DefaultRefillTokens, LastModified: now},
+			name:   "reputable with bucket, refill",
+			user:   reputableToRefill,
+			refill: NewRefillPolicy(),
+			bucket: Bucket{Tokens: DefaultAmount, LastModified: now},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			limiter := Limiter{
-				client: db,
-				policy: test.policy,
+			limiter, err := NewLimiter(db.Client, test.refill)
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			if err := setup(db, test.pubkeyData); err != nil {
-				t.Fatalf("setup failed: %v", err)
+			allow := limiter.Allow(test.user.pubkey, 0)
+			if !allow {
+				t.Fatalf("failed to allow a cost of 0")
 			}
 
-			paid := limiter.Allow(test.pubkeyData.pubkey, 0)
-			if !paid {
-				t.Fatalf("failed to pay 0 cost")
-			}
-
-			bucket, err := limiter.Bucket(test.pubkeyData.pubkey)
+			bucket, err := limiter.Bucket(test.user.pubkey)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
 
-			if !reflect.DeepEqual(bucket, test.expectedBucket) {
-				t.Fatalf("expected bucket %v, got %v", test.expectedBucket, bucket)
+			if !reflect.DeepEqual(bucket, test.bucket) {
+				t.Fatalf("expected bucket %v, got %v", test.bucket, bucket)
 			}
 		})
 	}
 }
 
-// We simulate running the Lua function pay() without automatic refills by using
+// We simulate running the Lua function "pay" without "automatic_refill" by using
 // the policy maxTokensBeforeRefill = 0
 func TestAllow(t *testing.T) {
-	db := redis.NewClient(&redis.Options{Addr: testAddress})
-	defer db.FlushAll(context.Background())
+	db := redb.New(&redis.Options{Addr: testAddress})
+	defer db.Client.FlushAll(context.Background())
+
+	if err := setup(db); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
-		name       string
-		pubkeyData pubkeyData
-		cost       int
-		policy     PagerankRefillPolicy
-
-		expectedPaid   bool
-		expectedBucket *Bucket
+		name   string
+		user   user
+		cost   int
+		allow  bool
+		bucket Bucket
 	}{
 		{
-			name:       "not enough tokens",
-			pubkeyData: reputableKeyWithBucket,
-			cost:       101,
-			policy:     PagerankRefillPolicy{MaxTokensBeforeRefill: 0},
-
-			expectedPaid:   false,
-			expectedBucket: &reputableKeyWithBucket.Bucket,
+			name:   "not enough tokens",
+			user:   reputableFull,
+			cost:   DefaultAmount + 1,
+			allow:  false,
+			bucket: reputableFull.Bucket,
 		},
 		{
-			name:       "enough tokens",
-			pubkeyData: reputableKeyWithBucket,
-			cost:       10,
-			policy:     PagerankRefillPolicy{MaxTokensBeforeRefill: 0},
-
-			expectedPaid:   true,
-			expectedBucket: &Bucket{Tokens: 90, LastModified: time.Now().Unix()},
+			name:   "enough tokens",
+			user:   reputableFull,
+			cost:   DefaultAmount - 1,
+			allow:  true,
+			bucket: Bucket{Tokens: 1, LastModified: time.Now().Unix()},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			limiter := Limiter{
-				client: db,
-				policy: test.policy,
+			limiter, err := NewLimiter(db.Client, NoRefill)
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			if err := setup(db, test.pubkeyData); err != nil {
-				t.Fatalf("setup failed: %v", err)
+			allow := limiter.Allow(test.user.pubkey, test.cost)
+			if allow != test.allow {
+				t.Fatalf("expected %v, got %v", test.allow, allow)
 			}
 
-			paid := limiter.Allow(test.pubkeyData.pubkey, test.cost)
-			if paid != test.expectedPaid {
-				t.Fatalf("expected paid %v, got %v", test.expectedPaid, paid)
-			}
-
-			bucket, err := limiter.Bucket(test.pubkeyData.pubkey)
+			bucket, err := limiter.Bucket(test.user.pubkey)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
 
-			if !reflect.DeepEqual(bucket, test.expectedBucket) {
-				t.Fatalf("expected bucket %v, got %v", test.expectedBucket, bucket)
+			if !reflect.DeepEqual(bucket, test.bucket) {
+				t.Fatalf("expected bucket %v, got %v", test.bucket, bucket)
 			}
 		})
 	}
@@ -230,8 +200,12 @@ func TestTopUp(t *testing.T) {
 	db := redis.NewClient(&redis.Options{Addr: testAddress})
 	defer db.FlushAll(context.Background())
 
-	limiter := NewLimiter(db)
-	_, err := limiter.TopUp("whatever", 100)
+	limiter, err := NewLimiter(db, NoRefill)
+	if err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+
+	_, err = limiter.TopUp("whatever", 100)
 	if err != nil {
 		t.Fatalf("expected error nil, got %v", err)
 	}
@@ -257,77 +231,22 @@ func TestTopUp(t *testing.T) {
 
 // ---------------------------------BENCHMARKS---------------------------------
 
-func BenchmarkPay(b *testing.B) {
+func BenchmarkAllow(b *testing.B) {
 	db := redis.NewClient(&redis.Options{Addr: testAddress})
 	defer db.FlushAll(context.Background())
 
-	limiter := NewLimiter(db)
-	b.ResetTimer()
-
-	for i := range b.N {
-		pubkey := strconv.FormatInt(int64(i), 10)
-		limiter.Allow(pubkey, 1)
-	}
-}
-
-// -----------------------------------HELPERS----------------------------------
-
-// setup redis with the pubkeyData, adding keys walks, and buckets.
-func setup(redis *redis.Client, data pubkeyData) error {
-	if err := addKey(redis, data.pubkey, data.ID); err != nil {
-		return err
-	}
-
-	if err := addWalks(redis, data.ID, data.walks); err != nil {
-		return err
-	}
-
-	if err := addBucket(redis, data.pubkey, data.Bucket); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// adds key to the keyIndex
-func addKey(redis *redis.Client, pubkey, ID string) error {
-	if err := redis.HSet(context.Background(), redb.KeyKeyIndex, pubkey, ID).Err(); err != nil {
-		return fmt.Errorf("failed to add pubkey %s to the keyIndex: %w", pubkey, err)
-	}
-
-	return nil
-}
-
-// adds walks to walksVisiting:`ID` if walks is greater than zero.
-func addWalks(redis *redis.Client, ID string, walks int) error {
-	if walks < 1 {
-		return nil
-	}
-
-	walksToAdd := make([]any, walks)
-	for i := 0; i < walks; i++ {
-		walksToAdd[i] = i
-	}
-
-	set := redb.KeyWalksVisitingPrefix + ID
-	if err := redis.SAdd(context.Background(), set, walksToAdd...).Err(); err != nil {
-		return fmt.Errorf("failed to add walks to %s: %w", set, err)
-	}
-
-	return nil
-}
-
-// adds bucket to a pubkey if the bucket is not empty
-func addBucket(redis *redis.Client, pubkey string, bucket Bucket) error {
-	if bucket.Tokens == 0 && bucket.LastModified == 0 {
-		return nil
-	}
-
-	bucketKey := "creditBucket:" + pubkey
-	err := redis.HSet(context.Background(), bucketKey, "tokens", bucket.Tokens, "last_modified", bucket.LastModified).Err()
+	limiter, err := NewLimiter(db, NoRefill)
 	if err != nil {
-		return fmt.Errorf("failed to set %s: %w", bucketKey, err)
+		b.Fatalf("expected nil, got %v", err)
 	}
 
-	return nil
+	_, err = limiter.TopUp("pubkey", 100_000)
+	if err != nil {
+		b.Fatalf("expected nil, got %v", err)
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		limiter.Allow("pubkey", 1)
+	}
 }

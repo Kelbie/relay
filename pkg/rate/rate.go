@@ -2,8 +2,10 @@ package rate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"time"
 
@@ -12,11 +14,12 @@ import (
 )
 
 const (
-	DefaultRefillTokens          int = 60
-	DefaultRefillIntervalSeconds int = 24 * 60 * 60
-	DefaultMaxTokensBeforeRefill int = 250
-	DefaultWalksThreshold        int = 110
+	DefaultAmount        int           = 100
+	DefaultInterval      time.Duration = 24 * time.Hour
+	DefaultWalkThreshold int           = 5
 )
+
+var NoRefill = RefillPolicy{Amount: 0}
 
 type Bucket struct {
 	Tokens       int   `redis:"tokens"`
@@ -24,7 +27,7 @@ type Bucket struct {
 }
 
 // ToEvent returns the bucket as an unsigned kind 22243 nostr event
-func (b *Bucket) ToEvent() nostr.Event {
+func (b Bucket) ToEvent() nostr.Event {
 	return nostr.Event{
 		Kind:      22243,
 		CreatedAt: nostr.Now(),
@@ -35,46 +38,67 @@ func (b *Bucket) ToEvent() nostr.Event {
 	}
 }
 
-type PagerankRefillPolicy struct {
-	RefillTokens          int
-	RefillIntervalSeconds int
-	MaxTokensBeforeRefill int
-	WalksThreshold        int
+type RefillPolicy struct {
+	Amount        int           `envconfig:"REFILL_AMOUNT"`
+	Interval      time.Duration `envconfig:"REFILL_INTERVAL"`
+	WalkThreshold int           `envconfig:"REFILL_WALK_THRESHOLD"`
 }
 
-func (p PagerankRefillPolicy) Print() {
-	fmt.Println("Refill Policy:")
-	fmt.Printf("  Refill Tokens: %d\n", p.RefillTokens)
-	fmt.Printf("  Refill Interval: %ds\n", p.RefillIntervalSeconds)
-	fmt.Printf("  Max Tokens Before Refill: %d\n", p.MaxTokensBeforeRefill)
-	fmt.Printf("  Walk Threshold: %d\n", p.WalksThreshold)
-}
-
-func NewPagerankRefillPolicy() PagerankRefillPolicy {
-	return PagerankRefillPolicy{
-		RefillTokens:          DefaultRefillTokens,
-		RefillIntervalSeconds: DefaultRefillIntervalSeconds,
-		MaxTokensBeforeRefill: DefaultMaxTokensBeforeRefill,
-		WalksThreshold:        DefaultWalksThreshold,
+func NewRefillPolicy() RefillPolicy {
+	return RefillPolicy{
+		Amount:        DefaultAmount,
+		Interval:      DefaultInterval,
+		WalkThreshold: DefaultWalkThreshold,
 	}
+}
+
+func (p RefillPolicy) Validate() error {
+	if p.Amount < 0 {
+		return errors.New("amount cannot be negative")
+	}
+
+	if p.WalkThreshold < 0 {
+		return errors.New("walk threshold cannot be negative")
+	}
+	return nil
+}
+
+func (p RefillPolicy) Print() {
+	fmt.Println("Refill Policy:")
+	fmt.Printf("  Amount: %d\n", p.Amount)
+	fmt.Printf("  Interval: %v\n", p.Interval)
+	fmt.Printf("  Walk Threshold: %d\n", p.WalkThreshold)
 }
 
 type Limiter struct {
 	client *redis.Client
-	policy PagerankRefillPolicy
+	refill RefillPolicy
 }
 
-// NewLimiter returns a limiter with a default [PagerankRefillPolicy].
-func NewLimiter(client *redis.Client) Limiter {
-	return NewLimiterWithPolicy(client, NewPagerankRefillPolicy())
-}
-
-func NewLimiterWithPolicy(client *redis.Client, policy PagerankRefillPolicy) Limiter {
-	return Limiter{
-		client: client,
-		policy: policy,
+// NewLimiterWithPolicy returns a limiter with the specified [RefillPolicy].
+func NewLimiter(client *redis.Client, refill RefillPolicy) (Limiter, error) {
+	code, err := os.ReadFile("rate.lua")
+	if err != nil {
+		return Limiter{}, fmt.Errorf("failed to read rate.lua file: %w", err)
 	}
+
+	err = client.FunctionLoadReplace(context.Background(), string(code)).Err()
+	if err != nil {
+		return Limiter{}, fmt.Errorf("failed to load redis function: %w", err)
+	}
+
+	return Limiter{client: client, refill: refill}, nil
 }
+
+var (
+	KeyCreditBucket = "creditBucket:"
+	KeyTokens       = "tokens"
+	KeyLastModified = "last_modified"
+	KeyNotAllowed   = "not allowed"
+	KeyAllowed      = "allowed"
+)
+
+func creditBucket(pubkey string) string { return KeyCreditBucket + pubkey }
 
 // Allow tries to deduct the cost from the pubkey's tokens and reports whether it suceeded.
 func (l Limiter) Allow(pubkey string, cost int) bool {
@@ -82,50 +106,55 @@ func (l Limiter) Allow(pubkey string, cost int) bool {
 	defer cancel()
 
 	if cost < 0 {
-		log.Printf("cost cannot be negative: %d", cost)
+		log.Printf("limiter.Allow: cost cannot be negative: %d", cost)
 		return false
 	}
 
-	args := []any{pubkey, cost, l.policy.RefillTokens, l.policy.RefillIntervalSeconds, l.policy.MaxTokensBeforeRefill, l.policy.WalksThreshold}
-	res, err := l.client.FCall(ctx, "pay", nil, args...).Result()
+	args := []any{
+		pubkey,
+		cost,
+		l.refill.Amount,
+		l.refill.Interval.Seconds(),
+		l.refill.WalkThreshold,
+	}
+
+	result, err := l.client.FCall(ctx, "allow", nil, args...).Result()
 	if err != nil {
-		log.Printf("Limiter: failed to pay1: %v", err)
+		log.Printf("limiter.Allow: %v", err)
 		return false
 	}
 
-	code, ok := res.(string)
+	status, ok := result.(string)
 	if !ok {
-		log.Printf("Limiter: failed to pay2: failed to type assert the result as a string: %v", res)
+		log.Printf("limiter.Allow: failed to type assert the result as a string: %v", result)
 		return false
 	}
 
-	switch code {
-	case "paid":
+	switch status {
+	case KeyAllowed:
 		return true
 
-	case "unable to pay":
+	case KeyNotAllowed:
 		return false
 
 	default:
-		log.Printf("Limiter: failed to pay: %s", code)
+		log.Printf("limiter.Allow: unexpected status: %s", status)
 		return false
 	}
 }
 
 // Bucket returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
-func (l Limiter) Bucket(pubkey string) (*Bucket, error) {
+func (l Limiter) Bucket(pubkey string) (Bucket, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	key := "creditBucket:" + pubkey
-	cmd := l.client.HGetAll(ctx, key)
-
 	var bucket Bucket
+	cmd := l.client.HGetAll(ctx, creditBucket(pubkey))
 	if err := cmd.Scan(&bucket); err != nil {
-		return nil, fmt.Errorf("failed to fetch %s: %w", key, err)
+		return Bucket{}, fmt.Errorf("failed to fetch bucket of %s: %w", pubkey, err)
 	}
 
-	return &bucket, nil
+	return bucket, nil
 }
 
 // TopUp the tokens of pubkey by amount, and return the total after the increase.
@@ -134,17 +163,15 @@ func (l Limiter) TopUp(pubkey string, amount int) (int, error) {
 	defer cancel()
 
 	if amount < 0 {
-		return -1, fmt.Errorf("tokens cannot be negative: %d", amount)
+		return -1, fmt.Errorf("amount cannot be negative: %d", amount)
 	}
 
-	key := "creditBucket:" + pubkey
 	pipe := l.client.TxPipeline()
-
-	cmd := pipe.HIncrBy(ctx, key, "tokens", int64(amount))
-	pipe.HSet(ctx, key, "last_modified", time.Now().Unix())
+	pipe.HSet(ctx, creditBucket(pubkey), KeyLastModified, time.Now().Unix())
+	cmd := pipe.HIncrBy(ctx, creditBucket(pubkey), KeyTokens, int64(amount))
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return -1, fmt.Errorf("failed to top-up the balance of %s: %w", key, err)
+		return -1, fmt.Errorf("failed to top-up the credits of %s: %w", pubkey, err)
 	}
 
 	return int(cmd.Val()), nil

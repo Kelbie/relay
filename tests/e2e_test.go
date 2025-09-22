@@ -42,7 +42,11 @@ var (
 
 func init() {
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
-	limiter := rate.NewLimiter(redis)
+	limiter, err := rate.NewLimiter(redis, rate.NoRefill)
+	if err != nil {
+		log.Printf("init: failed to create limiter: %v", err)
+	}
+
 	if _, err := limiter.TopUp(pk, 100); err != nil {
 		log.Printf("init: failed to top-up: %v", err)
 	}
