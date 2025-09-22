@@ -139,8 +139,7 @@ func TestAutomaticRefill(t *testing.T) {
 	}
 }
 
-// We simulate running the Lua function "pay" without "automatic_refill" by using
-// the policy maxTokensBeforeRefill = 0
+// We simulate running the Lua function "allow" without "automatic_refill" by using [NoRefill].
 func TestAllow(t *testing.T) {
 	db := redb.New(&redis.Options{Addr: testAddress})
 	defer db.Client.FlushAll(context.Background())
