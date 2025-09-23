@@ -84,6 +84,7 @@ func main() {
 	relay.RejectReq = append(relay.RejectReq, WithSearch, UnauthedCredits)
 	relay.OnEvent = Process
 	relay.OnReq = Query
+	relay.OnCount = Count
 
 	log.Printf("relay running at %s", config.RelayAddress)
 	if err := relay.StartAndServe(ctx, config.RelayAddress); err != nil {
@@ -150,6 +151,14 @@ func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.E
 
 	events = append(events, found...)
 	return events, nil
+}
+
+func Count(ctx context.Context, client Client, filters nostr.Filters) (count int64, approx bool, err error) {
+	count, err = store.Count(ctx, filters...)
+	if err != nil {
+		return 0, false, err
+	}
+	return count, false, nil
 }
 
 func Process(_ Client, event *nostr.Event) error {
