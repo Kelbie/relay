@@ -2,6 +2,8 @@
 
 -- external redis variables
 local KEY_INDEX = 'keyIndex'
+local NODE = 'node:'
+local ADDITION_TIMESTAMP = 'added_TS'
 local WALKS_VISITING = 'walksVisiting:'
 
 -- internal redis variables
@@ -64,14 +66,20 @@ local function automatic_refill(params)
         return tokens
     end
 
-    local node = redis.call('HGET', KEY_INDEX, pubkey)
-    if not node then
+    local id = redis.call('HGET', KEY_INDEX, pubkey)
+    if not id then
         -- if the pubkey is not found in the keyIndex, 
-        -- we assume it's a low-reputation key and we don't refill
+        -- it's a low-reputation key and we don't refill
         return tokens
     end
 
-    local walks = tonumber(redis.call('SCARD', WALKS_VISITING .. node))
+    local added = tonumber(redis.call('HGET', NODE .. id, ADDITION_TIMESTAMP)) or 0
+    if now - added < refill_interval then
+        -- if the pubkey is not old enough, no refill
+        return tokens
+    end
+
+    local walks = tonumber(redis.call('SCARD', WALKS_VISITING .. id))
     if walks < refill_walk_threshold then
         return tokens
     end

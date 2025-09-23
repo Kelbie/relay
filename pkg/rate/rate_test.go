@@ -3,6 +3,7 @@ package rate
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"testing"
@@ -13,22 +14,46 @@ import (
 )
 
 type user struct {
-	pubkey      string
-	isReputable bool
+	pubkey   string
+	addition int64 // unix time
+	walks    int
 	Bucket
 }
 
 var (
 	ctx         = context.Background()
 	testAddress = "localhost:6380"
-	Sep2025     = int64(1758047781)
+	Sep2025     = int64(1758047781) // unix time
 
-	reputableFull     = user{pubkey: "reputable1", isReputable: true, Bucket: Bucket{Tokens: DefaultAmount, LastModified: Sep2025}}
-	reputableToRefill = user{pubkey: "reputable2", isReputable: true, Bucket: Bucket{Tokens: DefaultAmount / 2, LastModified: Sep2025}}
-	reputableEmpty    = user{pubkey: "reputable3", isReputable: true}
-	spammer           = user{pubkey: "spammer1"}
-	unknown           = user{pubkey: "spammer2"}
-	users             = []user{reputableFull, reputableToRefill, reputableEmpty, spammer, unknown}
+	reputableFull = user{
+		pubkey:   "reputable1",
+		addition: Sep2025,
+		walks:    100,
+		Bucket:   Bucket{Tokens: DefaultAmount, LastModified: Sep2025},
+	}
+
+	reputableEmpty = user{
+		pubkey:   "reputable2",
+		addition: Sep2025,
+		walks:    100,
+	}
+
+	reputableTooYoung = user{
+		pubkey:   "reputable3",
+		addition: time.Now().Unix(),
+		walks:    100,
+	}
+
+	spammer = user{pubkey: "spammer1"}
+	unknown = user{pubkey: "spammer2"}
+
+	users = []user{
+		reputableFull,
+		reputableEmpty,
+		reputableTooYoung,
+		spammer,
+		unknown,
+	}
 )
 
 // setup redis with the user, adding keys walks, and buckets.
@@ -36,7 +61,14 @@ func setup(db redb.RedisDB) error {
 	ctx := context.Background()
 
 	for i, user := range users {
+		id := strconv.Itoa(i)
+
 		if _, err := db.AddNode(ctx, user.pubkey); err != nil {
+			return fmt.Errorf("setup failed: %w", err)
+		}
+
+		// changing addition timestamp with the provided one
+		if err := db.Client.HSet(ctx, redb.KeyNodePrefix+id, redb.NodeAddedTS, user.addition).Err(); err != nil {
 			return fmt.Errorf("setup failed: %w", err)
 		}
 
@@ -45,13 +77,13 @@ func setup(db redb.RedisDB) error {
 			return fmt.Errorf("setup failed: %w", err)
 		}
 
-		if user.isReputable {
-			walks := make([]any, 100)
-			for i := range 100 {
+		if user.walks > 0 {
+			walks := make([]any, user.walks)
+			for i := range user.walks {
 				walks[i] = i
 			}
 
-			key := redb.KeyWalksVisitingPrefix + strconv.Itoa(i)
+			key := redb.KeyWalksVisitingPrefix + id
 			if err := db.Client.SAdd(ctx, key, walks...).Err(); err != nil {
 				return fmt.Errorf("setup failed: %w", err)
 			}
@@ -80,36 +112,36 @@ func TestAutomaticRefill(t *testing.T) {
 		{
 			name:   "too many tokens, no refill",
 			user:   reputableFull,
-			refill: RefillPolicy{Amount: 0},
+			refill: NewRefillPolicy(),
 			bucket: reputableFull.Bucket,
 		},
 		{
 			name:   "too soon, no refill",
-			user:   reputableToRefill,
-			refill: RefillPolicy{Interval: 7 * 24 * time.Hour},
-			bucket: reputableToRefill.Bucket,
+			user:   reputableEmpty,
+			refill: RefillPolicy{Interval: math.MaxInt64},
+			bucket: reputableEmpty.Bucket,
+		},
+		{
+			name:   "key too young, no refill",
+			user:   reputableTooYoung,
+			refill: NewRefillPolicy(),
+			bucket: reputableTooYoung.Bucket,
 		},
 		{
 			name:   "unknown key, no refill",
 			user:   unknown,
 			refill: NewRefillPolicy(),
-			bucket: unknown.Bucket,
+			bucket: Bucket{},
 		},
 		{
 			name:   "low reputation key, no refill",
 			user:   spammer,
 			refill: NewRefillPolicy(),
-			bucket: spammer.Bucket,
+			bucket: Bucket{},
 		},
 		{
-			name:   "reputable without bucket, refill",
+			name:   "reputable, refill",
 			user:   reputableEmpty,
-			refill: NewRefillPolicy(),
-			bucket: Bucket{Tokens: DefaultAmount, LastModified: now},
-		},
-		{
-			name:   "reputable with bucket, refill",
-			user:   reputableToRefill,
 			refill: NewRefillPolicy(),
 			bucket: Bucket{Tokens: DefaultAmount, LastModified: now},
 		},
