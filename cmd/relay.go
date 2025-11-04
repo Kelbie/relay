@@ -6,18 +6,18 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"slices"
 	"sync/atomic"
 	"time"
 
 	"github.com/pippellia-btc/nastro/sqlite"
-	. "github.com/pippellia-btc/rely"
+	"github.com/pippellia-btc/rely"
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
 	eventstore "github.com/vertex-lab/crawler_v2/pkg/store"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
+	"golang.org/x/exp/slog"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
@@ -29,7 +29,7 @@ var (
 )
 
 var (
-	relay  *Relay
+	relay  *rely.Relay
 	config cfg.Config
 	err    error
 
@@ -43,31 +43,30 @@ var (
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go HandleSignals(cancel)
+	go rely.HandleSignals(cancel)
 
-	log.Printf("--------- starting up the relay --------")
-	defer log.Printf("-----------------------------------------")
+	nostr.DebugLogger.SetOutput(io.Discard)
+	nostr.InfoLogger.SetOutput(io.Discard)
+
+	slog.Info("--------- starting up the relay --------")
+	defer slog.Info("-----------------------------------------")
 
 	config, err = cfg.Load()
 	if err != nil {
 		panic(err)
 	}
 
-	nostr.DebugLogger.SetOutput(os.Stdout)
-	nostr.InfoLogger.SetOutput(io.Discard)
-
-	relay = NewRelay(
-		WithDomain("vertexlab.io"),
-		WithOverloadLogs(),
-		WithQueueCapacity(config.QueueCapacity),
-		WithMaxProcessors(config.Processors),
+	relay = rely.NewRelay(
+		rely.WithDomain("vertexlab.io"),
+		rely.WithQueueCapacity(config.QueueCapacity),
+		rely.WithMaxProcessors(config.Processors),
 	)
 
 	store, err = eventstore.New(config.SQLiteURL)
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("sqlite connected to %s", config.SQLiteURL)
+	slog.Info("sqlite connected", "address", config.SQLiteURL)
 
 	db = redb.New(&redis.Options{
 		Addr: config.RedisAddress,
@@ -77,29 +76,29 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	slog.Info("redis connected", "address", config.RedisAddress)
 
-	log.Printf("redis connected at %s", config.RedisAddress)
+	relay.Reject.Event = append(relay.Reject.Event, NonDVMs)
+	relay.Reject.Req = append(relay.Reject.Req, WithSearch, UnauthedCredits)
+	relay.On.Connect = func(c rely.Client) { c.SendAuth() }
+	relay.On.Event = Process
+	relay.On.Req = Query
+	relay.On.Count = Count
 
-	relay.RejectEvent = append(relay.RejectEvent, NonDVMs)
-	relay.RejectReq = append(relay.RejectReq, WithSearch, UnauthedCredits)
-	relay.OnEvent = Process
-	relay.OnReq = Query
-	relay.OnCount = Count
-
-	log.Printf("relay running at %s", config.RelayAddress)
-	if err := relay.StartAndServe(ctx, config.RelayAddress); err != nil {
+	err := relay.StartAndServe(ctx, config.RelayAddress)
+	if err != nil {
 		panic(err)
 	}
 }
 
-func NonDVMs(_ Client, event *nostr.Event) error {
+func NonDVMs(_ rely.Client, event *nostr.Event) error {
 	if event.Kind < 5312 || event.Kind > 5315 {
 		return fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, event.Kind)
 	}
 	return nil
 }
 
-func WithSearch(_ Client, filters nostr.Filters) error {
+func WithSearch(_ rely.Client, filters nostr.Filters) error {
 	for _, f := range filters {
 		if f.Search != "" {
 			return ErrUnsupportedSearch
@@ -108,9 +107,8 @@ func WithSearch(_ Client, filters nostr.Filters) error {
 	return nil
 }
 
-func UnauthedCredits(client Client, filters nostr.Filters) error {
-	if client.Pubkey() == "" && ContainCreditQuery(filters) {
-		client.SendAuthChallenge()
+func UnauthedCredits(client rely.Client, filters nostr.Filters) error {
+	if ContainCreditQuery(filters) && client.Pubkey() == "" {
 		return ErrUnathedCreditsQuery
 	}
 	return nil
@@ -126,34 +124,34 @@ func ContainCreditQuery(filters nostr.Filters) bool {
 }
 
 // Query the event store, or redis for the credit balance, and log every error.
-func Query(ctx context.Context, client Client, filters nostr.Filters) ([]nostr.Event, error) {
-	events := make([]nostr.Event, 0, len(filters))
+func Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
+	events, err := store.Query(ctx, filters...)
+	if err != nil {
+		return nil, err
+	}
+
 	if ContainCreditQuery(filters) {
 		bucket, err := limiter.Bucket(client.Pubkey())
 		if err != nil {
-			log.Println(err)
-			return nil, err
+			slog.Error("failed to fetch bucket", "pubkey", client.Pubkey(), "error", err)
+			return nil, fmt.Errorf("failed to fetch credits: %w", err)
 		}
 
 		info := bucket.ToEvent()
 		if err := info.Sign(config.SecretKey); err != nil {
-			log.Printf("failed to sign credit event for %s: %v", client.Pubkey(), err)
+			slog.Error("failed to sign credit event", "pubkey", client.Pubkey(), "error", err)
 			return nil, fmt.Errorf("failed to sign credit event: %w", err)
 		}
 
 		events = append(events, info)
 	}
-
-	found, err := store.Query(ctx, filters...)
-	if err != nil {
-		return nil, err
-	}
-
-	events = append(events, found...)
 	return events, nil
 }
 
-func Count(ctx context.Context, client Client, filters nostr.Filters) (count int64, approx bool, err error) {
+func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
 	count, err = store.Count(ctx, filters...)
 	if err != nil {
 		return 0, false, err
@@ -161,7 +159,7 @@ func Count(ctx context.Context, client Client, filters nostr.Filters) (count int
 	return count, false, nil
 }
 
-func Process(_ Client, event *nostr.Event) error {
+func Process(_ rely.Client, event *nostr.Event) error {
 	err := process(event, func(event *nostr.Event) error {
 		if err := event.Sign(config.SecretKey); err != nil {
 			return fmt.Errorf("failed to sign the response %s: %w", event.ID, err)
@@ -172,7 +170,7 @@ func Process(_ Client, event *nostr.Event) error {
 	})
 
 	if err != nil {
-		log.Printf("failed to process request: %v", err)
+		slog.Error("failed to process request", "event", event, "error", err)
 	}
 	return err
 }
