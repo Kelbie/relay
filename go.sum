@@ -115,10 +115,8 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/pippellia-btc/nastro v0.3.0 h1:tsD8Oi0mqf54R0r4eU19ak6O7avpTG/j2Q4aNMkjE/0=
 github.com/pippellia-btc/nastro v0.3.0/go.mod h1:K5EWZqmFjSvPwZceUL3VfJRMagVydXeb1Adnd1rXwkI=
-github.com/pippellia-btc/rely v1.0.0-alpha h1:JBTpAy5Bjd9AgQVI7lCmdXQEqNjONGuWl8qoVZWPHIc=
-github.com/pippellia-btc/rely v1.0.0-alpha/go.mod h1:pm5HY8kv9hlcZGMP12P1oXOFcdkiVT+As3btwpDEKI4=
-github.com/pippellia-btc/rely v1.0.0-beta h1:LFy0HLeIChcHKmhSajT0zgpzpHKkVajHb2gZPq17rio=
-github.com/pippellia-btc/rely v1.0.0-beta/go.mod h1:pm5HY8kv9hlcZGMP12P1oXOFcdkiVT+As3btwpDEKI4=
+github.com/pippellia-btc/rely v1.0.0-gamma h1:JEuCNwiDtFqdR19VNVVIFc4gYsyj7n0PbJXftQQLLnU=
+github.com/pippellia-btc/rely v1.0.0-gamma/go.mod h1:pm5HY8kv9hlcZGMP12P1oXOFcdkiVT+As3btwpDEKI4=
 github.com/pippellia-btc/slicex v0.2.5 h1:cthD4tKjg9CiWFjotIQinhqF2r7K83mkqHBX3cjig4I=
 github.com/pippellia-btc/slicex v0.2.5/go.mod h1:fu7VjA9Cdk76wIUlkzWOYiMG8/VEs1fJiUhkKqEopd8=
 github.com/pippellia-btc/smallset v0.4.1 h1:QmPiDnpth91/o6W/z6tNZo4F0zpWYmUZQ9OJskQWz38=
