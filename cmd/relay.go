@@ -45,6 +45,7 @@ func main() {
 	defer cancel()
 	go rely.HandleSignals(cancel)
 
+	// removing go-nostr logs
 	nostr.DebugLogger.SetOutput(io.Discard)
 	nostr.InfoLogger.SetOutput(io.Discard)
 
@@ -81,9 +82,9 @@ func main() {
 	relay.Reject.Event = append(relay.Reject.Event, NonDVMs)
 	relay.Reject.Req = append(relay.Reject.Req, WithSearch, UnauthedCredits)
 	relay.On.Connect = func(c rely.Client) { c.SendAuth() }
-	relay.On.Event = Process
 	relay.On.Req = Query
 	relay.On.Count = Count
+	relay.On.Event = Process
 
 	err := relay.StartAndServe(ctx, config.RelayAddress)
 	if err != nil {
@@ -91,61 +92,47 @@ func main() {
 	}
 }
 
-func NonDVMs(_ rely.Client, event *nostr.Event) error {
-	if event.Kind < 5312 || event.Kind > 5315 {
-		return fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, event.Kind)
-	}
-	return nil
-}
-
-func WithSearch(_ rely.Client, filters nostr.Filters) error {
-	for _, f := range filters {
-		if f.Search != "" {
-			return ErrUnsupportedSearch
-		}
-	}
-	return nil
-}
-
-func UnauthedCredits(client rely.Client, filters nostr.Filters) error {
-	if ContainCreditQuery(filters) && client.Pubkey() == "" {
-		return ErrUnathedCreditsQuery
-	}
-	return nil
-}
-
-func ContainCreditQuery(filters nostr.Filters) bool {
-	for _, f := range filters {
-		if slices.Contains(f.Kinds, 22243) {
-			return true
-		}
-	}
-	return false
-}
-
 // Query the event store, or redis for the credit balance, and log every error.
 func Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
+	events, err := query(ctx, client, filters)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		slog.Error("failed to query", "filters", filters, "error", err)
+		return nil, err
+	}
+	return events, err
+}
+
+func query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
 	events, err := store.Query(ctx, filters...)
 	if err != nil {
 		return nil, err
 	}
 
 	if ContainCreditQuery(filters) {
-		bucket, err := limiter.Bucket(client.Pubkey())
+		info, err := creditQuery(client.Pubkey())
 		if err != nil {
-			slog.Error("failed to fetch bucket", "pubkey", client.Pubkey(), "error", err)
-			return nil, fmt.Errorf("failed to fetch credits: %w", err)
+			return nil, err
 		}
-
-		info := bucket.ToEvent()
-		if err := info.Sign(config.SecretKey); err != nil {
-			slog.Error("failed to sign credit event", "pubkey", client.Pubkey(), "error", err)
-			return nil, fmt.Errorf("failed to sign credit event: %w", err)
-		}
-
 		events = append(events, info)
 	}
 	return events, nil
+}
+
+func creditQuery(pubkey string) (nostr.Event, error) {
+	if pubkey == "" {
+		return nostr.Event{}, errors.New("failed to query credits: pubkey is empty")
+	}
+
+	bucket, err := limiter.Bucket(pubkey)
+	if err != nil {
+		return nostr.Event{}, fmt.Errorf("failed to query credits of pubkey %s: %w", pubkey, err)
+	}
+
+	info := bucket.ToEvent()
+	if err = info.Sign(config.SecretKey); err != nil {
+		return nostr.Event{}, fmt.Errorf("failed to query credits: failed to sign: %w", err)
+	}
+	return info, nil
 }
 
 func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {
@@ -160,15 +147,7 @@ func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool,
 }
 
 func Process(_ rely.Client, event *nostr.Event) error {
-	err := process(event, func(event *nostr.Event) error {
-		if err := event.Sign(config.SecretKey); err != nil {
-			return fmt.Errorf("failed to sign the response %s: %w", event.ID, err)
-		}
-
-		relay.Broadcast(event)
-		return store.Save(context.Background(), event)
-	})
-
+	err := process(event, SignAndSave)
 	if err != nil {
 		slog.Error("failed to process request", "event", event, "error", err)
 	}
@@ -223,6 +202,15 @@ func process(event *nostr.Event, reply func(*nostr.Event) error) error {
 	return reply(dvm.ResponseEvent(response, request))
 }
 
+func SignAndSave(e *nostr.Event) error {
+	if err := e.Sign(config.SecretKey); err != nil {
+		return fmt.Errorf("failed to sign the response %s: %w", e.ID, err)
+	}
+
+	relay.Broadcast(e)
+	return store.Save(context.Background(), e)
+}
+
 // This function estimates the cost of processing a request with the provided params.
 func cost(r *dvm.Request) int {
 	switch r.Sort {
@@ -232,4 +220,36 @@ func cost(r *dvm.Request) int {
 	default:
 		return 1
 	}
+}
+
+func NonDVMs(_ rely.Client, event *nostr.Event) error {
+	if event.Kind < 5312 || event.Kind > 5315 {
+		return fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, event.Kind)
+	}
+	return nil
+}
+
+func WithSearch(_ rely.Client, filters nostr.Filters) error {
+	for _, f := range filters {
+		if f.Search != "" {
+			return ErrUnsupportedSearch
+		}
+	}
+	return nil
+}
+
+func UnauthedCredits(client rely.Client, filters nostr.Filters) error {
+	if ContainCreditQuery(filters) && client.Pubkey() == "" {
+		return ErrUnathedCreditsQuery
+	}
+	return nil
+}
+
+func ContainCreditQuery(filters nostr.Filters) bool {
+	for _, f := range filters {
+		if slices.Contains(f.Kinds, 22243) {
+			return true
+		}
+	}
+	return false
 }
