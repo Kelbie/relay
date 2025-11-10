@@ -11,11 +11,11 @@ import (
 	"strings"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/pippellia-btc/nastro/sqlite"
 	"github.com/pippellia-btc/slicex"
 	"github.com/vertex-lab/crawler_v2/pkg/graph"
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
+	sqlite "github.com/vertex-lab/nostr-sqlite"
 )
 
 var (

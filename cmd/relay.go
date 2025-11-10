@@ -6,18 +6,18 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"slices"
 	"sync/atomic"
 	"time"
 
-	"github.com/pippellia-btc/nastro/sqlite"
 	"github.com/pippellia-btc/rely"
 	"github.com/vertex-lab/crawler_v2/pkg/redb"
-	eventstore "github.com/vertex-lab/crawler_v2/pkg/store"
+	nstore "github.com/vertex-lab/crawler_v2/pkg/store"
+	sqlite "github.com/vertex-lab/nostr-sqlite"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
-	"golang.org/x/exp/slog"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
@@ -63,10 +63,12 @@ func main() {
 		rely.WithMaxProcessors(config.Processors),
 	)
 
-	store, err = eventstore.New(config.SQLiteURL)
+	store, err = nstore.New(config.SQLiteURL)
 	if err != nil {
 		panic(err)
 	}
+
+	defer store.Close()
 	slog.Info("sqlite connected", "address", config.SQLiteURL)
 
 	db = redb.New(&redis.Options{
@@ -77,6 +79,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	defer db.Client.Close()
 	slog.Info("redis connected", "address", config.RedisAddress)
 
 	relay.Reject.Event = append(relay.Reject.Event, NonDVMs)
@@ -208,7 +212,8 @@ func SignAndSave(e *nostr.Event) error {
 	}
 
 	relay.Broadcast(e)
-	return store.Save(context.Background(), e)
+	_, err := store.Save(context.Background(), e)
+	return err
 }
 
 // This function estimates the cost of processing a request with the provided params.
