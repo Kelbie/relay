@@ -52,27 +52,26 @@ type Config struct {
 }
 
 // New creates a [Service] initialized with the specified [Config].
-func New(c Config) (Service, error) {
+func New(c Config) (*Service, error) {
 	sqlite, err := store.New(c.SqlitePath)
 	if err != nil {
-		return Service{}, fmt.Errorf("failed to initialize service: %w", err)
+		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
 
 	redis, err := regraph.New(&redis.Options{Addr: c.RedisAddress})
 	if err != nil {
-		return Service{}, fmt.Errorf("failed to initialize service: %w", err)
+		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
 
-	s := Service{
+	return &Service{
 		sqlite:    sqlite,
 		redis:     redis,
 		secretKey: c.SecretKey,
-	}
-	return s, nil
+	}, nil
 }
 
 // Close closes the service database connections, releasing resources.
-func (s Service) Close() error {
+func (s *Service) Close() error {
 	err1 := s.sqlite.Close()
 	err2 := s.redis.Close()
 
@@ -89,7 +88,7 @@ type Algorithm struct {
 
 // Rank the nodes according to the provided [Algorithm].
 // If a node is not found, the rank is always assumed to be 0.
-func (s Service) rank(ctx context.Context, nodes []graph.ID, algo Algorithm) ([]float64, error) {
+func (s *Service) rank(ctx context.Context, nodes []graph.ID, algo Algorithm) ([]float64, error) {
 	switch algo.Sort {
 	case Followers:
 		counts, err := s.redis.FollowerCounts(ctx, nodes...)
