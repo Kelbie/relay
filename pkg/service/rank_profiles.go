@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"slices"
 
@@ -73,3 +74,36 @@ type RankProfilesItem struct {
 }
 
 type RankProfilesResponse []RankProfilesItem
+
+// RankProfiles returns the rank of the top "limit" targets.
+// All ranks use the specified [Algorithm].
+// For more info read: https://vertexlab.io/docs/services/sort-profiles/
+func (s *Service) RankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResponse, error) {
+	response, err := s.rankProfiles(ctx, args)
+	if err != nil {
+		return RankProfilesResponse{}, fmt.Errorf("RankProfiles %w: %w", ErrInternal, err)
+	}
+	return response, nil
+}
+
+func (s *Service) rankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResponse, error) {
+	targets, err := s.redis.NodeIDs(ctx, args.Targets...)
+	if err != nil {
+		return nil, err
+	}
+
+	ranks, err := s.rank(ctx, targets, args.Algorithm)
+	if err != nil {
+		return nil, err
+	}
+
+	ranking := slicex.Pack(args.Targets, ranks)
+	topTargets, topRanks := ranking.MaxK(args.Limit).Unpack()
+
+	response := make(RankProfilesResponse, len(topTargets))
+	for i := range topTargets {
+		response[i].Pubkey = topTargets[i]
+		response[i].Rank = topRanks[i]
+	}
+	return response, nil
+}

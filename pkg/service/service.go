@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nbd-wtf/go-nostr/nip19"
+	"github.com/pippellia-btc/slicex"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler_v2/pkg/graph"
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
@@ -15,14 +16,12 @@ import (
 	sqlite "github.com/vertex-lab/nostr-sqlite"
 )
 
-// global parameters
 var (
 	Global       string = "globalPagerank"
 	Personalized string = "personalizedPagerank"
 	Followers    string = "followerCount"
 )
 
-// parsing error returned to the client
 var (
 	ErrInvalidSource     error = errors.New("invalid source")
 	ErrInvalidSort       error = errors.New("invalid sort")
@@ -31,11 +30,14 @@ var (
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidSearch     error = errors.New("invalid search")
 	ErrBadlyFormattedKey error = errors.New("badly formatted key")
-)
 
-var (
 	ErrInternal  error = errors.New("internal error")
 	ErrNoCredits error = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll give you a top-up for free!")
+)
+
+type (
+	ranking     = slicex.Pairs[string, float64]   // a slice of (pubkey, rank)
+	nodeRanking = slicex.Pairs[graph.ID, float64] // a slice of (node, rank)
 )
 
 // Service encapsulates the business logic of the Vertex services.
