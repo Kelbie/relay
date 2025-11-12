@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	RP_ValidSorts = []string{Global, Personalized, Followers}
-	RP_MaxLimit   = 1000
+	RankProfilesSorts = []string{Global, Personalized, Followers}
+	RankProfilesLimit = 1000
 )
 
 type RankProfilesArgs struct {
@@ -22,12 +22,12 @@ type RankProfilesArgs struct {
 // Normalize the args in place. It validates all the arguments, converting from
 // npub to hex pubkeys if necessary.
 func (a *RankProfilesArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > RP_MaxLimit {
-		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, RP_MaxLimit, a.Limit)
+	if a.Limit < 1 || a.Limit > RankProfilesLimit {
+		return fmt.Errorf("%w: limit must be between 1 and %d: %d", ErrInvalidLimit, RankProfilesLimit, a.Limit)
 	}
 
-	if !slices.Contains(RP_ValidSorts, a.Sort) {
-		return fmt.Errorf("%w: sort must be one between %v: %v", ErrInvalidSort, RP_ValidSorts, a.Sort)
+	if !slices.Contains(RankProfilesSorts, a.Sort) {
+		return fmt.Errorf("%w: sort must be one between %v: %v", ErrInvalidSort, RankProfilesSorts, a.Sort)
 	}
 
 	if a.Sort == Personalized && !nostr.IsValidPublicKey(a.Source) {
@@ -39,8 +39,8 @@ func (a *RankProfilesArgs) Normalize() error {
 	}
 
 	a.Targets = slicex.Unique(a.Targets)
-	if len(a.Targets) < 1 || len(a.Targets) > RP_MaxLimit {
-		return fmt.Errorf("%w: the number of targets must be between 1 and %d: %d", ErrInvalidTargets, RP_MaxLimit, len(a.Targets))
+	if len(a.Targets) < 1 || len(a.Targets) > RankProfilesLimit {
+		return fmt.Errorf("%w: the number of targets must be between 1 and %d: %d", ErrInvalidTargets, RankProfilesLimit, len(a.Targets))
 	}
 
 	for i, target := range a.Targets {

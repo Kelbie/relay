@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	VR_ValidSorts = []string{Global, Personalized, Followers}
-	VR_MaxLimit   = 100
+	VerifyReputationSorts = []string{Global, Personalized, Followers}
+	VerifyReputationLimit = 100
 )
 
 type VerifyReputationArgs struct {
@@ -22,12 +22,12 @@ type VerifyReputationArgs struct {
 // Normalize the args in place. It validates all the arguments, converting from
 // npub to hex pubkeys if necessary.
 func (a *VerifyReputationArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > VR_MaxLimit {
-		return fmt.Errorf("%w: limit must be an integer between 1 and %d: %d", ErrInvalidLimit, VR_MaxLimit, a.Limit)
+	if a.Limit < 1 || a.Limit > VerifyReputationLimit {
+		return fmt.Errorf("%w: limit must be an integer between 1 and %d: %d", ErrInvalidLimit, VerifyReputationLimit, a.Limit)
 	}
 
-	if !slices.Contains(VR_ValidSorts, a.Sort) {
-		return fmt.Errorf("%w: sort must be one between %v: %v", ErrInvalidSort, VR_ValidSorts, a.Sort)
+	if !slices.Contains(VerifyReputationSorts, a.Sort) {
+		return fmt.Errorf("%w: sort must be one between %v: %v", ErrInvalidSort, VerifyReputationSorts, a.Sort)
 	}
 
 	if a.Sort == Personalized && !nostr.IsValidPublicKey(a.Source) {
