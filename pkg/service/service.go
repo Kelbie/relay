@@ -22,14 +22,20 @@ var (
 	Followers    string = "followerCount"
 )
 
-// global errors shared across services
+// parsing error returned to the client
 var (
 	ErrInvalidSource     error = errors.New("invalid source")
 	ErrInvalidSort       error = errors.New("invalid sort")
 	ErrInvalidTarget     error = errors.New("invalid target")
+	ErrInvalidTargets    error = errors.New("invalid targets")
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidSearch     error = errors.New("invalid search")
 	ErrBadlyFormattedKey error = errors.New("badly formatted key")
+)
+
+var (
+	ErrInternal  error = errors.New("internal error")
+	ErrNoCredits error = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll give you a top-up for free!")
 )
 
 // Service encapsulates the business logic of the Vertex services.
