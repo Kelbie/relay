@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/pippellia-btc/rely"
-	"github.com/vertex-lab/crawler_v2/pkg/redb"
+	"github.com/vertex-lab/crawler_v2/pkg/regraph"
 	nstore "github.com/vertex-lab/crawler_v2/pkg/store"
 	sqlite "github.com/vertex-lab/nostr-sqlite"
 	cfg "github.com/vertex-lab/relay/pkg/config"
@@ -34,7 +34,7 @@ var (
 	err    error
 
 	store *sqlite.Store
-	db    redb.RedisDB
+	db    regraph.DB
 
 	limiter   rate.Limiter
 	processed atomic.Int32
@@ -71,17 +71,18 @@ func main() {
 	defer store.Close()
 	slog.Info("sqlite connected", "address", config.SQLiteURL)
 
-	db = redb.New(&redis.Options{
-		Addr: config.RedisAddress,
-	})
+	db, err = regraph.New(&redis.Options{Addr: config.RedisAddress})
+	if err != nil {
+		panic(err)
+	}
+
+	defer db.Close()
+	slog.Info("redis connected", "address", config.RedisAddress)
 
 	limiter, err = rate.NewLimiter(db.Client, config.Refill)
 	if err != nil {
 		panic(err)
 	}
-
-	defer db.Client.Close()
-	slog.Info("redis connected", "address", config.RedisAddress)
 
 	relay.Reject.Event = append(relay.Reject.Event, NonDVMs)
 	relay.Reject.Req = append(relay.Reject.Req, WithSearch, UnauthedCredits)

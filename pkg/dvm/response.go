@@ -14,7 +14,7 @@ import (
 	"github.com/pippellia-btc/slicex"
 	"github.com/vertex-lab/crawler_v2/pkg/graph"
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
-	"github.com/vertex-lab/crawler_v2/pkg/redb"
+	"github.com/vertex-lab/crawler_v2/pkg/regraph"
 	sqlite "github.com/vertex-lab/nostr-sqlite"
 )
 
@@ -95,7 +95,7 @@ func ResponseEvent(res Response, req *Request) *nostr.Event {
 // VerifyReputation returns the rank of the target and its highest ranked followers.
 // All ranks use the specified [Algorithm].
 // For more info read: https://vertexlab.io/docs/services/verify-reputation/
-func VerifyReputation(ctx context.Context, db redb.RedisDB, request *Request) (Response, error) {
+func VerifyReputation(ctx context.Context, db regraph.DB, request *Request) (Response, error) {
 	args, err := request.ToVerifyReputationArgs()
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func VerifyReputation(ctx context.Context, db redb.RedisDB, request *Request) (R
 	return NewResponse(ranking, extras...), nil
 }
 
-func verifyReputation(ctx context.Context, db redb.RedisDB, args *VerifyReputationArgs) (ranking, []Extra, error) {
+func verifyReputation(ctx context.Context, db regraph.DB, args *VerifyReputationArgs) (ranking, []Extra, error) {
 	target, err := db.NodeByKey(ctx, args.Target)
 	if err != nil {
 		if errors.Is(err, graph.ErrNodeNotFound) {
@@ -155,7 +155,7 @@ func verifyReputation(ctx context.Context, db redb.RedisDB, args *VerifyReputati
 // RankProfiles returns the rank of each specified target.
 // All ranks use the specified args.Algorithm.
 // For more info read: https://vertexlab.io/docs/services/sort-profiles/
-func RankProfiles(ctx context.Context, db redb.RedisDB, request *Request) (Response, error) {
+func RankProfiles(ctx context.Context, db regraph.DB, request *Request) (Response, error) {
 	args, err := request.ToRankProfilesArgs()
 	if err != nil {
 		return nil, err
@@ -168,7 +168,7 @@ func RankProfiles(ctx context.Context, db redb.RedisDB, request *Request) (Respo
 	return NewResponse(ranking), nil
 }
 
-func rankProfiles(ctx context.Context, db redb.RedisDB, args *RankProfilesArgs) (ranking, error) {
+func rankProfiles(ctx context.Context, db regraph.DB, args *RankProfilesArgs) (ranking, error) {
 	targets, err := db.NodeIDs(ctx, args.Targets...)
 	if err != nil {
 		return nil, err
@@ -186,7 +186,7 @@ func rankProfiles(ctx context.Context, db redb.RedisDB, args *RankProfilesArgs) 
 // SearchProfiles returns the top ranked pubkeys whose kind:0s contain the provided string.
 // All ranks use the specified args.Algorithm.
 // For more info read: https://vertexlab.io/docs/services/search-profiles/
-func SearchProfiles(ctx context.Context, db redb.RedisDB, store *sqlite.Store, request *Request) (Response, error) {
+func SearchProfiles(ctx context.Context, db regraph.DB, store *sqlite.Store, request *Request) (Response, error) {
 	args, err := request.ToSearchProfilesArgs()
 	if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func SearchProfiles(ctx context.Context, db redb.RedisDB, store *sqlite.Store, r
 	return NewResponse(ranking), nil
 }
 
-func searchProfiles(ctx context.Context, db redb.RedisDB, store *sqlite.Store, args *SearchProfilesArgs) (ranking, error) {
+func searchProfiles(ctx context.Context, db regraph.DB, store *sqlite.Store, args *SearchProfilesArgs) (ranking, error) {
 	ranking, err := fts5(ctx, store, args.Search)
 	if err != nil {
 		return nil, err
@@ -302,7 +302,7 @@ func dampening(matches int) float64 {
 // RecommendFollows uses the specified [Algorithm] to return a list of recommendations for args.Source.
 // The recommended pubkeys are the highest ranked, excluding args.Source and its follows (if any).
 // For more info read: https://vertexlab.io/docs/services/recommend-follows/
-func RecommendFollows(ctx context.Context, db redb.RedisDB, request *Request) (Response, error) {
+func RecommendFollows(ctx context.Context, db regraph.DB, request *Request) (Response, error) {
 	args, err := request.ToRecommendFollowsArgs()
 	if err != nil {
 		return nil, err
@@ -315,7 +315,7 @@ func RecommendFollows(ctx context.Context, db redb.RedisDB, request *Request) (R
 	return NewResponse(ranking), nil
 }
 
-func recommendFollows(ctx context.Context, db redb.RedisDB, args *RecommendFollowsArgs) (ranking, error) {
+func recommendFollows(ctx context.Context, db regraph.DB, args *RecommendFollowsArgs) (ranking, error) {
 	var nodeRanking nodeRanking
 	var err error
 
@@ -339,7 +339,7 @@ func recommendFollows(ctx context.Context, db redb.RedisDB, args *RecommendFollo
 	return resolveIDs(ctx, db, nodeRanking)
 }
 
-func recommendByGlobal(ctx context.Context, db redb.RedisDB, args *RecommendFollowsArgs) (nodeRanking, error) {
+func recommendByGlobal(ctx context.Context, db regraph.DB, args *RecommendFollowsArgs) (nodeRanking, error) {
 	var avoid []graph.ID
 	node, err := db.NodeByKey(ctx, args.Source)
 	switch {
@@ -376,7 +376,7 @@ func recommendByGlobal(ctx context.Context, db redb.RedisDB, args *RecommendFoll
 	return nodeRanking.MaxK(args.Limit), nil
 }
 
-func recommendByFollowers(ctx context.Context, db redb.RedisDB, args *RecommendFollowsArgs) (nodeRanking, error) {
+func recommendByFollowers(ctx context.Context, db regraph.DB, args *RecommendFollowsArgs) (nodeRanking, error) {
 	var avoid []graph.ID
 	node, err := db.NodeByKey(ctx, args.Source)
 	switch {
@@ -416,7 +416,7 @@ func recommendByFollowers(ctx context.Context, db redb.RedisDB, args *RecommendF
 	return nodeRanking.MaxK(args.Limit), nil
 }
 
-func recommendByPersonalized(ctx context.Context, db redb.RedisDB, args *RecommendFollowsArgs) (nodeRanking, error) {
+func recommendByPersonalized(ctx context.Context, db regraph.DB, args *RecommendFollowsArgs) (nodeRanking, error) {
 	source, err := db.NodeByKey(ctx, args.Source)
 	if err != nil {
 		return nil, err
@@ -441,7 +441,7 @@ func recommendByPersonalized(ctx context.Context, db redb.RedisDB, args *Recomme
 	return nodeRanking.MaxK(args.Limit), nil
 }
 
-func rankNodes(ctx context.Context, db redb.RedisDB, nodes []graph.ID, algo Algorithm) (nodeRanking, error) {
+func rankNodes(ctx context.Context, db regraph.DB, nodes []graph.ID, algo Algorithm) (nodeRanking, error) {
 	ranks, err := rank(ctx, db, nodes, algo)
 	if err != nil {
 		return nil, err
@@ -451,7 +451,7 @@ func rankNodes(ctx context.Context, db redb.RedisDB, nodes []graph.ID, algo Algo
 
 // rank the nodes according to the provided [Algorithm].
 // If a node is not found, the rank is always assumed to be 0.
-func rank(ctx context.Context, db redb.RedisDB, nodes []graph.ID, algo Algorithm) ([]float64, error) {
+func rank(ctx context.Context, db regraph.DB, nodes []graph.ID, algo Algorithm) ([]float64, error) {
 	switch algo.Sort {
 	case Followers:
 		counts, err := db.FollowerCounts(ctx, nodes...)
@@ -485,7 +485,7 @@ func rank(ctx context.Context, db redb.RedisDB, nodes []graph.ID, algo Algorithm
 // If an ID is not found, it returns an error.
 func resolveIDs(
 	ctx context.Context,
-	db redb.RedisDB,
+	db regraph.DB,
 	nodeRanking nodeRanking) (ranking, error) {
 
 	IDs, ranks := nodeRanking.Unpack()

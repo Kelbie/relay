@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/vertex-lab/crawler_v2/pkg/redb"
+	"github.com/vertex-lab/crawler_v2/pkg/regraph"
 )
 
 type user struct {
@@ -57,7 +57,7 @@ var (
 )
 
 // setup redis with the user, adding keys walks, and buckets.
-func setup(db redb.RedisDB) error {
+func setup(db regraph.DB) error {
 	ctx := context.Background()
 
 	for i, user := range users {
@@ -68,7 +68,7 @@ func setup(db redb.RedisDB) error {
 		}
 
 		// changing addition timestamp with the provided one
-		if err := db.Client.HSet(ctx, redb.KeyNodePrefix+id, redb.NodeAddedTS, user.addition).Err(); err != nil {
+		if err := db.Client.HSet(ctx, regraph.KeyNodePrefix+id, regraph.NodeAddedTS, user.addition).Err(); err != nil {
 			return fmt.Errorf("setup failed: %w", err)
 		}
 
@@ -83,7 +83,7 @@ func setup(db redb.RedisDB) error {
 				walks[i] = i
 			}
 
-			key := redb.KeyWalksVisitingPrefix + id
+			key := regraph.KeyWalksVisitingPrefix + id
 			if err := db.Client.SAdd(ctx, key, walks...).Err(); err != nil {
 				return fmt.Errorf("setup failed: %w", err)
 			}
@@ -95,7 +95,10 @@ func setup(db redb.RedisDB) error {
 
 // We simulate running the Lua function "automatic_refill" by calling [Allow] with a cost of 0.
 func TestAutomaticRefill(t *testing.T) {
-	db := redb.New(&redis.Options{Addr: testAddress})
+	db, err := regraph.New(&redis.Options{Addr: testAddress})
+	if err != nil {
+		t.Fatalf("setup failed %v", err)
+	}
 	defer db.Client.FlushAll(ctx)
 
 	if err := setup(db); err != nil {
@@ -173,7 +176,10 @@ func TestAutomaticRefill(t *testing.T) {
 
 // We simulate running the Lua function "allow" without "automatic_refill" by using [NoRefill].
 func TestAllow(t *testing.T) {
-	db := redb.New(&redis.Options{Addr: testAddress})
+	db, err := regraph.New(&redis.Options{Addr: testAddress})
+	if err != nil {
+		t.Fatalf("setup failed %v", err)
+	}
 	defer db.Client.FlushAll(context.Background())
 
 	if err := setup(db); err != nil {

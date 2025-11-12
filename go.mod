@@ -11,8 +11,8 @@ require (
 	github.com/pippellia-btc/rely v1.0.0-gamma
 	github.com/pippellia-btc/slicex v0.2.5
 	github.com/redis/go-redis/v9 v9.8.0
-	github.com/vertex-lab/crawler_v2 v1.4.0
-	github.com/vertex-lab/nostr-sqlite v0.3.0
+	github.com/vertex-lab/crawler_v2 v1.4.2
+	github.com/vertex-lab/nostr-sqlite v0.3.1
 )
 
 require (
