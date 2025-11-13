@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/nbd-wtf/go-nostr/nip19"
-	"github.com/pippellia-btc/slicex"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler_v2/pkg/graph"
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
@@ -33,11 +32,6 @@ var (
 
 	ErrInternal  error = errors.New("internal error")
 	ErrNoCredits error = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll give you a top-up for free!")
-)
-
-type (
-	ranking     = slicex.Pairs[string, float64]   // a slice of (pubkey, rank)
-	nodeRanking = slicex.Pairs[graph.ID, float64] // a slice of (node, rank)
 )
 
 // Service encapsulates the business logic of the Vertex services.
@@ -88,9 +82,19 @@ type Algorithm struct {
 	Source string
 }
 
-// Rank the nodes according to the provided [Algorithm].
+// RankPubkeys ranks the pubkeys according to the provided [Algorithm].
+// If a pubkey is not found, the rank is always assumed to be 0.
+func (s *Service) rankPubkeys(ctx context.Context, pubkeys []string, algo Algorithm) ([]float64, error) {
+	nodes, err := s.redis.NodeIDs(ctx, pubkeys...)
+	if err != nil {
+		return nil, err
+	}
+	return s.rankNodes(ctx, nodes, algo)
+}
+
+// RankNodes ranks the nodes according to the provided [Algorithm].
 // If a node is not found, the rank is always assumed to be 0.
-func (s *Service) rank(ctx context.Context, nodes []graph.ID, algo Algorithm) ([]float64, error) {
+func (s *Service) rankNodes(ctx context.Context, nodes []graph.ID, algo Algorithm) ([]float64, error) {
 	switch algo.Sort {
 	case Followers:
 		counts, err := s.redis.FollowerCounts(ctx, nodes...)
@@ -118,6 +122,18 @@ func (s *Service) rank(ctx context.Context, nodes []graph.ID, algo Algorithm) ([
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrInvalidSort, algo.Sort)
 	}
+}
+
+type Profile struct {
+	Pubkey string
+	Rank   float64
+}
+
+type DetailedProfile struct {
+	Pubkey    string
+	Rank      float64
+	Follows   int
+	Followers int
 }
 
 // NpubToHex tries to convert an npub to an hex pubkey.

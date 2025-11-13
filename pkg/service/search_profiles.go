@@ -56,12 +56,10 @@ func (a SearchProfilesArgs) Cost() int {
 	return 1
 }
 
-type SearchProfilesItem struct {
-	Pubkey string  `json:"pubkey"`
-	Rank   float64 `json:"rank"`
+type SearchProfilesResponse struct {
+	Nodes   int
+	Results []Profile
 }
-
-type SearchProfilesResponse []RankProfilesItem
 
 // SearchProfiles returns the top ranked pubkeys whose kind:0s contain the provided string.
 // All ranks use the specified [Algorithm].
@@ -69,14 +67,22 @@ type SearchProfilesResponse []RankProfilesItem
 func (s *Service) SearchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResponse, error) {
 	response, err := s.searchProfiles(ctx, args)
 	if err != nil {
-		return nil, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
+		return SearchProfilesResponse{}, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
 	}
 	return response, nil
 }
 
 func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResponse, error) {
+	nodes, err := s.redis.NodeCount(ctx)
+	if err != nil {
+		return SearchProfilesResponse{}, err
+	}
+
 	if nostr.IsValidPublicKey(args.Search) {
-		return SearchProfilesResponse{{Pubkey: args.Search, Rank: 1}}, nil
+		response := SearchProfilesResponse{}
+		response.Nodes = nodes
+		response.Results = []Profile{{Pubkey: args.Search, Rank: 1}}
+		return response, nil
 	}
 
 	if strings.HasPrefix(args.Search, "npub") {
@@ -84,50 +90,51 @@ func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (
 		if err == nil {
 			// decode it to hex and return only if it's a valid npub.
 			// otherwise, continue with the full text search.
-			return SearchProfilesResponse{{Pubkey: pk, Rank: 1}}, nil
+			response := SearchProfilesResponse{}
+			response.Nodes = nodes
+			response.Results = []Profile{{Pubkey: pk, Rank: 1}}
+			return response, nil
 		}
 	}
 
-	ranking, err := s.search(ctx, args.Search)
+	pubkeys, searchRanks, err := s.search(ctx, args.Search)
 	if err != nil {
-		return nil, err
+		return SearchProfilesResponse{}, err
 	}
 
-	pubkeys, searchRanks := ranking.Unpack()
-	nodes, err := s.redis.NodeIDs(ctx, pubkeys...)
+	ranks, err := s.rankPubkeys(ctx, pubkeys, args.Algorithm)
 	if err != nil {
-		return nil, err
+		return SearchProfilesResponse{}, err
 	}
 
-	reputations, err := s.rank(ctx, nodes, args.Algorithm)
-	if err != nil {
-		return nil, err
+	combinedRanks := make([]float64, len(ranks))
+	for i := range ranks {
+		combinedRanks[i] = math.Pow(searchRanks[i], 3) * ranks[i]
 	}
 
-	for i := range ranking {
-		// merge reputational and search ranks
-		ranking[i].Val = math.Pow(searchRanks[i], 3) * reputations[i]
-	}
-
+	ranking := slicex.Pack(pubkeys, combinedRanks)
 	topPubkeys, topRanks := ranking.MaxK(args.Limit).Unpack()
-	response := make(SearchProfilesResponse, len(topPubkeys))
+
+	response := SearchProfilesResponse{}
+	response.Nodes = nodes
+	response.Results = make([]Profile, len(topPubkeys))
 
 	for i := range topPubkeys {
-		response[i].Pubkey = topPubkeys[i]
-		response[i].Rank = topRanks[i]
+		response.Results[i].Pubkey = topPubkeys[i]
+		response.Results[i].Rank = topRanks[i]
 	}
 	return response, nil
 }
 
 // Search performs full text seach on the profiles (kind:0s) using the specified search term.
 // It returns the pubkeys and search scores (positives, higher is better) of the SQL query.
-func (s *Service) search(ctx context.Context, search string) (ranking, error) {
+func (s *Service) search(ctx context.Context, search string) (pubkeys []string, scores []float64, err error) {
 	search = escapeFTS5(search)
 	row := s.sqlite.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM profiles_fts WHERE profiles_fts MATCH ?", search)
 
 	var matches int
 	if err := row.Scan(&matches); err != nil {
-		return nil, fmt.Errorf("failed to count matches: %w", err)
+		return nil, nil, fmt.Errorf("failed to count matches: %w", err)
 	}
 
 	d, limit := dampening(matches), min(matches, maxSearchLimit)
@@ -141,26 +148,29 @@ func (s *Service) search(ctx context.Context, search string) (ranking, error) {
 
 	rows, err := s.sqlite.DB.QueryContext(ctx, query, name, displayName, about, website, nip05, search, limit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make full text search: %w", err)
+		return nil, nil, fmt.Errorf("failed to make full text search: %w", err)
 	}
 	defer rows.Close()
 
-	ranking := make(ranking, 0, limit) // pre-allocating
+	pubkeys = make([]string, 0, limit)
+	scores = make([]float64, 0, limit)
+
 	for rows.Next() {
-		var pair slicex.Pair[string, float64]
-		if err = rows.Scan(&pair.Key, &pair.Val); err != nil {
-			return nil, fmt.Errorf("failed to scan the results of the query: %w", err)
+		var pubkey string
+		var score float64
+
+		if err = rows.Scan(&pubkey, &score); err != nil {
+			return nil, nil, fmt.Errorf("failed to scan the results of the query: %w", err)
 		}
 
-		// convert bm25 scores (negative) to positive to have best is highest
-		pair.Val = -pair.Val
-		ranking = append(ranking, pair)
+		pubkeys = append(pubkeys, pubkey)
+		scores = append(scores, -score) // convert bm25 scores (negative) to positive to have best is highest
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to scan the results of the query: %w", err)
+		return nil, nil, fmt.Errorf("failed to scan the results of the query: %w", err)
 	}
-	return ranking, nil
+	return pubkeys, scores, nil
 }
 
 const (

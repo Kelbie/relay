@@ -46,6 +46,15 @@ var (
 	ErrNoCredits error = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll top you up for free.")
 )
 
+// func (r VerifyReputationResponse) MarshalJSON() ([]byte, error) {
+// 	array := make([]any, 0, len(r.followers)+1)
+// 	array = append(array, r.target)
+// 	for _, f := range r.followers {
+// 		array = append(array, f)
+// 	}
+// 	return json.Marshal(array)
+// }
+
 // Algorithm is the sorting algorithm used in the DVM responses.
 type Algorithm struct {
 	Sort   string `json:"sort,omitempty"`

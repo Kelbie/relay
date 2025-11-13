@@ -50,12 +50,10 @@ func (a RecommendFollowsArgs) Cost() int {
 	return 1
 }
 
-type RecommendFollowsItem struct {
-	Pubkey string  `json:"pubkey"`
-	Rank   float64 `json:"rank"`
+type RecommendFollowsResponse struct {
+	Nodes           int
+	Recommendations []Profile
 }
-
-type RecommendFollowsResponse []RecommendFollowsItem
 
 // RecommendFollows uses the specified [Algorithm] to return a list of recommendations for args.Source.
 // The recommended pubkeys are the highest ranked, excluding args.Source and its follows (if any).
@@ -63,51 +61,59 @@ type RecommendFollowsResponse []RecommendFollowsItem
 func (s *Service) RecommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResponse, error) {
 	response, err := s.recommendFollows(ctx, args)
 	if err != nil {
-		return nil, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
+		return RecommendFollowsResponse{}, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
 	}
 	return response, nil
 }
 
-func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResponse, error) {
-	var nodeRanking nodeRanking
-	var err error
+type nodeRanking = slicex.Pairs[graph.ID, float64] // a slice of (node ID, rank)
 
+func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResponse, error) {
+	nodes, err := s.redis.NodeCount(ctx)
+	if err != nil {
+		return RecommendFollowsResponse{}, err
+	}
+
+	var candidates nodeRanking
 	switch args.Sort {
 	case Global:
-		nodeRanking, err = s.recommendGlobal(ctx, args)
+		candidates, err = s.candidatesWithGlobal(ctx, args.Source)
 
 	case Personalized:
-		nodeRanking, err = s.recommendPersonalized(ctx, args)
+		candidates, err = s.candidatesWithPersonalized(ctx, args.Source)
 
 	case Followers:
-		nodeRanking, err = s.recommendFollowers(ctx, args)
+		candidates, err = s.candidatesWithFollowers(ctx, args.Source)
 
 	default:
 		err = ErrInvalidSort
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to recommend with %s: %w", args.Sort, err)
+		return RecommendFollowsResponse{}, fmt.Errorf("failed to recommend with %s: %w", args.Sort, err)
 	}
 
-	nodes, ranks := nodeRanking.MaxK(args.Limit).Unpack()
-	pubkeys, err := s.redis.Pubkeys(ctx, nodes...)
+	recommendedNodes, ranks := candidates.MaxK(args.Limit).Unpack()
+	recommendedPubkeys, err := s.redis.Pubkeys(ctx, recommendedNodes...)
 	if err != nil {
-		return nil, err
+		return RecommendFollowsResponse{}, err
 	}
 
-	response := make(RecommendFollowsResponse, len(pubkeys))
-	for i := range pubkeys {
-		response[i].Pubkey = pubkeys[i]
-		response[i].Rank = ranks[i]
+	response := RecommendFollowsResponse{}
+	response.Nodes = nodes
+	response.Recommendations = make([]Profile, len(recommendedPubkeys))
+
+	for i := range recommendedPubkeys {
+		response.Recommendations[i].Pubkey = recommendedPubkeys[i]
+		response.Recommendations[i].Rank = ranks[i]
 	}
 	return response, nil
 }
 
-func (s *Service) recommendGlobal(ctx context.Context, args RecommendFollowsArgs) (nodeRanking, error) {
+func (s *Service) candidatesWithGlobal(ctx context.Context, source string) (nodeRanking, error) {
 	avoid := make([]graph.ID, 0, 100) // pre-allocate
 
-	node, err := s.redis.NodeByKey(ctx, args.Source)
+	node, err := s.redis.NodeByKey(ctx, source)
 	if err != nil && !errors.Is(err, graph.ErrNodeNotFound) {
 		return nil, err
 	}
@@ -139,10 +145,10 @@ func (s *Service) recommendGlobal(ctx context.Context, args RecommendFollowsArgs
 	return slicex.Pack(candidates, ranks), nil
 }
 
-func (s *Service) recommendFollowers(ctx context.Context, args RecommendFollowsArgs) (nodeRanking, error) {
+func (s *Service) candidatesWithFollowers(ctx context.Context, source string) (nodeRanking, error) {
 	avoid := make([]graph.ID, 0, 100) // pre-allocate
 
-	node, err := s.redis.NodeByKey(ctx, args.Source)
+	node, err := s.redis.NodeByKey(ctx, source)
 	if err != nil && !errors.Is(err, graph.ErrNodeNotFound) {
 		return nil, err
 	}
@@ -179,27 +185,25 @@ func (s *Service) recommendFollowers(ctx context.Context, args RecommendFollowsA
 	return nodeRanking, nil
 }
 
-func (s *Service) recommendPersonalized(ctx context.Context, args RecommendFollowsArgs) (nodeRanking, error) {
-	source, err := s.redis.NodeByKey(ctx, args.Source)
+func (s *Service) candidatesWithPersonalized(ctx context.Context, source string) (nodeRanking, error) {
+	node, err := s.redis.NodeByKey(ctx, source)
 	if err != nil {
 		return nil, err
 	}
 
-	follows, err := s.redis.Follows(ctx, source.ID)
+	follows, err := s.redis.Follows(ctx, node.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	pp, err := pagerank.Personalized(ctx, s.redis, source.ID, 100_000)
+	pp, err := pagerank.Personalized(ctx, s.redis, node.ID, 100_000)
 	if err != nil {
 		return nil, err
 	}
 
-	// remove follows and self from the recommendations
-	avoid := append(follows, source.ID)
-	for _, ID := range avoid {
+	delete(pp, node.ID)
+	for _, ID := range follows {
 		delete(pp, ID)
 	}
-
 	return slicex.ToPairs(pp), nil
 }

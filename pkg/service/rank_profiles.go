@@ -68,12 +68,10 @@ func (a RankProfilesArgs) Cost() int {
 	return 1
 }
 
-type RankProfilesItem struct {
-	Pubkey string  `json:"pubkey"`
-	Rank   float64 `json:"rank"`
+type RankProfilesResponse struct {
+	Nodes    int
+	Profiles []Profile
 }
-
-type RankProfilesResponse []RankProfilesItem
 
 // RankProfiles returns the rank of the top "limit" targets.
 // All ranks use the specified [Algorithm].
@@ -87,23 +85,26 @@ func (s *Service) RankProfiles(ctx context.Context, args RankProfilesArgs) (Rank
 }
 
 func (s *Service) rankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResponse, error) {
-	targets, err := s.redis.NodeIDs(ctx, args.Targets...)
+	nodes, err := s.redis.NodeCount(ctx)
 	if err != nil {
-		return nil, err
+		return RankProfilesResponse{}, nil
 	}
 
-	ranks, err := s.rank(ctx, targets, args.Algorithm)
+	ranks, err := s.rankPubkeys(ctx, args.Targets, args.Algorithm)
 	if err != nil {
-		return nil, err
+		return RankProfilesResponse{}, err
 	}
 
 	ranking := slicex.Pack(args.Targets, ranks)
 	topTargets, topRanks := ranking.MaxK(args.Limit).Unpack()
 
-	response := make(RankProfilesResponse, len(topTargets))
+	response := RankProfilesResponse{}
+	response.Nodes = nodes
+	response.Profiles = make([]Profile, len(topTargets))
+
 	for i := range topTargets {
-		response[i].Pubkey = topTargets[i]
-		response[i].Rank = topRanks[i]
+		response.Profiles[i].Pubkey = topTargets[i]
+		response.Profiles[i].Rank = topRanks[i]
 	}
 	return response, nil
 }
