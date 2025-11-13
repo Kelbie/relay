@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"slices"
 	"sync/atomic"
 	"time"
 
@@ -21,11 +20,6 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
-)
-
-var (
-	ErrUnathedCreditsQuery = errors.New("auth-required: you must be authenticated to request your credit balance")
-	ErrUnsupportedSearch   = errors.New("NIP-50 search is not supported")
 )
 
 var (
@@ -84,9 +78,9 @@ func main() {
 		panic(err)
 	}
 
-	relay.Reject.Event = append(relay.Reject.Event, NonDVMs)
-	relay.Reject.Req = append(relay.Reject.Req, WithSearch, UnauthedCredits)
-	relay.On.Connect = func(c rely.Client) { c.SendAuth() }
+	relay.Reject.Event = append(relay.Reject.Event, NonDVM)
+	relay.Reject.Req = append(relay.Reject.Req, FiltersExceed(100), WithSearch, UnauthedCredits)
+	relay.On.Connect = SendAuth
 	relay.On.Req = Query
 	relay.On.Count = Count
 	relay.On.Event = Process
@@ -159,6 +153,16 @@ func Process(_ rely.Client, event *nostr.Event) error {
 	return err
 }
 
+func SignAndSave(e *nostr.Event) error {
+	if err := e.Sign(config.SecretKey); err != nil {
+		return fmt.Errorf("failed to sign the response %s: %w", e.ID, err)
+	}
+
+	relay.Broadcast(e)
+	_, err := store.Save(context.Background(), e)
+	return err
+}
+
 func process(event *nostr.Event, reply func(*nostr.Event) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -207,16 +211,6 @@ func process(event *nostr.Event, reply func(*nostr.Event) error) error {
 	return reply(dvm.ResponseEvent(response, request))
 }
 
-func SignAndSave(e *nostr.Event) error {
-	if err := e.Sign(config.SecretKey); err != nil {
-		return fmt.Errorf("failed to sign the response %s: %w", e.ID, err)
-	}
-
-	relay.Broadcast(e)
-	_, err := store.Save(context.Background(), e)
-	return err
-}
-
 // This function estimates the cost of processing a request with the provided params.
 func cost(r *dvm.Request) int {
 	switch r.Sort {
@@ -226,36 +220,4 @@ func cost(r *dvm.Request) int {
 	default:
 		return 1
 	}
-}
-
-func NonDVMs(_ rely.Client, event *nostr.Event) error {
-	if event.Kind < 5312 || event.Kind > 5315 {
-		return fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, event.Kind)
-	}
-	return nil
-}
-
-func WithSearch(_ rely.Client, filters nostr.Filters) error {
-	for _, f := range filters {
-		if f.Search != "" {
-			return ErrUnsupportedSearch
-		}
-	}
-	return nil
-}
-
-func UnauthedCredits(client rely.Client, filters nostr.Filters) error {
-	if ContainCreditQuery(filters) && client.Pubkey() == "" {
-		return ErrUnathedCreditsQuery
-	}
-	return nil
-}
-
-func ContainCreditQuery(filters nostr.Filters) bool {
-	for _, f := range filters {
-		if slices.Contains(f.Kinds, 22243) {
-			return true
-		}
-	}
-	return false
 }
