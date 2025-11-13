@@ -42,8 +42,8 @@ func (a *SearchProfilesArgs) Normalize() error {
 	}
 
 	a.Search = strings.TrimSpace(a.Search)
-	if len(a.Search) < 3 {
-		return fmt.Errorf("%w: the search parameter must be longer than 3 characters (excluding leading and trailing spaces)", ErrInvalidSearch)
+	if len(a.Search) < 3 || len(a.Search) > 100 {
+		return fmt.Errorf("%w: the search parameter must between 3 and 100 characters (excluding leading and trailing spaces)", ErrInvalidSearch)
 	}
 	return nil
 }
