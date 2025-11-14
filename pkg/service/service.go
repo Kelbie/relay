@@ -37,15 +37,13 @@ var (
 
 // Service encapsulates the business logic of the Vertex services.
 type Service struct {
-	sqlite    *sqlite.Store
-	redis     regraph.DB
-	secretKey string
+	sqlite *sqlite.Store
+	redis  regraph.DB
 }
 
 type Config struct {
 	RedisAddress string `envconfig:"REDIS_ADDRESS"`
 	SqlitePath   string `envconfig:"SQLITE_PATH"`
-	SecretKey    string `envconfig:"SECRET_KEY"`
 }
 
 // New creates a [Service] initialized with the specified [Config].
@@ -61,9 +59,8 @@ func New(c Config) (*Service, error) {
 	}
 
 	return &Service{
-		sqlite:    sqlite,
-		redis:     redis,
-		secretKey: c.SecretKey,
+		sqlite: sqlite,
+		redis:  redis,
 	}, nil
 }
 
