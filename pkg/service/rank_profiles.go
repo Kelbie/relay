@@ -81,7 +81,7 @@ func (a RankProfilesArgs) Cost() int {
 	return 1
 }
 
-type RankProfilesResponse struct {
+type RankProfilesResult struct {
 	Nodes    int
 	Profiles []Profile
 }
@@ -89,29 +89,29 @@ type RankProfilesResponse struct {
 // RankProfiles returns the rank of the top "limit" targets.
 // All ranks use the specified [Algorithm].
 // For more info read: https://vertexlab.io/docs/services/sort-profiles/
-func (s *Service) RankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResponse, error) {
+func (s *Service) RankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResult, error) {
 	response, err := s.rankProfiles(ctx, args)
 	if err != nil {
-		return RankProfilesResponse{}, fmt.Errorf("RankProfiles %w: %w", ErrInternal, err)
+		return RankProfilesResult{}, fmt.Errorf("RankProfiles %w: %w", ErrInternal, err)
 	}
 	return response, nil
 }
 
-func (s *Service) rankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResponse, error) {
+func (s *Service) rankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResult, error) {
 	nodes, err := s.redis.NodeCount(ctx)
 	if err != nil {
-		return RankProfilesResponse{}, nil
+		return RankProfilesResult{}, nil
 	}
 
 	ranks, err := s.rankPubkeys(ctx, args.Targets, args.Algorithm)
 	if err != nil {
-		return RankProfilesResponse{}, err
+		return RankProfilesResult{}, err
 	}
 
 	ranking := slicex.Pack(args.Targets, ranks)
 	topTargets, topRanks := ranking.MaxK(args.Limit).Unpack()
 
-	response := RankProfilesResponse{}
+	response := RankProfilesResult{}
 	response.Nodes = nodes
 	response.Profiles = make([]Profile, len(topTargets))
 

@@ -71,7 +71,7 @@ func (a VerifyReputationArgs) Cost() int {
 	return 1
 }
 
-type VerifyReputationResponse struct {
+type VerifyReputationResult struct {
 	Nodes        int
 	Target       DetailedProfile
 	TopFollowers []Profile
@@ -80,46 +80,46 @@ type VerifyReputationResponse struct {
 // VerifyReputation returns the rank of the target and its highest ranked followers.
 // All ranks use the specified [Algorithm].
 // For more info read: https://vertexlab.io/docs/services/verify-reputation/
-func (s *Service) VerifyReputation(ctx context.Context, args VerifyReputationArgs) (VerifyReputationResponse, error) {
+func (s *Service) VerifyReputation(ctx context.Context, args VerifyReputationArgs) (VerifyReputationResult, error) {
 	response, err := s.verifyReputation(ctx, args)
 	if err != nil {
-		return VerifyReputationResponse{}, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
+		return VerifyReputationResult{}, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
 	}
 	return response, nil
 }
 
-func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArgs) (VerifyReputationResponse, error) {
+func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArgs) (VerifyReputationResult, error) {
 	nodes, err := s.redis.NodeCount(ctx)
 	if err != nil {
-		return VerifyReputationResponse{}, nil
+		return VerifyReputationResult{}, nil
 	}
 
 	target, err := s.redis.NodeByKey(ctx, args.Target)
 	if err != nil {
 		if errors.Is(err, graph.ErrNodeNotFound) {
 			// target is not found, assume it's a low-reputation key (rank of 0)
-			response := VerifyReputationResponse{}
+			response := VerifyReputationResult{}
 			response.Nodes = nodes
 			response.Target.Pubkey = args.Target
 			return response, nil
 		}
-		return VerifyReputationResponse{}, err
+		return VerifyReputationResult{}, err
 	}
 
 	followers, err := s.redis.Followers(ctx, target.ID)
 	if err != nil {
-		return VerifyReputationResponse{}, err
+		return VerifyReputationResult{}, err
 	}
 
 	followCount, err := s.redis.FollowCounts(ctx, target.ID)
 	if err != nil {
-		return VerifyReputationResponse{}, err
+		return VerifyReputationResult{}, err
 	}
 
 	toRank := append([]graph.ID{target.ID}, followers...)
 	ranks, err := s.rankNodes(ctx, toRank, args.Algorithm)
 	if err != nil {
-		return VerifyReputationResponse{}, err
+		return VerifyReputationResult{}, err
 	}
 
 	followerRanking := slicex.Pack(followers, ranks[1:])
@@ -127,10 +127,10 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 
 	topPubkeys, err := s.redis.Pubkeys(ctx, topFollowers...)
 	if err != nil {
-		return VerifyReputationResponse{}, err
+		return VerifyReputationResult{}, err
 	}
 
-	response := VerifyReputationResponse{}
+	response := VerifyReputationResult{}
 	response.Nodes = nodes
 	response.Target.Pubkey = args.Target
 	response.Target.Rank = ranks[0]

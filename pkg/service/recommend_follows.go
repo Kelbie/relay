@@ -62,7 +62,7 @@ func (a RecommendFollowsArgs) Cost() int {
 	return 1
 }
 
-type RecommendFollowsResponse struct {
+type RecommendFollowsResult struct {
 	Nodes           int
 	Recommendations []Profile
 }
@@ -70,20 +70,20 @@ type RecommendFollowsResponse struct {
 // RecommendFollows uses the specified [Algorithm] to return a list of recommendations for args.Source.
 // The recommended pubkeys are the highest ranked, excluding args.Source and its follows (if any).
 // For more info read: https://vertexlab.io/docs/services/recommend-follows/
-func (s *Service) RecommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResponse, error) {
+func (s *Service) RecommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResult, error) {
 	response, err := s.recommendFollows(ctx, args)
 	if err != nil {
-		return RecommendFollowsResponse{}, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
+		return RecommendFollowsResult{}, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
 	}
 	return response, nil
 }
 
 type nodeRanking = slicex.Pairs[graph.ID, float64] // a slice of (node ID, rank)
 
-func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResponse, error) {
+func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResult, error) {
 	nodes, err := s.redis.NodeCount(ctx)
 	if err != nil {
-		return RecommendFollowsResponse{}, err
+		return RecommendFollowsResult{}, err
 	}
 
 	var candidates nodeRanking
@@ -102,16 +102,16 @@ func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArg
 	}
 
 	if err != nil {
-		return RecommendFollowsResponse{}, fmt.Errorf("failed to recommend with %s: %w", args.Sort, err)
+		return RecommendFollowsResult{}, fmt.Errorf("failed to recommend with %s: %w", args.Sort, err)
 	}
 
 	recommendedNodes, ranks := candidates.MaxK(args.Limit).Unpack()
 	recommendedPubkeys, err := s.redis.Pubkeys(ctx, recommendedNodes...)
 	if err != nil {
-		return RecommendFollowsResponse{}, err
+		return RecommendFollowsResult{}, err
 	}
 
-	response := RecommendFollowsResponse{}
+	response := RecommendFollowsResult{}
 	response.Nodes = nodes
 	response.Recommendations = make([]Profile, len(recommendedPubkeys))
 

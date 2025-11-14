@@ -69,7 +69,7 @@ func (a SearchProfilesArgs) Cost() int {
 	return 1
 }
 
-type SearchProfilesResponse struct {
+type SearchProfilesResult struct {
 	Nodes   int
 	Results []Profile
 }
@@ -77,22 +77,22 @@ type SearchProfilesResponse struct {
 // SearchProfiles returns the top ranked pubkeys whose kind:0s contain the provided string.
 // All ranks use the specified [Algorithm].
 // For more info read: https://vertexlab.io/docs/services/search-profiles/
-func (s *Service) SearchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResponse, error) {
+func (s *Service) SearchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResult, error) {
 	response, err := s.searchProfiles(ctx, args)
 	if err != nil {
-		return SearchProfilesResponse{}, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
+		return SearchProfilesResult{}, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
 	}
 	return response, nil
 }
 
-func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResponse, error) {
+func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResult, error) {
 	nodes, err := s.redis.NodeCount(ctx)
 	if err != nil {
-		return SearchProfilesResponse{}, err
+		return SearchProfilesResult{}, err
 	}
 
 	if nostr.IsValidPublicKey(args.Search) {
-		response := SearchProfilesResponse{}
+		response := SearchProfilesResult{}
 		response.Nodes = nodes
 		response.Results = []Profile{{Pubkey: args.Search, Rank: 1}}
 		return response, nil
@@ -103,7 +103,7 @@ func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (
 		if err == nil {
 			// decode it to hex and return only if it's a valid npub.
 			// otherwise, continue with the full text search.
-			response := SearchProfilesResponse{}
+			response := SearchProfilesResult{}
 			response.Nodes = nodes
 			response.Results = []Profile{{Pubkey: pk, Rank: 1}}
 			return response, nil
@@ -112,12 +112,12 @@ func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (
 
 	pubkeys, searchRanks, err := s.search(ctx, args.Search)
 	if err != nil {
-		return SearchProfilesResponse{}, err
+		return SearchProfilesResult{}, err
 	}
 
 	ranks, err := s.rankPubkeys(ctx, pubkeys, args.Algorithm)
 	if err != nil {
-		return SearchProfilesResponse{}, err
+		return SearchProfilesResult{}, err
 	}
 
 	combinedRanks := make([]float64, len(ranks))
@@ -128,7 +128,7 @@ func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (
 	ranking := slicex.Pack(pubkeys, combinedRanks)
 	topPubkeys, topRanks := ranking.MaxK(args.Limit).Unpack()
 
-	response := SearchProfilesResponse{}
+	response := SearchProfilesResult{}
 	response.Nodes = nodes
 	response.Results = make([]Profile, len(topPubkeys))
 
