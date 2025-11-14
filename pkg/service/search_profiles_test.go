@@ -68,3 +68,23 @@ func TestSearchProfilesNormalize(t *testing.T) {
 		})
 	}
 }
+
+func TestEscapeFTS5(t *testing.T) {
+	tests := []struct {
+		term     string
+		expected string
+	}{
+		{term: `jack`, expected: `"jack"`},
+		{term: `don't`, expected: `"don't"`},
+		{term: `she said "get out!"`, expected: `"she said ""get out!"""`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.term, func(t *testing.T) {
+			str := escapeFTS5(test.term)
+			if str != test.expected {
+				t.Fatalf(`expected term '%s', got '%s'`, test.expected, str)
+			}
+		})
+	}
+}

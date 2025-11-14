@@ -123,15 +123,15 @@ func (s *Service) rankNodes(ctx context.Context, nodes []graph.ID, algo Algorith
 }
 
 type Profile struct {
-	Pubkey string
-	Rank   float64
+	Pubkey string  `json:"pubkey"`
+	Rank   float64 `json:"rank"`
 }
 
 type DetailedProfile struct {
-	Pubkey    string
-	Rank      float64
-	Follows   int
-	Followers int
+	Pubkey    string  `json:"pubkey"`
+	Rank      float64 `json:"rank"`
+	Follows   int     `json:"follows"`
+	Followers int     `json:"followers"`
 }
 
 // NpubToHex tries to convert an npub to an hex pubkey.
