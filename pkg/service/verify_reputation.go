@@ -14,12 +14,24 @@ import (
 var (
 	VerifyReputationSorts = []string{Global, Personalized, Followers}
 	VerifyReputationLimit = 100
+
+	ErrUnsuportedVerifyReputation = errors.New("param must be one between 'target', 'source', 'sort', and 'limit'")
 )
 
 type VerifyReputationArgs struct {
 	Algorithm
 	Target string
 	Limit  int
+}
+
+func NewVerifyReputationArgs(pubkey string) VerifyReputationArgs {
+	return VerifyReputationArgs{
+		Algorithm: Algorithm{
+			Sort:   Global,
+			Source: pubkey,
+		},
+		Limit: 5,
+	}
 }
 
 // Normalize the args in place. It validates all the arguments, converting from

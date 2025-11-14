@@ -16,11 +16,23 @@ import (
 var (
 	RecommendFollowsSorts = []string{Global, Personalized, Followers}
 	RecommendFollowsLimit = 100
+
+	ErrUnsuportedRecommendFollows = errors.New("param must be one between 'source', 'sort', and 'limit'")
 )
 
 type RecommendFollowsArgs struct {
 	Algorithm
 	Limit int
+}
+
+func NewRecommendFollowsArgs(pubkey string) RecommendFollowsArgs {
+	return RecommendFollowsArgs{
+		Algorithm: Algorithm{
+			Sort:   Global,
+			Source: pubkey,
+		},
+		Limit: 5,
+	}
 }
 
 func (a *RecommendFollowsArgs) Normalize() error {

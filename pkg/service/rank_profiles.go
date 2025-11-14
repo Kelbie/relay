@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -12,12 +13,24 @@ import (
 var (
 	RankProfilesSorts = []string{Global, Personalized, Followers}
 	RankProfilesLimit = 1000
+
+	ErrUnsuportedRankProfiles = errors.New("param must be one between 'target', 'source', 'sort', and 'limit'")
 )
 
 type RankProfilesArgs struct {
 	Algorithm
 	Targets []string
 	Limit   int
+}
+
+func NewRankProfilesArgs(pubkey string) RankProfilesArgs {
+	return RankProfilesArgs{
+		Algorithm: Algorithm{
+			Sort:   Global,
+			Source: pubkey,
+		},
+		Limit: 5,
+	}
 }
 
 // Normalize the args in place. It validates all the arguments, converting from

@@ -29,6 +29,7 @@ var (
 	ErrInvalidLimit      error = errors.New("invalid limit")
 	ErrInvalidSearch     error = errors.New("invalid search")
 	ErrBadlyFormattedKey error = errors.New("badly formatted key")
+	ErrMultipleParams    error = errors.New("too many parameters of the same type")
 
 	ErrInternal  error = errors.New("internal error")
 	ErrNoCredits error = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll give you a top-up for free!")
