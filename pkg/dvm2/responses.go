@@ -1,12 +1,102 @@
 package dvm2
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/vertex-lab/relay/pkg/rate"
 	"github.com/vertex-lab/relay/pkg/service"
 )
+
+type Handler struct {
+	Service   *service.Service
+	Limiter   rate.Limiter
+	SecretKey string
+}
+
+func (h Handler) Process(ctx context.Context, request *nostr.Event) *nostr.Event {
+	response := h.process(ctx, request)
+	err := response.Sign(h.SecretKey)
+	if err != nil {
+		// this is an unrecoverable error, likely caused by the handler having
+		// an invalid secret key. No responses can be made because they all must be signed.
+		panic(fmt.Errorf("dvm.Handler: failed to sign: %w", err))
+	}
+	return response
+}
+
+func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event {
+	args, err := Parse(request)
+	if err != nil {
+		return Error(request, err)
+	}
+
+	if err = args.Normalize(); err != nil {
+		return Error(request, err)
+	}
+
+	if !h.Limiter.Allow(request.PubKey, args.Cost()) {
+		return Error(request, service.ErrNoCredits)
+	}
+
+	switch args := args.(type) {
+	case *service.VerifyReputationArgs:
+		result, err := h.Service.VerifyReputation(ctx, *args)
+		if err != nil {
+			return Error(request, err)
+		}
+
+		response, err := VerifyReputation(request, *args, result)
+		if err != nil {
+			return Error(request, err)
+		}
+		return response
+
+	case *service.RecommendFollowsArgs:
+		result, err := h.Service.RecommendFollows(ctx, *args)
+		if err != nil {
+			return Error(request, err)
+		}
+
+		response, err := RecommendFollows(request, *args, result)
+		if err != nil {
+			return Error(request, err)
+		}
+		return response
+
+	case *service.RankProfilesArgs:
+		result, err := h.Service.RankProfiles(ctx, *args)
+		if err != nil {
+			return Error(request, err)
+		}
+
+		response, err := RankProfiles(request, *args, result)
+		if err != nil {
+			return Error(request, err)
+		}
+		return response
+
+	case *service.SearchProfilesArgs:
+		result, err := h.Service.SearchProfiles(ctx, *args)
+		if err != nil {
+			return Error(request, err)
+		}
+
+		response, err := SearchProfiles(request, *args, result)
+		if err != nil {
+			return Error(request, err)
+		}
+		return response
+
+	default:
+		slog.Error("dvm.Handler received an unknown type")
+		return Error(request, fmt.Errorf("%w: %w", service.ErrInternal, service.ErrUnsupportedArgs))
+	}
+}
 
 func VerifyReputation(
 	request *nostr.Event,
