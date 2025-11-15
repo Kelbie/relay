@@ -46,6 +46,15 @@ type Config struct {
 	SqlitePath   string `envconfig:"SQLITE_PATH"`
 }
 
+// Args represent the arguments for a service endpoint.
+type Args interface {
+	// Normalize the args in place. It returns an error if invalid.
+	Normalize() error
+
+	// Cost returns the cost (measured in credits) of a service call with the provided arguments.
+	Cost() int
+}
+
 // New creates a [Service] initialized with the specified [Config].
 func New(c Config) (*Service, error) {
 	sqlite, err := store.New(c.SqlitePath)

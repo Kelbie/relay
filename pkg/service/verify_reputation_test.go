@@ -78,3 +78,7 @@ func TestVerifyReputationNormalize(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyReputationInterface(t *testing.T) {
+	var _ Args = &VerifyReputationArgs{}
+}

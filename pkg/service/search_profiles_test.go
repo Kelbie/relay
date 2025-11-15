@@ -88,3 +88,7 @@ func TestEscapeFTS5(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchProfilesInterface(t *testing.T) {
+	var _ Args = &SearchProfilesArgs{}
+}

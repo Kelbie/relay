@@ -75,6 +75,10 @@ func TestRankProfilesNormalize(t *testing.T) {
 	}
 }
 
+func TestRankProfilesInterface(t *testing.T) {
+	var _ Args = &RankProfilesArgs{}
+}
+
 func randomTargets(n int) []string {
 	s := make([]string, n)
 	for i := range n {

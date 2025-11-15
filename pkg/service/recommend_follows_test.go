@@ -58,3 +58,7 @@ func TestRecommendFollowsNormalize(t *testing.T) {
 		})
 	}
 }
+
+func TestRecommendFollowsInterface(t *testing.T) {
+	var _ Args = &RecommendFollowsArgs{}
+}
