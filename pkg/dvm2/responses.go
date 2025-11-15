@@ -27,7 +27,7 @@ func VerifyReputation(
 	return &nostr.Event{
 		Content:   string(content),
 		CreatedAt: nostr.Now(),
-		Kind:      request.Kind + 1000,
+		Kind:      KindVerifyReputation + 1000,
 		Tags: nostr.Tags{
 			{"e", request.ID},
 			{"p", request.PubKey},
@@ -51,7 +51,7 @@ func RecommendFollows(
 	return &nostr.Event{
 		Content:   string(content),
 		CreatedAt: nostr.Now(),
-		Kind:      request.Kind + 1000,
+		Kind:      KindRecommendFollows + 1000,
 		Tags: nostr.Tags{
 			{"e", request.ID},
 			{"p", request.PubKey},
@@ -75,7 +75,7 @@ func RankProfiles(
 	return &nostr.Event{
 		Content:   string(content),
 		CreatedAt: nostr.Now(),
-		Kind:      request.Kind + 1000,
+		Kind:      KindRankProfiles + 1000,
 		Tags: nostr.Tags{
 			{"e", request.ID},
 			{"p", request.PubKey},
@@ -99,7 +99,7 @@ func SearchProfiles(
 	return &nostr.Event{
 		Content:   string(content),
 		CreatedAt: nostr.Now(),
-		Kind:      request.Kind + 1000,
+		Kind:      KindSearchProfiles + 1000,
 		Tags: nostr.Tags{
 			{"e", request.ID},
 			{"p", request.PubKey},
