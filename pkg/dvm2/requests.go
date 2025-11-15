@@ -18,15 +18,32 @@ const (
 )
 
 var (
-	ErrInvalidKind     = errors.New("invalid kind")
 	ErrUnsupportedKind = errors.New("unsupported kind: we only support kinds 5312 to 5315")
 )
 
-func parseVerifyReputation(e *nostr.Event) (args service.VerifyReputationArgs, err error) {
-	args = service.NewVerifyReputationArgs(e.PubKey)
-	if e.Kind != KindVerifyReputation {
-		return args, fmt.Errorf("%w: parseVerifyReputation got event kind %d", ErrInvalidKind, e.Kind)
+// Parse a dvm request into one of the [service.Args].
+func Parse(e *nostr.Event) (service.Args, error) {
+	switch e.Kind {
+	case KindVerifyReputation:
+		return parseVerifyReputation(e)
+
+	case KindRecommendFollows:
+		return parseRecommendFollows(e)
+
+	case KindRankProfiles:
+		return parseRankProfiles(e)
+
+	case KindSearchProfiles:
+		return parseSearchProfiles(e)
+
+	default:
+		return nil, fmt.Errorf("%w: %d", ErrUnsupportedKind, e.Kind)
 	}
+}
+
+func parseVerifyReputation(e *nostr.Event) (*service.VerifyReputationArgs, error) {
+	args := service.NewVerifyReputationArgs(e.PubKey)
+	var err error
 
 	for _, tag := range e.Tags {
 		if len(tag) < 3 {
@@ -51,21 +68,19 @@ func parseVerifyReputation(e *nostr.Event) (args service.VerifyReputationArgs, e
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return args, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
 			}
 
 		default:
-			return args, fmt.Errorf("%w: %v", service.ErrUnsuportedVerifyReputation, key)
+			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedVerifyReputation, key)
 		}
 	}
-	return args, nil
+	return &args, nil
 }
 
-func parseRecommendFollows(e *nostr.Event) (args service.RecommendFollowsArgs, err error) {
-	args = service.NewRecommendFollowsArgs(e.PubKey)
-	if e.Kind != KindRecommendFollows {
-		return args, fmt.Errorf("%w: parseRecommendFollows got event kind %d", ErrInvalidKind, e.Kind)
-	}
+func parseRecommendFollows(e *nostr.Event) (*service.RecommendFollowsArgs, error) {
+	args := service.NewRecommendFollowsArgs(e.PubKey)
+	var err error
 
 	for _, tag := range e.Tags {
 		if len(tag) < 3 {
@@ -87,21 +102,19 @@ func parseRecommendFollows(e *nostr.Event) (args service.RecommendFollowsArgs, e
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return args, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
 			}
 
 		default:
-			return args, fmt.Errorf("%w: %v", service.ErrUnsuportedRecommendFollows, key)
+			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedRecommendFollows, key)
 		}
 	}
-	return args, nil
+	return &args, nil
 }
 
-func parseRankProfiles(e *nostr.Event) (args service.RankProfilesArgs, err error) {
-	args = service.NewRankProfilesArgs(e.PubKey)
-	if e.Kind != KindRankProfiles {
-		return args, fmt.Errorf("%w: parseRankProfiles got event kind %d", ErrInvalidKind, e.Kind)
-	}
+func parseRankProfiles(e *nostr.Event) (*service.RankProfilesArgs, error) {
+	args := service.NewRankProfilesArgs(e.PubKey)
+	var err error
 
 	for _, tag := range e.Tags {
 		if len(tag) < 3 {
@@ -126,21 +139,19 @@ func parseRankProfiles(e *nostr.Event) (args service.RankProfilesArgs, err error
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return args, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
 			}
 
 		default:
-			return args, fmt.Errorf("%w: %v", service.ErrUnsuportedRankProfiles, key)
+			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedRankProfiles, key)
 		}
 	}
-	return args, nil
+	return &args, nil
 }
 
-func parseSearchProfiles(e *nostr.Event) (args service.SearchProfilesArgs, err error) {
-	args = service.NewSearchProfilesArgs(e.PubKey)
-	if e.Kind != KindSearchProfiles {
-		return args, fmt.Errorf("%w: parseSearchProfiles got event kind %d", ErrInvalidKind, e.Kind)
-	}
+func parseSearchProfiles(e *nostr.Event) (*service.SearchProfilesArgs, error) {
+	args := service.NewSearchProfilesArgs(e.PubKey)
+	var err error
 
 	for _, tag := range e.Tags {
 		if len(tag) < 3 {
@@ -165,12 +176,12 @@ func parseSearchProfiles(e *nostr.Event) (args service.SearchProfilesArgs, err e
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return args, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
 			}
 
 		default:
-			return args, fmt.Errorf("%w: %v", service.ErrUnsuportedRankProfiles, key)
+			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedRankProfiles, key)
 		}
 	}
-	return args, nil
+	return &args, nil
 }

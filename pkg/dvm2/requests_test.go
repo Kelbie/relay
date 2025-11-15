@@ -13,14 +13,9 @@ func TestParseVerifyReputation(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected service.VerifyReputationArgs
+		expected *service.VerifyReputationArgs
 		err      error
 	}{
-		{
-			name:    "invalid kind",
-			request: &nostr.Event{Kind: 69},
-			err:     ErrInvalidKind,
-		},
 		{
 			name: "invalid limit",
 			request: &nostr.Event{
@@ -49,7 +44,7 @@ func TestParseVerifyReputation(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: service.VerifyReputationArgs{
+			expected: &service.VerifyReputationArgs{
 				Algorithm: service.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
@@ -78,14 +73,9 @@ func TestParseRecommendFollows(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected service.RecommendFollowsArgs
+		expected *service.RecommendFollowsArgs
 		err      error
 	}{
-		{
-			name:    "invalid kind",
-			request: &nostr.Event{Kind: 69},
-			err:     ErrInvalidKind,
-		},
 		{
 			name: "invalid limit",
 			request: &nostr.Event{
@@ -113,7 +103,7 @@ func TestParseRecommendFollows(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: service.RecommendFollowsArgs{
+			expected: &service.RecommendFollowsArgs{
 				Algorithm: service.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
@@ -141,14 +131,9 @@ func TestParseRankProfiles(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected service.RankProfilesArgs
+		expected *service.RankProfilesArgs
 		err      error
 	}{
-		{
-			name:    "invalid kind",
-			request: &nostr.Event{Kind: 69},
-			err:     ErrInvalidKind,
-		},
 		{
 			name: "invalid limit",
 			request: &nostr.Event{
@@ -179,7 +164,7 @@ func TestParseRankProfiles(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: service.RankProfilesArgs{
+			expected: &service.RankProfilesArgs{
 				Algorithm: service.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
@@ -208,14 +193,9 @@ func TestParseSearchProfiles(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected service.SearchProfilesArgs
+		expected *service.SearchProfilesArgs
 		err      error
 	}{
-		{
-			name:    "invalid kind",
-			request: &nostr.Event{Kind: 69},
-			err:     ErrInvalidKind,
-		},
 		{
 			name: "invalid limit",
 			request: &nostr.Event{
@@ -244,7 +224,7 @@ func TestParseSearchProfiles(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: service.SearchProfilesArgs{
+			expected: &service.SearchProfilesArgs{
 				Algorithm: service.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
