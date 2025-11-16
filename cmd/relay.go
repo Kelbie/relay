@@ -5,39 +5,32 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
-	"sync/atomic"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/pippellia-btc/rely"
-	"github.com/vertex-lab/crawler_v2/pkg/regraph"
-	nstore "github.com/vertex-lab/crawler_v2/pkg/store"
-	sqlite "github.com/vertex-lab/nostr-sqlite"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
+	srv "github.com/vertex-lab/relay/pkg/service"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/redis/go-redis/v9"
 )
 
 var (
-	relay  *rely.Relay
 	config cfg.Config
 	err    error
 
-	store *sqlite.Store
-	db    regraph.DB
-
-	limiter   rate.Limiter
-	processed atomic.Int32
+	service    *srv.Service
+	limiter    rate.Limiter
+	dvmHandler dvm.Handler
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-	go rely.HandleSignals(cancel)
 
 	// removing go-nostr logs
 	nostr.DebugLogger.SetOutput(io.Discard)
@@ -51,32 +44,28 @@ func main() {
 		panic(err)
 	}
 
-	relay = rely.NewRelay(
+	service, err = srv.New(config.Service)
+	if err != nil {
+		panic(err)
+	}
+	defer service.Close()
+
+	limiter, err = rate.NewLimiter(service.Redis.Client, config.Refill)
+	if err != nil {
+		panic(err)
+	}
+
+	dvmHandler = dvm.Handler{
+		Service:   service,
+		Limiter:   limiter,
+		SecretKey: config.Relay.SecretKey,
+	}
+
+	relay := rely.NewRelay(
 		rely.WithDomain("vertexlab.io"),
-		rely.WithQueueCapacity(config.QueueCapacity),
-		rely.WithMaxProcessors(config.Processors),
+		rely.WithQueueCapacity(config.Relay.QueueCapacity),
+		rely.WithMaxProcessors(config.Relay.Processors),
 	)
-
-	store, err = nstore.New(config.SQLiteURL)
-	if err != nil {
-		panic(err)
-	}
-
-	defer store.Close()
-	slog.Info("sqlite connected", "address", config.SQLiteURL)
-
-	db, err = regraph.New(&redis.Options{Addr: config.RedisAddress})
-	if err != nil {
-		panic(err)
-	}
-
-	defer db.Close()
-	slog.Info("redis connected", "address", config.RedisAddress)
-
-	limiter, err = rate.NewLimiter(db.Client, config.Refill)
-	if err != nil {
-		panic(err)
-	}
 
 	relay.Reject.Event = append(relay.Reject.Event, NonDVM)
 	relay.Reject.Req = append(relay.Reject.Req, FiltersExceed(100), WithSearch, UnauthedCredits)
@@ -85,7 +74,7 @@ func main() {
 	relay.On.Count = Count
 	relay.On.Event = Process
 
-	err := relay.StartAndServe(ctx, config.RelayAddress)
+	err := relay.StartAndServe(ctx, config.Relay.Address)
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +91,7 @@ func Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]no
 }
 
 func query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
-	events, err := store.Query(ctx, filters...)
+	events, err := service.Sqlite.Query(ctx, filters...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +117,7 @@ func creditQuery(pubkey string) (nostr.Event, error) {
 	}
 
 	info := bucket.ToEvent()
-	if err = info.Sign(config.SecretKey); err != nil {
+	if err = info.Sign(config.Relay.SecretKey); err != nil {
 		return nostr.Event{}, fmt.Errorf("failed to query credits: failed to sign: %w", err)
 	}
 	return info, nil
@@ -138,86 +127,18 @@ func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool,
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	count, err = store.Count(ctx, filters...)
+	count, err = service.Sqlite.Count(ctx, filters...)
 	if err != nil {
 		return 0, false, err
 	}
 	return count, false, nil
 }
 
-func Process(_ rely.Client, event *nostr.Event) error {
-	err := process(event, SignAndSave)
-	if err != nil {
-		slog.Error("failed to process request", "event", event, "error", err)
-	}
-	return err
-}
-
-func SignAndSave(e *nostr.Event) error {
-	if err := e.Sign(config.SecretKey); err != nil {
-		return fmt.Errorf("failed to sign the response %s: %w", e.ID, err)
-	}
-
-	relay.Broadcast(e)
-	_, err := store.Save(context.Background(), e)
-	return err
-}
-
-func process(event *nostr.Event, reply func(*nostr.Event) error) error {
+func Process(_ rely.Client, request *nostr.Event) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	request, err := dvm.Parse(event)
-	if err != nil {
-		return reply(dvm.ErrorEvent(err, dvm.NewRecord(event)))
-	}
-
-	if !limiter.Allow(request.Pubkey, cost(request)) {
-		return reply(dvm.ErrorEvent(dvm.ErrNoCredits, request.Record))
-	}
-
-	request.Nodes, err = db.NodeCount(ctx)
-	if err != nil {
-		return reply(dvm.ErrorEvent(err, request.Record))
-	}
-
-	var response dvm.Response
-	switch request.Kind {
-	case dvm.KindVerifyReputation:
-		response, err = dvm.VerifyReputation(ctx, db, request)
-
-	case dvm.KindRecommendFollows:
-		response, err = dvm.RecommendFollows(ctx, db, request)
-
-	case dvm.KindRankProfiles:
-		response, err = dvm.RankProfiles(ctx, db, request)
-
-	case dvm.KindSearchProfiles:
-		response, err = dvm.SearchProfiles(ctx, db, store, request)
-
-	default:
-		err = fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, request.Kind)
-	}
-
-	if err != nil {
-		return reply(dvm.ErrorEvent(err, request.Record))
-	}
-
-	tot := processed.Add(1)
-	if tot%1000 == 0 {
-		log.Printf("processed %d dvm requests", tot)
-	}
-
-	return reply(dvm.ResponseEvent(response, request))
-}
-
-// This function estimates the cost of processing a request with the provided params.
-func cost(r *dvm.Request) int {
-	switch r.Sort {
-	case dvm.Personalized:
-		return 10
-
-	default:
-		return 1
-	}
+	response := dvmHandler.Process(ctx, request)
+	_, err := service.Sqlite.Save(ctx, response)
+	return err
 }

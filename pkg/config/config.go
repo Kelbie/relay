@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -9,23 +8,26 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/rate"
+	"github.com/vertex-lab/relay/pkg/service"
 )
 
 type Config struct {
-	RelayConfig
-	Refill rate.RefillPolicy
+	Relay   RelayConfig
+	Service service.Config
+	Refill  rate.RefillPolicy
 }
 
 // New returns a config with default paramenters.
 func New() Config {
 	return Config{
-		RelayConfig: NewRelayConfig(),
-		Refill:      rate.NewRefillPolicy(),
+		Relay:   NewRelayConfig(),
+		Service: service.NewConfig(),
+		Refill:  rate.NewRefillPolicy(),
 	}
 }
 
 func (c Config) Validate() error {
-	if err := c.RelayConfig.Validate(); err != nil {
+	if err := c.Relay.Validate(); err != nil {
 		return fmt.Errorf("Relay: %w", err)
 	}
 
@@ -35,15 +37,8 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func (c Config) Print() {
-	c.RelayConfig.Print()
-	c.Refill.Print()
-}
-
 type RelayConfig struct {
-	RelayAddress  string `envconfig:"RELAY_ADDRESS"`
-	RedisAddress  string `envconfig:"REDIS_ADDRESS"`
-	SQLiteURL     string `envconfig:"SQLITE_URL"`
+	Address       string `envconfig:"RELAY_ADDRESS"`
 	QueueCapacity int    `envconfig:"QUEUE_CAPACITY"`
 	Processors    int    `envconfig:"PROCESSORS"`
 	SecretKey     string `envconfig:"SECRET_KEY"`
@@ -53,12 +48,16 @@ type RelayConfig struct {
 // NewRelayConfig returns a relay configuration structure with default paramenters.
 func NewRelayConfig() RelayConfig {
 	return RelayConfig{
-		RelayAddress:  "localhost:3334",
-		RedisAddress:  "localhost:6379",
-		SQLiteURL:     "relay.sqlite",
+		Address:       "localhost:3334",
 		QueueCapacity: 1000,
 		Processors:    4,
 	}
+}
+
+func (c Config) Print() {
+	c.Relay.Print()
+	c.Service.Print()
+	c.Refill.Print()
 }
 
 func (c RelayConfig) Validate() error {
@@ -72,44 +71,40 @@ func (c RelayConfig) Validate() error {
 
 	pk, err := nostr.GetPublicKey(c.SecretKey)
 	if err != nil {
-		return fmt.Errorf("secret key is not a valid: %w", err)
+		return fmt.Errorf("secret key is invalid: %w", err)
 	}
 
 	if pk != c.PublicKey {
-		return errors.New("secret and public keys don't match")
+		return fmt.Errorf("secret and public keys don't match")
 	}
 	return nil
 }
 
 func (c RelayConfig) Print() {
 	fmt.Println("Relay:")
-	fmt.Printf("  RedisAddress: %s\n", c.RedisAddress)
-	fmt.Printf("  RelayAddress: %s\n", c.RelayAddress)
-	fmt.Printf("  SQLiteURL: %s\n", c.SQLiteURL)
+	fmt.Printf("  Address: %s\n", c.Address)
 	fmt.Printf("  QueueCapacity: %d\n", c.QueueCapacity)
 	fmt.Printf("  Processors: %d\n", c.Processors)
 	fmt.Printf("  SecretKey: %s\n", c.SecretKey)
 	fmt.Printf("  PublicKey: %s\n", c.PublicKey)
 }
 
-// Load creates a new [Config] with default parameters.
-// Then, if the corresponding environment variable is set, it overwrites them.
+// Load creates a new [Config] with default parameters, that get overwritten by
+// env variables when specified.
 func Load() (Config, error) {
 	config := New()
-
 	err := envconfig.Process("", &config)
 	if err != nil {
 		return Config{}, fmt.Errorf("config.Load: %w", err)
 	}
 
-	config.PublicKey, err = nostr.GetPublicKey(config.SecretKey)
+	config.Relay.PublicKey, err = nostr.GetPublicKey(config.Relay.SecretKey)
 	if err != nil {
-		return Config{}, fmt.Errorf("secret key is not a valid: %w", err)
+		return Config{}, fmt.Errorf("secret key is invalid: %w", err)
 	}
 
 	if err := config.Validate(); err != nil {
 		return Config{}, fmt.Errorf("config.Load: %w", err)
 	}
-
 	return config, nil
 }

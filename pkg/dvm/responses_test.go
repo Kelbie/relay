@@ -1,4 +1,4 @@
-package dvm2
+package dvm
 
 import (
 	"reflect"

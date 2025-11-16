@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/vertex-lab/crawler_v2/pkg/pipe"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
+	"github.com/vertex-lab/relay/pkg/service"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -71,7 +71,11 @@ func TestRateLimiting(t *testing.T) {
 	}
 
 	expectedKind := dvm.KindDVMError
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"status", "error", dvm.ErrNoCredits.Error()}}
+	expectedTags := nostr.Tags{
+		{"e", req.ID},
+		{"p", pk},
+		{"status", "error", service.ErrNoCredits.Error()},
+	}
 
 	res, err := dvmResponse(req, localhost)
 	if err != nil {
@@ -97,7 +101,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -109,12 +113,16 @@ func TestDVM_VerifyReputation(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response dvm.Response
+	var response []service.DetailedProfile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	pubkeys := response.Pubkeys()
+	pubkeys := make([]string, len(response))
+	for i := range response {
+		pubkeys[i] = response[i].Pubkey
+	}
+
 	if pubkeys[0] != fran {
 		t.Errorf("the first pubkey should be the target %s", fran)
 	}
@@ -143,8 +151,8 @@ func TestDVM_RankProfiles(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedSorted := []string{calle, fran, randomKey, "zzz"}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
+	expectedPubkeys := []string{calle, fran, randomKey, "zzz"}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -156,20 +164,24 @@ func TestDVM_RankProfiles(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response dvm.Response
+	var response []service.Profile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	sorted := response.Pubkeys()
-	if !reflect.DeepEqual(sorted, expectedSorted) {
+	pubkeys := make([]string, len(response))
+	for i := range response {
+		pubkeys[i] = response[i].Pubkey
+	}
+
+	if !slices.Equal(pubkeys, expectedPubkeys) {
 		t.Errorf("sorted keys don't match the expected ones")
-		t.Errorf("sorted:")
-		for i, pk := range sorted {
+		t.Errorf("pubkeys:")
+		for i, pk := range pubkeys {
 			t.Errorf("%d) %s", i, pk)
 		}
 		t.Errorf("expected:")
-		for i, pk := range expectedSorted {
+		for i, pk := range expectedPubkeys {
 			t.Errorf("%d) %s", i, pk)
 		}
 	}
@@ -190,8 +202,8 @@ func TestDVM_RecommendFollows(t *testing.T) {
 	}
 
 	// this list is dependent on the specific database
-	expectedRecommendations := []string{damus, jack_dorsey, jb55}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
+	expectedPubkeys := []string{damus, jack_dorsey, jb55}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -203,20 +215,24 @@ func TestDVM_RecommendFollows(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response dvm.Response
+	var response []service.Profile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	recommendations := response.Pubkeys()
-	if !reflect.DeepEqual(recommendations, expectedRecommendations) {
+	pubkeys := make([]string, len(response))
+	for i := range response {
+		pubkeys[i] = response[i].Pubkey
+	}
+
+	if !slices.Equal(pubkeys, expectedPubkeys) {
 		t.Errorf("recommendations don't match the expected ones")
 		t.Errorf("recommendations:")
-		for i, pk := range recommendations {
+		for i, pk := range pubkeys {
 			t.Errorf("%d) %s", i, pk)
 		}
 		t.Errorf("expected:")
-		for i, pk := range expectedRecommendations {
+		for i, pk := range expectedPubkeys {
 			t.Errorf("%d) %s", i, pk)
 		}
 	}
@@ -237,8 +253,8 @@ func TestDVM_SearchProfiles(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedJacks := []string{jack_dorsey, jack_mallers, jack_spirko}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", dvm.Global}, {"nodes"}}
+	expectedResults := []string{jack_dorsey, jack_mallers, jack_spirko}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -250,20 +266,24 @@ func TestDVM_SearchProfiles(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response dvm.Response
+	var response []service.Profile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
 
-	jacks := response.Pubkeys()
-	if !reflect.DeepEqual(jacks, expectedJacks) {
+	results := make([]string, len(response))
+	for i := range response {
+		results[i] = response[i].Pubkey
+	}
+
+	if !slices.Equal(results, expectedResults) {
 		t.Errorf("the search results don't match the expected ones")
 		t.Errorf("result:")
-		for i, pk := range jacks {
+		for i, pk := range results {
 			t.Errorf("%d) %s", i, pk)
 		}
 		t.Errorf("expected:")
-		for i, pk := range expectedJacks {
+		for i, pk := range expectedResults {
 			t.Errorf("%d) %s", i, pk)
 		}
 	}
