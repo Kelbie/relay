@@ -67,7 +67,7 @@ func main() {
 		rely.WithMaxProcessors(config.Relay.Processors),
 	)
 
-	relay.Reject.Event = append(relay.Reject.Event, NonDVM)
+	relay.Reject.Event = append(relay.Reject.Event, UnsupportedDVM)
 	relay.Reject.Req = append(relay.Reject.Req, FiltersExceed(100), WithSearch, UnauthedCredits)
 	relay.On.Connect = SendAuth
 	relay.On.Req = Query

@@ -41,6 +41,10 @@ func Parse(e *nostr.Event) (service.Args, error) {
 	}
 }
 
+func Supports(kind int) bool {
+	return KindVerifyReputation <= kind && kind <= KindSearchProfiles
+}
+
 func parseVerifyReputation(e *nostr.Event) (*service.VerifyReputationArgs, error) {
 	args := service.NewVerifyReputationArgs(e.PubKey)
 	var err error

@@ -12,8 +12,8 @@ import (
 
 func SendAuth(c rely.Client) { c.SendAuth() }
 
-func NonDVM(_ rely.Client, event *nostr.Event) error {
-	if event.Kind < 5312 || event.Kind > 5315 {
+func UnsupportedDVM(_ rely.Client, event *nostr.Event) error {
+	if !dvm.Supports(event.Kind) {
 		return fmt.Errorf("%w: %d", dvm.ErrUnsupportedKind, event.Kind)
 	}
 	return nil
