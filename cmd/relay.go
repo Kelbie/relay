@@ -69,6 +69,7 @@ func main() {
 
 	relay.Reject.Event = append(relay.Reject.Event, UnsupportedDVM)
 	relay.Reject.Req = append(relay.Reject.Req, FiltersExceed(100), WithSearch, UnauthedCredits)
+	relay.Reject.Count = append(relay.Reject.Count, FiltersExceed(100))
 	relay.On.Connect = SendAuth
 	relay.On.Req = Query
 	relay.On.Count = Count
@@ -97,30 +98,26 @@ func query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]no
 	}
 
 	if ContainCreditQuery(filters) {
-		info, err := creditQuery(client.Pubkey())
+		credits, err := creditQuery(client.Pubkey())
 		if err != nil {
 			return nil, err
 		}
-		events = append(events, info)
+		events = append(events, credits)
 	}
 	return events, nil
 }
 
 func creditQuery(pubkey string) (nostr.Event, error) {
-	if pubkey == "" {
-		return nostr.Event{}, errors.New("failed to query credits: pubkey is empty")
-	}
-
 	bucket, err := limiter.Bucket(pubkey)
 	if err != nil {
 		return nostr.Event{}, fmt.Errorf("failed to query credits of pubkey %s: %w", pubkey, err)
 	}
 
-	info := bucket.ToEvent()
-	if err = info.Sign(config.Relay.SecretKey); err != nil {
-		return nostr.Event{}, fmt.Errorf("failed to query credits: failed to sign: %w", err)
+	credits, err := CreditEvent(bucket)
+	if err != nil {
+		return nostr.Event{}, fmt.Errorf("failed to query credits of pubkey %s: %w", pubkey, err)
 	}
-	return info, nil
+	return credits, nil
 }
 
 func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {

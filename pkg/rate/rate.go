@@ -8,10 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"time"
 
-	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,18 +24,6 @@ var NoRefill = RefillPolicy{Amount: 0}
 type Bucket struct {
 	Tokens       int   `redis:"tokens"`
 	LastModified int64 `redis:"last_modified"` // unix time
-}
-
-// ToEvent returns the bucket as an unsigned kind 22243 nostr event
-func (b Bucket) ToEvent() nostr.Event {
-	return nostr.Event{
-		Kind:      22243,
-		CreatedAt: nostr.Now(),
-		Tags: nostr.Tags{
-			{"credits", strconv.Itoa(b.Tokens)},
-			{"lastRequest", strconv.FormatInt(b.LastModified, 10)},
-		},
-	}
 }
 
 type RefillPolicy struct {
@@ -119,8 +105,6 @@ var (
 	KeyAllowed      = "allowed"
 )
 
-func creditBucket(pubkey string) string { return KeyCreditBucket + pubkey }
-
 // Allow tries to deduct the cost from the pubkey's tokens and reports whether it suceeded.
 func (l Limiter) Allow(pubkey string, cost int) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -163,6 +147,8 @@ func (l Limiter) Allow(pubkey string, cost int) bool {
 		return false
 	}
 }
+
+func creditBucket(pubkey string) string { return KeyCreditBucket + pubkey }
 
 // Bucket returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
 func (l Limiter) Bucket(pubkey string) (Bucket, error) {
