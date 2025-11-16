@@ -86,7 +86,7 @@ func (s *Service) SearchProfiles(ctx context.Context, args SearchProfilesArgs) (
 }
 
 func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResult, error) {
-	nodes, err := s.redis.NodeCount(ctx)
+	nodes, err := s.Redis.NodeCount(ctx)
 	if err != nil {
 		return SearchProfilesResult{}, err
 	}
@@ -143,7 +143,7 @@ func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (
 // It returns the pubkeys and search scores (positives, higher is better) of the SQL query.
 func (s *Service) search(ctx context.Context, search string) (pubkeys []string, scores []float64, err error) {
 	search = escapeFTS5(search)
-	row := s.sqlite.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM profiles_fts WHERE profiles_fts MATCH ?", search)
+	row := s.Sqlite.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM profiles_fts WHERE profiles_fts MATCH ?", search)
 
 	var matches int
 	if err := row.Scan(&matches); err != nil {
@@ -159,7 +159,7 @@ func (s *Service) search(ctx context.Context, search string) (pubkeys []string, 
 				ORDER BY score
 				LIMIT ?;`
 
-	rows, err := s.sqlite.DB.QueryContext(ctx, query, name, displayName, about, website, nip05, search, limit)
+	rows, err := s.Sqlite.DB.QueryContext(ctx, query, name, displayName, about, website, nip05, search, limit)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to make full text search: %w", err)
 	}
