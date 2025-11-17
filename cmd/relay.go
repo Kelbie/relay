@@ -81,7 +81,6 @@ func main() {
 	}
 }
 
-// Query the event store, or redis for the credit balance, and log every error.
 func Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
 	events, err := query(ctx, client, filters)
 	if err != nil && !errors.Is(err, context.Canceled) {
