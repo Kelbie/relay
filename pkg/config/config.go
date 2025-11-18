@@ -1,3 +1,4 @@
+// The package config defined and loads the configuration parameters from the .env file.
 package config
 
 import (

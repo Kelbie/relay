@@ -1,3 +1,6 @@
+// The package rate defines a rate limiter based on the token bucket algorith.
+// Each nostr pubkey has it's own bucket (potentially empty).
+// Buckets might be periodically refilled based on the specified [RefillPolicy].
 package rate
 
 import (

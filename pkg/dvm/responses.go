@@ -22,8 +22,8 @@ func (h Handler) Process(ctx context.Context, request *nostr.Event) *nostr.Event
 	response := h.process(ctx, request)
 	err := response.Sign(h.SecretKey)
 	if err != nil {
-		// this is an unrecoverable error, likely caused by the handler having
-		// an invalid secret key. No responses can be made because they all must be signed.
+		// the handler failed to sign the response, likely caused by an invalid secret key.
+		// This is an unrecoverable error since all responses must be signed.
 		panic(fmt.Errorf("dvm.Handler: failed to sign: %w", err))
 	}
 	return response

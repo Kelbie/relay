@@ -1,3 +1,5 @@
+// The package dvm is responsible for defining the dvm-specific logic for parsing
+// requests, and encoding responses as nostr events.
 package dvm
 
 import (

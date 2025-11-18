@@ -1,3 +1,6 @@
+// The package service defines the [Service] struct, responsible for handling the
+// core business logic of the relay. It defines arguments and the responses
+// for each service.
 package service
 
 import (
