@@ -98,6 +98,10 @@ func (c ServiceConfig) Print() {
 	c.Refill.Print()
 }
 
+func (c ServiceConfig) Validate() error {
+	return c.Refill.Validate()
+}
+
 // Close closes the service database connections, releasing resources.
 func (s *Service) Close() error {
 	err1 := s.Sqlite.Close()

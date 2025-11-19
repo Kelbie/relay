@@ -9,13 +9,11 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/core"
-	"github.com/vertex-lab/relay/pkg/credits"
 )
 
 type Config struct {
 	Relay   RelayConfig
 	Service core.ServiceConfig
-	Refill  credits.RefillPolicy
 }
 
 // New returns a config with default paramenters.
@@ -23,7 +21,6 @@ func New() Config {
 	return Config{
 		Relay:   NewRelayConfig(),
 		Service: core.NewServiceConfig(),
-		Refill:  credits.NewRefillPolicy(),
 	}
 }
 
@@ -32,7 +29,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("Relay: %w", err)
 	}
 
-	if err := c.Refill.Validate(); err != nil {
+	if err := c.Service.Validate(); err != nil {
 		return fmt.Errorf("Refill: %w", err)
 	}
 	return nil
@@ -58,7 +55,6 @@ func NewRelayConfig() RelayConfig {
 func (c Config) Print() {
 	c.Relay.Print()
 	c.Service.Print()
-	c.Refill.Print()
 }
 
 func (c RelayConfig) Validate() error {
