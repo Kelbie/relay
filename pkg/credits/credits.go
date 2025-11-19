@@ -1,13 +1,12 @@
-// The package rate defines a rate limiter based on the token bucket algorith.
-// Each nostr pubkey has it's own bucket (potentially empty).
+// The package credits defines a credit manager that uses the token bucket algorith.
+// Each identity (e.g. nostr pubkey) has it's own bucket (potentially empty).
 // Buckets might be periodically refilled based on the specified [RefillPolicy].
-package rate
+package credits
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,14 +14,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 )
-
-const (
-	DefaultAmount        int           = 100
-	DefaultInterval      time.Duration = 24 * time.Hour
-	DefaultWalkThreshold int           = 5
-)
-
-var NoRefill = RefillPolicy{Amount: 0}
 
 type Bucket struct {
 	Tokens       int   `redis:"tokens"`
@@ -35,11 +26,13 @@ type RefillPolicy struct {
 	WalkThreshold int           `envconfig:"REFILL_WALK_THRESHOLD"`
 }
 
+var NoRefill = RefillPolicy{Amount: 0}
+
 func NewRefillPolicy() RefillPolicy {
 	return RefillPolicy{
-		Amount:        DefaultAmount,
-		Interval:      DefaultInterval,
-		WalkThreshold: DefaultWalkThreshold,
+		Amount:        100,
+		Interval:      24 * time.Hour,
+		WalkThreshold: 5,
 	}
 }
 
@@ -61,23 +54,23 @@ func (p RefillPolicy) Print() {
 	fmt.Printf("  Walk Threshold: %d\n", p.WalkThreshold)
 }
 
-type Limiter struct {
+type Manager struct {
 	client *redis.Client
 	refill RefillPolicy
 }
 
-// NewLimiter returns a limiter with the specified [RefillPolicy].
-func NewLimiter(client *redis.Client, refill RefillPolicy) (Limiter, error) {
-	limiter := Limiter{client: client, refill: refill}
-	if err := limiter.init(); err != nil {
-		return Limiter{}, fmt.Errorf("NewLimiter: %w", err)
+// NewManager returns a credit manager with the specified [RefillPolicy].
+func NewManager(client *redis.Client, refill RefillPolicy) (Manager, error) {
+	manager := Manager{client: client, refill: refill}
+	if err := manager.init(); err != nil {
+		return Manager{}, fmt.Errorf("NewManager: %w", err)
 	}
-	return limiter, nil
+	return manager, nil
 }
 
-// init loads the Lua "rate.lua" script from the same directory as this source file
+// init loads the Lua "credits.lua" script from the same directory as this source file
 // and registers (or replaces) it as a Redis function.
-func (l Limiter) init() error {
+func (m Manager) init() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -87,13 +80,13 @@ func (l Limiter) init() error {
 	}
 
 	dir := filepath.Dir(filename)
-	path := filepath.Join(dir, "rate.lua")
+	path := filepath.Join(dir, "credits.lua")
 	code, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read %s: %w", path, err)
 	}
 
-	err = l.client.FunctionLoadReplace(ctx, string(code)).Err()
+	err = m.client.FunctionLoadReplace(ctx, string(code)).Err()
 	if err != nil {
 		return fmt.Errorf("failed to load redis function: %w", err)
 	}
@@ -104,71 +97,69 @@ var (
 	KeyCreditBucket = "creditBucket:"
 	KeyTokens       = "tokens"
 	KeyLastModified = "last_modified"
-	KeyNotAllowed   = "not allowed"
-	KeyAllowed      = "allowed"
+	KeySuccess      = "successful deduction"
+	KeyFailed       = "failed deduction"
+
+	ErrInsufficientCredits = errors.New("insufficient credits")
 )
 
-// Allow tries to deduct the cost from the pubkey's tokens and reports whether it suceeded.
-func (l Limiter) Allow(pubkey string, cost int) bool {
+// Deduct tries to deduct the cost from the pubkey's tokens.
+// It succeed if and only if the error is nil.
+func (m Manager) Deduct(pubkey string, cost int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
 	if cost < 0 {
-		log.Printf("limiter.Allow: cost cannot be negative: %d", cost)
-		return false
+		return errors.New("cost cannot be negative")
 	}
 
 	args := []any{
 		pubkey,
 		cost,
-		l.refill.Amount,
-		l.refill.Interval.Seconds(),
-		l.refill.WalkThreshold,
+		m.refill.Amount,
+		m.refill.Interval.Seconds(),
+		m.refill.WalkThreshold,
 	}
 
-	result, err := l.client.FCall(ctx, "allow", nil, args...).Result()
+	result, err := m.client.FCall(ctx, "deduct", nil, args...).Result()
 	if err != nil {
-		log.Printf("limiter.Allow: %v", err)
-		return false
+		return fmt.Errorf("failed to call deduct redis function: %w", err)
 	}
 
 	status, ok := result.(string)
 	if !ok {
-		log.Printf("limiter.Allow: failed to type assert the result as a string: %v", result)
-		return false
+		return fmt.Errorf("failed to type assert the result as a string: %s", result)
 	}
 
 	switch status {
-	case KeyAllowed:
-		return true
+	case KeyFailed:
+		return ErrInsufficientCredits
 
-	case KeyNotAllowed:
-		return false
+	case KeySuccess:
+		return nil
 
 	default:
-		log.Printf("limiter.Allow: unexpected status: %s", status)
-		return false
+		return fmt.Errorf("unexpected status: %s", status)
 	}
 }
 
 func creditBucket(pubkey string) string { return KeyCreditBucket + pubkey }
 
 // Bucket returns the bucket of `pubkey`. If it doesn't exists, it returns an empty bucket.
-func (l Limiter) Bucket(pubkey string) (Bucket, error) {
+func (m Manager) Bucket(pubkey string) (Bucket, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
 	var bucket Bucket
-	cmd := l.client.HGetAll(ctx, creditBucket(pubkey))
+	cmd := m.client.HGetAll(ctx, creditBucket(pubkey))
 	if err := cmd.Scan(&bucket); err != nil {
 		return Bucket{}, fmt.Errorf("failed to fetch bucket of %s: %w", pubkey, err)
 	}
-
 	return bucket, nil
 }
 
 // TopUp the tokens of pubkey by amount, and return the total after the increase.
-func (l Limiter) TopUp(pubkey string, amount int) (int, error) {
+func (m Manager) TopUp(pubkey string, amount int) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
@@ -176,13 +167,12 @@ func (l Limiter) TopUp(pubkey string, amount int) (int, error) {
 		return -1, fmt.Errorf("amount cannot be negative: %d", amount)
 	}
 
-	pipe := l.client.TxPipeline()
+	pipe := m.client.TxPipeline()
 	pipe.HSet(ctx, creditBucket(pubkey), KeyLastModified, time.Now().Unix())
 	cmd := pipe.HIncrBy(ctx, creditBucket(pubkey), KeyTokens, int64(amount))
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		return -1, fmt.Errorf("failed to top-up the credits of %s: %w", pubkey, err)
 	}
-
 	return int(cmd.Val()), nil
 }

@@ -1,7 +1,8 @@
-package rate
+package credits
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -29,7 +30,7 @@ var (
 		pubkey:   "reputable1",
 		addition: Sep2025,
 		walks:    100,
-		Bucket:   Bucket{Tokens: DefaultAmount, LastModified: Sep2025},
+		Bucket:   Bucket{Tokens: 100, LastModified: Sep2025},
 	}
 
 	reputableEmpty = user{
@@ -93,7 +94,7 @@ func setup(db regraph.DB) error {
 	return nil
 }
 
-// We simulate running the Lua function "automatic_refill" by calling [Allow] with a cost of 0.
+// We simulate running the Lua function "automatic_refill" by calling [Deduct] with a cost of 0.
 func TestAutomaticRefill(t *testing.T) {
 	db, err := regraph.New(&redis.Options{Addr: testAddress})
 	if err != nil {
@@ -146,23 +147,23 @@ func TestAutomaticRefill(t *testing.T) {
 			name:   "reputable, refill",
 			user:   reputableEmpty,
 			refill: NewRefillPolicy(),
-			bucket: Bucket{Tokens: DefaultAmount, LastModified: now},
+			bucket: Bucket{Tokens: 100, LastModified: now},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			limiter, err := NewLimiter(db.Client, test.refill)
+			manager, err := NewManager(db.Client, test.refill)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			allow := limiter.Allow(test.user.pubkey, 0)
-			if !allow {
-				t.Fatalf("failed to allow a cost of 0")
+			err = manager.Deduct(test.user.pubkey, 0)
+			if err != nil {
+				t.Fatalf("failed to deduct a cost of 0")
 			}
 
-			bucket, err := limiter.Bucket(test.user.pubkey)
+			bucket, err := manager.Bucket(test.user.pubkey)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
@@ -174,8 +175,8 @@ func TestAutomaticRefill(t *testing.T) {
 	}
 }
 
-// We simulate running the Lua function "allow" without "automatic_refill" by using [NoRefill].
-func TestAllow(t *testing.T) {
+// We simulate running the Lua function "deduct" without "automatic_refill" by using [NoRefill].
+func TestDeduct(t *testing.T) {
 	db, err := regraph.New(&redis.Options{Addr: testAddress})
 	if err != nil {
 		t.Fatalf("setup failed %v", err)
@@ -190,38 +191,37 @@ func TestAllow(t *testing.T) {
 		name   string
 		user   user
 		cost   int
-		allow  bool
+		err    error
 		bucket Bucket
 	}{
 		{
 			name:   "not enough tokens",
 			user:   reputableFull,
-			cost:   DefaultAmount + 1,
-			allow:  false,
+			cost:   101,
+			err:    ErrInsufficientCredits,
 			bucket: reputableFull.Bucket,
 		},
 		{
 			name:   "enough tokens",
 			user:   reputableFull,
-			cost:   DefaultAmount - 1,
-			allow:  true,
+			cost:   99,
 			bucket: Bucket{Tokens: 1, LastModified: time.Now().Unix()},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			limiter, err := NewLimiter(db.Client, NoRefill)
+			manager, err := NewManager(db.Client, NoRefill)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			allow := limiter.Allow(test.user.pubkey, test.cost)
-			if allow != test.allow {
-				t.Fatalf("expected %v, got %v", test.allow, allow)
+			err = manager.Deduct(test.user.pubkey, test.cost)
+			if !errors.Is(err, test.err) {
+				t.Fatalf("expected error %v, got %v", test.err, err)
 			}
 
-			bucket, err := limiter.Bucket(test.user.pubkey)
+			bucket, err := manager.Bucket(test.user.pubkey)
 			if err != nil {
 				t.Fatalf("expected error nil, got %v", err)
 			}
@@ -237,17 +237,17 @@ func TestTopUp(t *testing.T) {
 	db := redis.NewClient(&redis.Options{Addr: testAddress})
 	defer db.FlushAll(context.Background())
 
-	limiter, err := NewLimiter(db, NoRefill)
+	manager, err := NewManager(db, NoRefill)
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
 
-	_, err = limiter.TopUp("whatever", 100)
+	_, err = manager.TopUp("whatever", 100)
 	if err != nil {
 		t.Fatalf("expected error nil, got %v", err)
 	}
 
-	total, err := limiter.TopUp("whatever", 69)
+	total, err := manager.TopUp("whatever", 69)
 	if err != nil {
 		t.Fatalf("expected error nil, got %v", err)
 	}
@@ -256,7 +256,7 @@ func TestTopUp(t *testing.T) {
 		t.Fatalf("expected total 169, got %d", total)
 	}
 
-	bucket, err := limiter.Bucket("whatever")
+	bucket, err := manager.Bucket("whatever")
 	if err != nil {
 		t.Fatalf("expected error nil, got %v", err)
 	}
@@ -272,18 +272,18 @@ func BenchmarkAllow(b *testing.B) {
 	db := redis.NewClient(&redis.Options{Addr: testAddress})
 	defer db.FlushAll(context.Background())
 
-	limiter, err := NewLimiter(db, NoRefill)
+	manager, err := NewManager(db, NoRefill)
 	if err != nil {
 		b.Fatalf("expected nil, got %v", err)
 	}
 
-	_, err = limiter.TopUp("pubkey", 100_000)
+	_, err = manager.TopUp("pubkey", 100_000)
 	if err != nil {
 		b.Fatalf("expected nil, got %v", err)
 	}
 
 	b.ResetTimer()
 	for range b.N {
-		limiter.Allow("pubkey", 1)
+		manager.Deduct("pubkey", 1)
 	}
 }

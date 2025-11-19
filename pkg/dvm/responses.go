@@ -9,12 +9,10 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/core"
-	"github.com/vertex-lab/relay/pkg/rate"
 )
 
 type Handler struct {
 	Service   *core.Service
-	Limiter   rate.Limiter
 	SecretKey string
 }
 
@@ -37,10 +35,6 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 
 	if err = args.Normalize(); err != nil {
 		return Error(request, err)
-	}
-
-	if !h.Limiter.Allow(request.PubKey, args.Cost()) {
-		return Error(request, core.ErrNoCredits)
 	}
 
 	switch args := args.(type) {

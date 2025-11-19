@@ -13,8 +13,8 @@ import (
 	"github.com/pippellia-btc/rely"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/core"
+	"github.com/vertex-lab/relay/pkg/credits"
 	"github.com/vertex-lab/relay/pkg/dvm"
-	"github.com/vertex-lab/relay/pkg/rate"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -24,7 +24,7 @@ var (
 	err    error
 
 	service    *core.Service
-	limiter    rate.Limiter
+	limiter    credits.Manager
 	dvmHandler dvm.Handler
 )
 
@@ -50,14 +50,13 @@ func main() {
 	}
 	defer service.Close()
 
-	limiter, err = rate.NewLimiter(service.Redis.Client, config.Refill)
+	limiter, err = credits.NewManager(service.Redis.Client, config.Refill)
 	if err != nil {
 		panic(err)
 	}
 
 	dvmHandler = dvm.Handler{
 		Service:   service,
-		Limiter:   limiter,
 		SecretKey: config.Relay.SecretKey,
 	}
 

@@ -1,4 +1,4 @@
-#!lua name=limiter
+#!lua name=credits
 
 -- external redis variables
 local KEY_INDEX = 'keyIndex'
@@ -10,8 +10,8 @@ local WALKS_VISITING = 'walksVisiting:'
 local BUCKET = 'creditBucket:'
 local TOKENS = 'tokens'
 local LAST_MODIFIED = 'last_modified'
-local NOT_ALLOWED = 'not allowed'
-local ALLOWED = 'allowed'
+local SUCCESS = 'successful deduction'
+local FAILED = 'failed deduction'
 
 local function parse(args)
     local pubkey = tostring(args[1])
@@ -88,7 +88,7 @@ local function automatic_refill(params)
     return refill_amount
 end
 
-local function allow(_, args)
+local function deduct(_, args)
     local params, err = parse(args)
     if err then 
         return err
@@ -98,17 +98,17 @@ local function allow(_, args)
     local cost = params.cost
 
     if cost <= 0 then
-        return ALLOWED
+        return SUCCESS
     end
 
     if tokens < cost then
-        return NOT_ALLOWED
+        return FAILED
     end
 
     local now = tonumber(redis.call('TIME')[1])
-    redis.call('HSET', BUCKET .. params.pubkey, TOKENS, tokens - params.cost, LAST_MODIFIED, now)
-    return ALLOWED
+    redis.call('HSET', BUCKET .. params.pubkey, TOKENS, tokens - cost, LAST_MODIFIED, now)
+    return SUCCESS
 end
 
-redis.register_function('allow', allow)
+redis.register_function('deduct', deduct)
   

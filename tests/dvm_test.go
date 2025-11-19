@@ -13,8 +13,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler_v2/pkg/pipe"
 	"github.com/vertex-lab/relay/pkg/core"
+	"github.com/vertex-lab/relay/pkg/credits"
 	"github.com/vertex-lab/relay/pkg/dvm"
-	"github.com/vertex-lab/relay/pkg/rate"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -42,17 +42,17 @@ var (
 
 func init() {
 	redis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
-	limiter, err := rate.NewLimiter(redis, rate.NoRefill)
+	creditManager, err := credits.NewManager(redis, credits.NoRefill)
 	if err != nil {
 		log.Printf("init: failed to create limiter: %v", err)
 	}
 
-	if _, err := limiter.TopUp(pk, 100); err != nil {
+	if _, err := creditManager.TopUp(pk, 100); err != nil {
 		log.Printf("init: failed to top-up: %v", err)
 	}
 }
 
-func TestRateLimiting(t *testing.T) {
+func TestCreditManager(t *testing.T) {
 	req := &nostr.Event{
 		Kind: dvm.KindVerifyReputation,
 		Tags: nostr.Tags{
@@ -60,7 +60,7 @@ func TestRateLimiting(t *testing.T) {
 		},
 	}
 
-	sk := nostr.GeneratePrivateKey()
+	sk := nostr.GeneratePrivateKey() // random key with no credits
 	pk, err := nostr.GetPublicKey(sk)
 	if err != nil {
 		t.Fatalf("failed to get pk from sk: %v", err)

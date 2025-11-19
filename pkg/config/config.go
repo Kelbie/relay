@@ -9,13 +9,13 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/core"
-	"github.com/vertex-lab/relay/pkg/rate"
+	"github.com/vertex-lab/relay/pkg/credits"
 )
 
 type Config struct {
 	Relay   RelayConfig
 	Service core.ServiceConfig
-	Refill  rate.RefillPolicy
+	Refill  credits.RefillPolicy
 }
 
 // New returns a config with default paramenters.
@@ -23,7 +23,7 @@ func New() Config {
 	return Config{
 		Relay:   NewRelayConfig(),
 		Service: core.NewServiceConfig(),
-		Refill:  rate.NewRefillPolicy(),
+		Refill:  credits.NewRefillPolicy(),
 	}
 }
 

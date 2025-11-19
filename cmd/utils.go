@@ -8,8 +8,8 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
+	"github.com/vertex-lab/relay/pkg/credits"
 	"github.com/vertex-lab/relay/pkg/dvm"
-	"github.com/vertex-lab/relay/pkg/rate"
 )
 
 func SendAuth(c rely.Client) { c.SendAuth() }
@@ -56,7 +56,7 @@ func ContainCreditQuery(filters nostr.Filters) bool {
 }
 
 // CreditEvent returns the [rate.Bucket] as a signed kind 22243 nostr event
-func CreditEvent(b rate.Bucket) (nostr.Event, error) {
+func CreditEvent(b credits.Bucket) (nostr.Event, error) {
 	event := nostr.Event{
 		Kind:      22243,
 		CreatedAt: nostr.Now(),
