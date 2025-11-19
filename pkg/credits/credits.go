@@ -100,7 +100,7 @@ var (
 	KeySuccess      = "successful deduction"
 	KeyFailed       = "failed deduction"
 
-	ErrInsufficientCredits = errors.New("insufficient credits")
+	ErrInsufficientCredits = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll give you a top-up for free!")
 )
 
 // Deduct tries to deduct the cost from the pubkey's tokens.

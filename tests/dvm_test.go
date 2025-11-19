@@ -74,7 +74,7 @@ func TestCreditManager(t *testing.T) {
 	expectedTags := nostr.Tags{
 		{"e", req.ID},
 		{"p", pk},
-		{"status", "error", core.ErrNoCredits.Error()},
+		{"status", "error", credits.ErrInsufficientCredits.Error()},
 	}
 
 	res, err := dvmResponse(req, localhost)

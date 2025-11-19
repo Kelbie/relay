@@ -17,6 +17,7 @@ import (
 	"github.com/vertex-lab/crawler_v2/pkg/regraph"
 	"github.com/vertex-lab/crawler_v2/pkg/store"
 	sqlite "github.com/vertex-lab/nostr-sqlite"
+	"github.com/vertex-lab/relay/pkg/credits"
 )
 
 var (
@@ -37,27 +38,19 @@ var (
 
 	ErrUnsupportedArgs = errors.New("unsupported args")
 	ErrInternal        = errors.New("internal error")
-	ErrNoCredits       = errors.New("you don't have enough credits to fulfil the request. Send us a DM and we'll give you a top-up for free!")
 )
 
 // Service encapsulates the business logic of the Vertex services.
 type Service struct {
-	Sqlite *sqlite.Store
-	Redis  regraph.DB
+	Sqlite  *sqlite.Store
+	Redis   regraph.DB
+	Credits credits.Manager
 }
 
 type ServiceConfig struct {
 	RedisAddress string `envconfig:"REDIS_ADDRESS"`
 	SqlitePath   string `envconfig:"SQLITE_PATH"`
-}
-
-// Args represent the arguments for a service endpoint.
-type Args interface {
-	// Normalize the args in place. It returns an error if invalid.
-	Normalize() error
-
-	// Cost returns the cost (measured in credits) of a service call with the provided arguments.
-	Cost() int
+	Refill       credits.RefillPolicy
 }
 
 // New creates a [Service] initialized with the specified [ServiceConfig].
@@ -76,9 +69,17 @@ func NewService(c ServiceConfig) (*Service, error) {
 
 	slog.Info("redis connected", "address", c.RedisAddress)
 
+	credits, err := credits.NewManager(redis.Client, c.Refill)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize service: %w", err)
+	}
+
+	slog.Info("credits manager initialized")
+
 	return &Service{
-		Sqlite: sqlite,
-		Redis:  redis,
+		Sqlite:  sqlite,
+		Redis:   redis,
+		Credits: credits,
 	}, nil
 }
 
@@ -86,6 +87,7 @@ func NewServiceConfig() ServiceConfig {
 	return ServiceConfig{
 		RedisAddress: "localhost:6379",
 		SqlitePath:   "relay.sqlite",
+		Refill:       credits.NewRefillPolicy(),
 	}
 }
 
@@ -93,6 +95,7 @@ func (c ServiceConfig) Print() {
 	fmt.Println("Service Config:")
 	fmt.Printf("  Redis Address: %s\n", c.RedisAddress)
 	fmt.Printf("  Sqlite Path: %s\n", c.SqlitePath)
+	c.Refill.Print()
 }
 
 // Close closes the service database connections, releasing resources.
@@ -104,6 +107,28 @@ func (s *Service) Close() error {
 		return nil
 	}
 	return fmt.Errorf("service failed to close: sqlite: %w; redis: %w", err1, err2)
+}
+
+// Args represent the arguments for a service endpoint.
+type Args interface {
+	// Normalize the args in place. It returns an error if invalid.
+	Normalize() error
+
+	// Cost returns the cost (measured in credits) of a service call with the provided arguments.
+	Cost() int
+}
+
+// Allow returns whether the pubkey is allowed to ask for a job with the
+// provided args. It's allowed if and only if error is nil.
+func (s *Service) Allow(pubkey string, args Args) error {
+	err := s.Credits.Deduct(pubkey, args.Cost())
+	if err != nil {
+		if !errors.Is(err, credits.ErrInsufficientCredits) {
+			slog.Error("service.Allow: unexpected error", "error", err)
+		}
+		return err
+	}
+	return nil
 }
 
 type Algorithm struct {

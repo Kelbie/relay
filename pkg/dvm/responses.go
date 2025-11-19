@@ -37,6 +37,10 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 		return Error(request, err)
 	}
 
+	if err = h.Service.Allow(request.PubKey, args); err != nil {
+		return Error(request, err)
+	}
+
 	switch args := args.(type) {
 	case *core.VerifyReputationArgs:
 		result, err := h.Service.VerifyReputation(ctx, *args)
