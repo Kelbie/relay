@@ -12,9 +12,9 @@ import (
 
 	"github.com/pippellia-btc/rely"
 	cfg "github.com/vertex-lab/relay/pkg/config"
+	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
-	srv "github.com/vertex-lab/relay/pkg/service"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -23,7 +23,7 @@ var (
 	config cfg.Config
 	err    error
 
-	service    *srv.Service
+	service    *core.Service
 	limiter    rate.Limiter
 	dvmHandler dvm.Handler
 )
@@ -44,7 +44,7 @@ func main() {
 		panic(err)
 	}
 
-	service, err = srv.New(config.Service)
+	service, err = core.NewService(config.Service)
 	if err != nil {
 		panic(err)
 	}

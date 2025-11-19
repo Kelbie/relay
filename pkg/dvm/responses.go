@@ -8,12 +8,12 @@ import (
 	"strconv"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/rate"
-	"github.com/vertex-lab/relay/pkg/service"
 )
 
 type Handler struct {
-	Service   *service.Service
+	Service   *core.Service
 	Limiter   rate.Limiter
 	SecretKey string
 }
@@ -40,11 +40,11 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 	}
 
 	if !h.Limiter.Allow(request.PubKey, args.Cost()) {
-		return Error(request, service.ErrNoCredits)
+		return Error(request, core.ErrNoCredits)
 	}
 
 	switch args := args.(type) {
-	case *service.VerifyReputationArgs:
+	case *core.VerifyReputationArgs:
 		result, err := h.Service.VerifyReputation(ctx, *args)
 		if err != nil {
 			return Error(request, err)
@@ -56,7 +56,7 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 		}
 		return response
 
-	case *service.RecommendFollowsArgs:
+	case *core.RecommendFollowsArgs:
 		result, err := h.Service.RecommendFollows(ctx, *args)
 		if err != nil {
 			return Error(request, err)
@@ -68,7 +68,7 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 		}
 		return response
 
-	case *service.RankProfilesArgs:
+	case *core.RankProfilesArgs:
 		result, err := h.Service.RankProfiles(ctx, *args)
 		if err != nil {
 			return Error(request, err)
@@ -80,7 +80,7 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 		}
 		return response
 
-	case *service.SearchProfilesArgs:
+	case *core.SearchProfilesArgs:
 		result, err := h.Service.SearchProfiles(ctx, *args)
 		if err != nil {
 			return Error(request, err)
@@ -94,14 +94,14 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 
 	default:
 		slog.Error("dvm.Handler received an unknown type")
-		return Error(request, fmt.Errorf("%w: %w", service.ErrInternal, service.ErrUnsupportedArgs))
+		return Error(request, fmt.Errorf("%w: %w", core.ErrInternal, core.ErrUnsupportedArgs))
 	}
 }
 
 func VerifyReputation(
 	request *nostr.Event,
-	args service.VerifyReputationArgs,
-	result service.VerifyReputationResult) (*nostr.Event, error) {
+	args core.VerifyReputationArgs,
+	result core.VerifyReputationResult) (*nostr.Event, error) {
 
 	array := make([]any, 1+len(result.TopFollowers))
 	array[0] = result.Target
@@ -130,8 +130,8 @@ func VerifyReputation(
 
 func RecommendFollows(
 	request *nostr.Event,
-	args service.RecommendFollowsArgs,
-	result service.RecommendFollowsResult) (*nostr.Event, error) {
+	args core.RecommendFollowsArgs,
+	result core.RecommendFollowsResult) (*nostr.Event, error) {
 
 	content, err := json.Marshal(result.Recommendations)
 	if err != nil {
@@ -154,8 +154,8 @@ func RecommendFollows(
 
 func RankProfiles(
 	request *nostr.Event,
-	args service.RankProfilesArgs,
-	result service.RankProfilesResult) (*nostr.Event, error) {
+	args core.RankProfilesArgs,
+	result core.RankProfilesResult) (*nostr.Event, error) {
 
 	content, err := json.Marshal(result.Profiles)
 	if err != nil {
@@ -178,8 +178,8 @@ func RankProfiles(
 
 func SearchProfiles(
 	request *nostr.Event,
-	args service.SearchProfilesArgs,
-	result service.SearchProfilesResult) (*nostr.Event, error) {
+	args core.SearchProfilesArgs,
+	result core.SearchProfilesResult) (*nostr.Event, error) {
 
 	content, err := json.Marshal(result.Results)
 	if err != nil {

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
+	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
-	"github.com/vertex-lab/relay/pkg/service"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
@@ -20,7 +20,7 @@ import (
 var ErrInvalidEventJSON = errors.New("invalid event json")
 
 type Handler struct {
-	Service   *service.Service
+	Service   *core.Service
 	Limiter   rate.Limiter
 	SecretKey string
 }

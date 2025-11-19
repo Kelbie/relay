@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/vertex-lab/relay/pkg/service"
+	"github.com/vertex-lab/relay/pkg/core"
 )
 
 const (
@@ -23,8 +23,8 @@ var (
 	ErrUnsupportedKind = errors.New("unsupported kind: we only support kinds 5312 to 5315")
 )
 
-// Parse a dvm request into one of the [service.Args].
-func Parse(e *nostr.Event) (service.Args, error) {
+// Parse a dvm request into one of the [core.Args].
+func Parse(e *nostr.Event) (core.Args, error) {
 	switch e.Kind {
 	case KindVerifyReputation:
 		return parseVerifyReputation(e)
@@ -47,8 +47,8 @@ func Supports(kind int) bool {
 	return KindVerifyReputation <= kind && kind <= KindSearchProfiles
 }
 
-func parseVerifyReputation(e *nostr.Event) (*service.VerifyReputationArgs, error) {
-	args := service.NewVerifyReputationArgs(e.PubKey)
+func parseVerifyReputation(e *nostr.Event) (*core.VerifyReputationArgs, error) {
+	args := core.NewVerifyReputationArgs(e.PubKey)
 	var err error
 
 	for _, tag := range e.Tags {
@@ -74,18 +74,18 @@ func parseVerifyReputation(e *nostr.Event) (*service.VerifyReputationArgs, error
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", core.ErrInvalidLimit, val)
 			}
 
 		default:
-			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedVerifyReputation, key)
+			return nil, fmt.Errorf("%w: %v", core.ErrUnsuportedVerifyReputation, key)
 		}
 	}
 	return &args, nil
 }
 
-func parseRecommendFollows(e *nostr.Event) (*service.RecommendFollowsArgs, error) {
-	args := service.NewRecommendFollowsArgs(e.PubKey)
+func parseRecommendFollows(e *nostr.Event) (*core.RecommendFollowsArgs, error) {
+	args := core.NewRecommendFollowsArgs(e.PubKey)
 	var err error
 
 	for _, tag := range e.Tags {
@@ -108,18 +108,18 @@ func parseRecommendFollows(e *nostr.Event) (*service.RecommendFollowsArgs, error
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", core.ErrInvalidLimit, val)
 			}
 
 		default:
-			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedRecommendFollows, key)
+			return nil, fmt.Errorf("%w: %v", core.ErrUnsuportedRecommendFollows, key)
 		}
 	}
 	return &args, nil
 }
 
-func parseRankProfiles(e *nostr.Event) (*service.RankProfilesArgs, error) {
-	args := service.NewRankProfilesArgs(e.PubKey)
+func parseRankProfiles(e *nostr.Event) (*core.RankProfilesArgs, error) {
+	args := core.NewRankProfilesArgs(e.PubKey)
 	var err error
 
 	for _, tag := range e.Tags {
@@ -145,18 +145,18 @@ func parseRankProfiles(e *nostr.Event) (*service.RankProfilesArgs, error) {
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", core.ErrInvalidLimit, val)
 			}
 
 		default:
-			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedRankProfiles, key)
+			return nil, fmt.Errorf("%w: %v", core.ErrUnsuportedRankProfiles, key)
 		}
 	}
 	return &args, nil
 }
 
-func parseSearchProfiles(e *nostr.Event) (*service.SearchProfilesArgs, error) {
-	args := service.NewSearchProfilesArgs(e.PubKey)
+func parseSearchProfiles(e *nostr.Event) (*core.SearchProfilesArgs, error) {
+	args := core.NewSearchProfilesArgs(e.PubKey)
 	var err error
 
 	for _, tag := range e.Tags {
@@ -182,11 +182,11 @@ func parseSearchProfiles(e *nostr.Event) (*service.SearchProfilesArgs, error) {
 		case "limit":
 			args.Limit, err = strconv.Atoi(val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: limit must be an integer: %s", service.ErrInvalidLimit, val)
+				return nil, fmt.Errorf("%w: limit must be an integer: %s", core.ErrInvalidLimit, val)
 			}
 
 		default:
-			return nil, fmt.Errorf("%w: %v", service.ErrUnsuportedRankProfiles, key)
+			return nil, fmt.Errorf("%w: %v", core.ErrUnsuportedRankProfiles, key)
 		}
 	}
 	return &args, nil

@@ -12,9 +12,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler_v2/pkg/pipe"
+	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
-	"github.com/vertex-lab/relay/pkg/service"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -74,7 +74,7 @@ func TestRateLimiting(t *testing.T) {
 	expectedTags := nostr.Tags{
 		{"e", req.ID},
 		{"p", pk},
-		{"status", "error", service.ErrNoCredits.Error()},
+		{"status", "error", core.ErrNoCredits.Error()},
 	}
 
 	res, err := dvmResponse(req, localhost)
@@ -101,7 +101,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -113,7 +113,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response []service.DetailedProfile
+	var response []core.DetailedProfile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestDVM_RankProfiles(t *testing.T) {
 	}
 
 	expectedPubkeys := []string{calle, fran, randomKey, "zzz"}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -164,7 +164,7 @@ func TestDVM_RankProfiles(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response []service.Profile
+	var response []core.Profile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 
 	// this list is dependent on the specific database
 	expectedPubkeys := []string{damus, jack_dorsey, jb55}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -215,7 +215,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response []service.Profile
+	var response []core.Profile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestDVM_SearchProfiles(t *testing.T) {
 	}
 
 	expectedResults := []string{jack_dorsey, jack_mallers, jack_spirko}
-	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", service.Global}, {"nodes"}}
+	expectedTags := nostr.Tags{{"e", req.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := req.Kind + 1000
 
 	res, err := dvmResponse(req, localhost)
@@ -266,7 +266,7 @@ func TestDVM_SearchProfiles(t *testing.T) {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 
-	var response []service.Profile
+	var response []core.Profile
 	if err := json.Unmarshal([]byte(res.Content), &response); err != nil {
 		t.Fatalf("failed to unmarshal the DVM response content: %v", err)
 	}

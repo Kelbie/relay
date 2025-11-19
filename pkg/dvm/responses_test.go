@@ -5,23 +5,23 @@ import (
 	"testing"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/vertex-lab/relay/pkg/service"
+	"github.com/vertex-lab/relay/pkg/core"
 )
 
 func TestVerifyReputation(t *testing.T) {
 	request := &nostr.Event{ID: "aaa", PubKey: "bbb"}
-	args := service.VerifyReputationArgs{}
+	args := core.VerifyReputationArgs{}
 	args.Sort = "sort"
 	args.Source = "source"
 
-	result := service.VerifyReputationResult{}
+	result := core.VerifyReputationResult{}
 	result.Nodes = 10
 	result.Target.Pubkey = "target"
 	result.Target.Rank = 0.1
 	result.Target.Follows = 69
 	result.Target.Followers = 420
 
-	follower := service.Profile{Pubkey: "follower", Rank: 0.3}
+	follower := core.Profile{Pubkey: "follower", Rank: 0.3}
 	result.TopFollowers = append(result.TopFollowers, follower)
 
 	expected := &nostr.Event{
@@ -43,13 +43,13 @@ func TestVerifyReputation(t *testing.T) {
 
 func TestRecommendFollows(t *testing.T) {
 	request := &nostr.Event{ID: "aaa", PubKey: "bbb"}
-	args := service.RecommendFollowsArgs{}
+	args := core.RecommendFollowsArgs{}
 	args.Sort = "sort"
 	args.Source = "source"
 
-	result := service.RecommendFollowsResult{}
+	result := core.RecommendFollowsResult{}
 	result.Nodes = 10
-	recommended := service.Profile{Pubkey: "bro", Rank: 0.3}
+	recommended := core.Profile{Pubkey: "bro", Rank: 0.3}
 	result.Recommendations = append(result.Recommendations, recommended)
 
 	expected := &nostr.Event{
@@ -71,13 +71,13 @@ func TestRecommendFollows(t *testing.T) {
 
 func TestRankProfiles(t *testing.T) {
 	request := &nostr.Event{ID: "aaa", PubKey: "bbb"}
-	args := service.RankProfilesArgs{}
+	args := core.RankProfilesArgs{}
 	args.Sort = "sort"
 	args.Source = "source"
 
-	result := service.RankProfilesResult{}
+	result := core.RankProfilesResult{}
 	result.Nodes = 10
-	result.Profiles = []service.Profile{
+	result.Profiles = []core.Profile{
 		{Pubkey: "first", Rank: 0.3},
 		{Pubkey: "second", Rank: 0.2},
 		{Pubkey: "third", Rank: 0.1},
@@ -102,13 +102,13 @@ func TestRankProfiles(t *testing.T) {
 
 func TestSearchProfiles(t *testing.T) {
 	request := &nostr.Event{ID: "aaa", PubKey: "bbb"}
-	args := service.SearchProfilesArgs{}
+	args := core.SearchProfilesArgs{}
 	args.Sort = "sort"
 	args.Source = "source"
 
-	result := service.SearchProfilesResult{}
+	result := core.SearchProfilesResult{}
 	result.Nodes = 10
-	result.Results = []service.Profile{
+	result.Results = []core.Profile{
 		{Pubkey: "first", Rank: 0.3},
 		{Pubkey: "second", Rank: 0.2},
 		{Pubkey: "third", Rank: 0.1},

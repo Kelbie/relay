@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/vertex-lab/relay/pkg/service"
+	"github.com/vertex-lab/relay/pkg/core"
 )
 
 func TestParseVerifyReputation(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected *service.VerifyReputationArgs
+		expected *core.VerifyReputationArgs
 		err      error
 	}{
 		{
@@ -22,7 +22,7 @@ func TestParseVerifyReputation(t *testing.T) {
 				Kind: KindVerifyReputation,
 				Tags: nostr.Tags{{"param", "limit", "sixty-nine"}},
 			},
-			err: service.ErrInvalidLimit,
+			err: core.ErrInvalidLimit,
 		},
 		{
 			name: "unsupported param",
@@ -30,7 +30,7 @@ func TestParseVerifyReputation(t *testing.T) {
 				Kind: KindVerifyReputation,
 				Tags: nostr.Tags{{"param", "search", "sixty-nine"}},
 			},
-			err: service.ErrUnsuportedVerifyReputation,
+			err: core.ErrUnsuportedVerifyReputation,
 		},
 		{
 			name: "valid",
@@ -44,8 +44,8 @@ func TestParseVerifyReputation(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: &service.VerifyReputationArgs{
-				Algorithm: service.Algorithm{
+			expected: &core.VerifyReputationArgs{
+				Algorithm: core.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
 				},
@@ -73,7 +73,7 @@ func TestParseRecommendFollows(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected *service.RecommendFollowsArgs
+		expected *core.RecommendFollowsArgs
 		err      error
 	}{
 		{
@@ -82,7 +82,7 @@ func TestParseRecommendFollows(t *testing.T) {
 				Kind: KindRecommendFollows,
 				Tags: nostr.Tags{{"param", "limit", "sixty-nine"}},
 			},
-			err: service.ErrInvalidLimit,
+			err: core.ErrInvalidLimit,
 		},
 		{
 			name: "unsupported param",
@@ -90,7 +90,7 @@ func TestParseRecommendFollows(t *testing.T) {
 				Kind: KindRecommendFollows,
 				Tags: nostr.Tags{{"param", "target", "calle"}},
 			},
-			err: service.ErrUnsuportedRecommendFollows,
+			err: core.ErrUnsuportedRecommendFollows,
 		},
 		{
 			name: "valid",
@@ -103,8 +103,8 @@ func TestParseRecommendFollows(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: &service.RecommendFollowsArgs{
-				Algorithm: service.Algorithm{
+			expected: &core.RecommendFollowsArgs{
+				Algorithm: core.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
 				},
@@ -131,7 +131,7 @@ func TestParseRankProfiles(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected *service.RankProfilesArgs
+		expected *core.RankProfilesArgs
 		err      error
 	}{
 		{
@@ -140,7 +140,7 @@ func TestParseRankProfiles(t *testing.T) {
 				Kind: KindRankProfiles,
 				Tags: nostr.Tags{{"param", "limit", "sixty-nine"}},
 			},
-			err: service.ErrInvalidLimit,
+			err: core.ErrInvalidLimit,
 		},
 		{
 			name: "unsupported param",
@@ -148,7 +148,7 @@ func TestParseRankProfiles(t *testing.T) {
 				Kind: KindRankProfiles,
 				Tags: nostr.Tags{{"param", "search", "calle"}},
 			},
-			err: service.ErrUnsuportedRankProfiles,
+			err: core.ErrUnsuportedRankProfiles,
 		},
 		{
 			name: "valid",
@@ -164,8 +164,8 @@ func TestParseRankProfiles(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: &service.RankProfilesArgs{
-				Algorithm: service.Algorithm{
+			expected: &core.RankProfilesArgs{
+				Algorithm: core.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
 				},
@@ -193,7 +193,7 @@ func TestParseSearchProfiles(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  *nostr.Event
-		expected *service.SearchProfilesArgs
+		expected *core.SearchProfilesArgs
 		err      error
 	}{
 		{
@@ -202,7 +202,7 @@ func TestParseSearchProfiles(t *testing.T) {
 				Kind: KindSearchProfiles,
 				Tags: nostr.Tags{{"param", "limit", "sixty-nine"}},
 			},
-			err: service.ErrInvalidLimit,
+			err: core.ErrInvalidLimit,
 		},
 		{
 			name: "unsupported param",
@@ -210,7 +210,7 @@ func TestParseSearchProfiles(t *testing.T) {
 				Kind: KindSearchProfiles,
 				Tags: nostr.Tags{{"param", "target", "calle"}},
 			},
-			err: service.ErrUnsuportedRankProfiles,
+			err: core.ErrUnsuportedRankProfiles,
 		},
 		{
 			name: "valid",
@@ -224,8 +224,8 @@ func TestParseSearchProfiles(t *testing.T) {
 					{"client", "coracle"}, // ignored tag
 				},
 			},
-			expected: &service.SearchProfilesArgs{
-				Algorithm: service.Algorithm{
+			expected: &core.SearchProfilesArgs{
+				Algorithm: core.Algorithm{
 					Sort:   "algo",
 					Source: "pip",
 				},

@@ -1,7 +1,7 @@
-// The package service defines the [Service] struct, responsible for handling the
+// The package core defines the [Service] struct, responsible for handling the
 // core business logic of the relay. It defines arguments and the responses
 // for each service.
-package service
+package core
 
 import (
 	"context"
@@ -46,7 +46,7 @@ type Service struct {
 	Redis  regraph.DB
 }
 
-type Config struct {
+type ServiceConfig struct {
 	RedisAddress string `envconfig:"REDIS_ADDRESS"`
 	SqlitePath   string `envconfig:"SQLITE_PATH"`
 }
@@ -60,8 +60,8 @@ type Args interface {
 	Cost() int
 }
 
-// New creates a [Service] initialized with the specified [Config].
-func New(c Config) (*Service, error) {
+// New creates a [Service] initialized with the specified [ServiceConfig].
+func NewService(c ServiceConfig) (*Service, error) {
 	sqlite, err := store.New(c.SqlitePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
@@ -82,14 +82,14 @@ func New(c Config) (*Service, error) {
 	}, nil
 }
 
-func NewConfig() Config {
-	return Config{
+func NewServiceConfig() ServiceConfig {
+	return ServiceConfig{
 		RedisAddress: "localhost:6379",
 		SqlitePath:   "relay.sqlite",
 	}
 }
 
-func (c Config) Print() {
+func (c ServiceConfig) Print() {
 	fmt.Println("Service Config:")
 	fmt.Printf("  Redis Address: %s\n", c.RedisAddress)
 	fmt.Printf("  Sqlite Path: %s\n", c.SqlitePath)

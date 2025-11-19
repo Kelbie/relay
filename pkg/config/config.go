@@ -8,13 +8,13 @@ import (
 	"github.com/kelseyhightower/envconfig"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/rate"
-	"github.com/vertex-lab/relay/pkg/service"
 )
 
 type Config struct {
 	Relay   RelayConfig
-	Service service.Config
+	Service core.ServiceConfig
 	Refill  rate.RefillPolicy
 }
 
@@ -22,7 +22,7 @@ type Config struct {
 func New() Config {
 	return Config{
 		Relay:   NewRelayConfig(),
-		Service: service.NewConfig(),
+		Service: core.NewServiceConfig(),
 		Refill:  rate.NewRefillPolicy(),
 	}
 }
