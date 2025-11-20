@@ -1,22 +1,26 @@
-// these are integration tests that require a Redis instance, that can be obtained by running the crawler for about 10 minutes.
 package tests
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/credits"
 	"github.com/vertex-lab/relay/pkg/dvm"
-
-	"github.com/nbd-wtf/go-nostr"
 )
 
-func TestDVM_CreditManagement(t *testing.T) {
-	request := &nostr.Event{
+var dvmEndpoint = localhost + "/api/v1/dvms"
+
+func TestAPI_CreditManagement(t *testing.T) {
+	requestuest := &nostr.Event{
 		Kind: dvm.KindVerifyReputation,
 		Tags: nostr.Tags{
 			{"param", "target", fran},
@@ -29,28 +33,29 @@ func TestDVM_CreditManagement(t *testing.T) {
 		t.Fatalf("failed to get pk from sk: %v", err)
 	}
 
-	if err := request.Sign(sk); err != nil {
+	if err := requestuest.Sign(sk); err != nil {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	expectedKind := dvm.KindDVMError
-	expectedTags := nostr.Tags{
-		{"e", request.ID},
-		{"p", pk},
-		{"status", "error", credits.ErrInsufficientCredits.Error()},
-	}
-
-	response, err := dvmResponse(request, localhost)
+	response, err := apiDVM(requestuest, dvmEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := checkFormat(response, expectedKind, expectedTags); err != nil {
+	expectedKind := dvm.KindDVMError
+	expectedTags := nostr.Tags{
+		{"e", requestuest.ID},
+		{"p", pk},
+		{"status", "error", credits.ErrInsufficientCredits.Error()},
+	}
+
+	err = checkFormat(response, expectedKind, expectedTags)
+	if err != nil {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
 }
 
-func TestDVM_VerifyReputation(t *testing.T) {
+func TestAPI_VerifyReputation(t *testing.T) {
 	request := &nostr.Event{
 		Kind:      dvm.KindVerifyReputation,
 		CreatedAt: nostr.Now(),
@@ -69,7 +74,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := apiDVM(request, dvmEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +94,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 	}
 }
 
-func TestDVM_RankProfiles(t *testing.T) {
+func TestAPI_RankProfiles(t *testing.T) {
 	request := &nostr.Event{
 		Kind:      dvm.KindRankProfiles,
 		CreatedAt: nostr.Now(),
@@ -111,7 +116,7 @@ func TestDVM_RankProfiles(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := apiDVM(request, dvmEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +136,7 @@ func TestDVM_RankProfiles(t *testing.T) {
 	}
 }
 
-func TestDVM_RecommendFollows(t *testing.T) {
+func TestAPI_RecommendFollows(t *testing.T) {
 	request := &nostr.Event{
 		Kind:      dvm.KindRecommendFollows,
 		CreatedAt: nostr.Now(),
@@ -149,7 +154,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := apiDVM(request, dvmEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,12 +169,14 @@ func TestDVM_RecommendFollows(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// This list is dependent on the specific database. If it doesn't return the exact same list
+	// then do some manual checking to make sure it makes sense.
 	if !slices.Equal(pubkeys, expectedPubkeys) {
 		PrintDifference(t, pubkeys, expectedPubkeys)
 	}
 }
 
-func TestDVM_SearchProfiles(t *testing.T) {
+func TestAPI_SearchProfiles(t *testing.T) {
 	request := &nostr.Event{
 		Kind:      dvm.KindSearchProfiles,
 		CreatedAt: nostr.Now(),
@@ -187,7 +194,7 @@ func TestDVM_SearchProfiles(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := apiDVM(request, dvmEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,43 +209,60 @@ func TestDVM_SearchProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// This list is dependent on the specific database. If it doesn't return the exact same list
+	// then do some manual checking to make sure it makes sense.
 	if !slices.Equal(pubkeys, expectedPubkeys) {
 		PrintDifference(t, pubkeys, expectedPubkeys)
 	}
 }
 
-// dvmResponse connects to the relay, send the request and fetches the response using the request ID.
-func dvmResponse(request *nostr.Event, relayURL string) (response *nostr.Event, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	relay, err := nostr.RelayConnect(ctx, relayURL)
+// apiDVM construct a POST requestuest with body the JSON of the specified nostr requestuest.
+func apiDVM(requestuestEvent *nostr.Event, url string) (*nostr.Event, error) {
+	requestuestBody, err := json.Marshal(requestuestEvent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to %s: %w", relayURL, err)
+		return nil, fmt.Errorf("failed to marshal requestuest event: %v", err)
 	}
 
-	if err := relay.Publish(ctx, *request); err != nil {
-		return nil, fmt.Errorf("failed to publish to %s: %v", relayURL, err)
+	requestuest, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(requestuestBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP requestuest: %v", err)
 	}
+	requestuest.Header.Set("Content-Type", "application/json")
 
-	filter := nostr.Filter{
-		Kinds: []int{request.Kind + 1000, dvm.KindDVMError},
-		Tags:  nostr.TagMap{"e": {request.ID}},
-	}
-
-	ch, err := relay.QueryEvents(ctx, filter)
+	response, err := apiResponse(requestuest)
 	if err != nil {
 		return nil, err
 	}
+	defer response.Body.Close()
 
-	var counter int
-	for event := range ch {
-		response = event
-		counter++
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
 	}
 
-	if counter != 1 {
-		return nil, fmt.Errorf("expected exactly one response, got %v", counter)
+	if response.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("API returned status code %d\n body: %v", response.StatusCode, string(body))
+	}
+
+	responseEvent := &nostr.Event{}
+	if err := json.Unmarshal(body, responseEvent); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
+	}
+	return responseEvent, nil
+}
+
+// apiResponse sends the provided *http.Request to the specified URL
+// and returns the *http.Response.
+func apiResponse(requestuest *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	requestuest = requestuest.WithContext(ctx)
+
+	client := &http.Client{}
+	response, err := client.Do(requestuest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send HTTP requestuest: %w", err)
 	}
 	return response, nil
 }
