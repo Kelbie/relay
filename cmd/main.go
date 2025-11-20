@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/vertex-lab/relay/pkg/api"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/core"
 
@@ -41,9 +45,36 @@ func main() {
 	}
 	defer service.Close()
 
-	relay := SetupRelay(config.Relay)
-	err = relay.StartAndServe(ctx, config.Relay.Address)
-	if err != nil {
+	api := api.Handler{Service: service, SecretKey: config.Relay.SecretKey}
+	relay := SetupRelay()
+
+	router := http.NewServeMux()
+	router.HandleFunc("POST /api/v1/dvms", api.HandleDVMs)
+	router.Handle("/", relay)
+
+	server := http.Server{Addr: config.Relay.Address, Handler: router}
+	exitErr := make(chan error, 1)
+
+	go func() {
+		relay.Start(ctx)
+		err := server.ListenAndServe()
+		if !errors.Is(err, http.ErrServerClosed) {
+			exitErr <- err
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		err := server.Shutdown(ctx)
+		relay.Wait()
+		if err != nil {
+			panic(err)
+		}
+
+	case err := <-exitErr:
 		panic(err)
 	}
 }

@@ -11,21 +11,20 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
-	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/credits"
 	"github.com/vertex-lab/relay/pkg/dvm"
 )
 
-func SetupRelay(config cfg.RelayConfig) *rely.Relay {
+func SetupRelay() *rely.Relay {
 	relay := rely.NewRelay(
 		rely.WithDomain("vertexlab.io"),
-		rely.WithQueueCapacity(config.QueueCapacity),
-		rely.WithMaxProcessors(config.Processors),
+		rely.WithQueueCapacity(config.Relay.QueueCapacity),
+		rely.WithMaxProcessors(config.Relay.Processors),
 	)
 
 	dvm := dvm.Handler{
 		Service:   service,
-		SecretKey: config.SecretKey,
+		SecretKey: config.Relay.SecretKey,
 	}
 
 	relay.Reject.Event = append(relay.Reject.Event, UnsupportedDVM)
