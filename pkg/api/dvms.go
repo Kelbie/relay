@@ -16,7 +16,11 @@ import (
 	"github.com/pippellia-btc/rely"
 )
 
-var ErrInvalidEventJSON = errors.New("invalid event json")
+const MaxRequestBody = 500_000 // 0.5MB
+
+var (
+	ErrInvalidEventJSON = errors.New("invalid event json")
+)
 
 type Handler struct {
 	Service   *core.Service
@@ -30,7 +34,7 @@ func (h Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, 1048576)
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBody)
 	event, err := ParseDVM(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -65,16 +69,24 @@ func ParseDVM(r *http.Request) (*nostr.Event, error) {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidEventJSON, err)
 	}
 
-	if !event.CheckID() {
-		return nil, rely.ErrInvalidEventID
-	}
-
-	match, err := event.CheckSignature()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", rely.ErrInvalidEventSignature, err)
-	}
-	if !match {
-		return nil, rely.ErrInvalidEventSignature
+	if err := verify(event); err != nil {
+		return nil, err
 	}
 	return event, nil
+}
+
+// Verify returns an error if the event has invalid ID or signature, nil otherwise.
+func verify(e *nostr.Event) error {
+	if !e.CheckID() {
+		return rely.ErrInvalidEventID
+	}
+
+	match, err := e.CheckSignature()
+	if err != nil {
+		return fmt.Errorf("%w: %w", rely.ErrInvalidEventSignature, err)
+	}
+	if !match {
+		return rely.ErrInvalidEventSignature
+	}
+	return nil
 }

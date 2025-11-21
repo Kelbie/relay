@@ -24,6 +24,7 @@ var (
 )
 
 // Parse a dvm request into one of the [core.Args].
+// It doesn't checks for ID or signature.
 func Parse(e *nostr.Event) (core.Args, error) {
 	switch e.Kind {
 	case KindVerifyReputation:
