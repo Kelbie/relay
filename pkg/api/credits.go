@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/goccy/go-json"
@@ -18,7 +20,7 @@ const (
 
 var (
 	ErrInvalidAuthHeader = errors.New("missing or malformed Authorization header")
-	ErrInvalidAuthScheme = errors.New("authorization scheme must be 'Nostr'")
+	ErrInvalidAuthScheme = errors.New("authorization scheme must be 'Nostr <base64_event>'")
 	ErrInvalidAuthBase64 = errors.New("failed to decode base64 event payload")
 	ErrInvalidAuthKind   = errors.New("kind must be 27235")
 	ErrExpiredAuthEvent  = errors.New("created_at is outside the allowed time window")
@@ -26,15 +28,39 @@ var (
 	ErrInvalidAuthMethod = errors.New("'method' tag does not match request method")
 )
 
-// HandleCredits handles the endpoint GET /api/v1/credits
+// GetCredits handles the endpoint GET /api/v1/credits
 func (h Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
+	pubkey, err := h.authNIP98(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 
+	bucket, err := h.Service.Credits.Bucket(pubkey)
+	if err != nil {
+		http.Error(w, "internal error while retrieving the credits", http.StatusInternalServerError)
+		return
+	}
+
+	credits := bucket.ToEvent()
+	if err := credits.Sign(h.SecretKey); err != nil {
+		// the handler failed to sign the response, likely caused by an invalid secret key.
+		// This is an unrecoverable error since all responses must be signed.
+		panic(fmt.Errorf("api.Handler.GetCredits: failed to sign: %w", err))
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(credits)
+	if err != nil {
+		slog.Error("encoding failed", "error", err)
+	}
 }
 
 // authNIP98 performs all required NIP-98 auth validation (no "payload" check),
 // returning the pubkey that performed the authentication, or an error if invalid.
-func authNIP98(r *http.Request) (pubkey string, err error) {
-	event, err := parseNIP98(r.Header)
+func (h Handler) authNIP98(r *http.Request) (pubkey string, err error) {
+	event, err := parseNIP98(r.Header.Get("Authorization"))
 	if err != nil {
 		return "", err
 	}
@@ -47,12 +73,12 @@ func authNIP98(r *http.Request) (pubkey string, err error) {
 		return "", ErrExpiredAuthEvent
 	}
 
-	if tagValue(event, "u") != r.URL.String() {
-		return "", ErrInvalidAuthURL
-	}
-
 	if tagValue(event, "method") != r.Method {
 		return "", ErrInvalidAuthMethod
+	}
+
+	if tagValue(event, "u") != normalizeURL(r, h.Domain) {
+		return "", ErrInvalidAuthURL
 	}
 
 	if err := verify(event); err != nil {
@@ -61,30 +87,27 @@ func authNIP98(r *http.Request) (pubkey string, err error) {
 	return event.PubKey, nil
 }
 
-func parseNIP98(header http.Header) (*nostr.Event, error) {
-	auth := header.Values("Authorization")
-	if len(auth) != 2 {
+// parseNIP98 from the authentication string.
+func parseNIP98(auth string) (*nostr.Event, error) {
+	parts := strings.Split(auth, " ")
+	if len(parts) != 2 {
 		return nil, ErrInvalidAuthHeader
 	}
 
-	if auth[0] != "Nostr" {
+	if parts[0] != "Nostr" {
 		return nil, ErrInvalidAuthScheme
 	}
 
-	eventJsonBytes, err := base64.StdEncoding.DecodeString(auth[1])
+	bytes, err := base64.URLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidAuthBase64, err)
 	}
 
 	event := &nostr.Event{}
-	if err := json.Unmarshal(eventJsonBytes, event); err != nil {
+	if err := json.Unmarshal(bytes, event); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidEventJSON, err)
 	}
 	return event, err
-}
-
-func requiresBody(method string) bool {
-	return method == http.MethodPost || method == http.MethodPatch || method == http.MethodPut
 }
 
 func tagValue(e *nostr.Event, tagKey string) string {
@@ -94,4 +117,20 @@ func tagValue(e *nostr.Event, tagKey string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeURL(r *http.Request, fallbackDomain string) string {
+	proto := "http"
+	if p := r.URL.Scheme; p != "" {
+		proto = p
+	}
+	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
+		proto = p
+	}
+
+	domain := fallbackDomain
+	if d := r.URL.Hostname(); d != "" {
+		domain = d
+	}
+	return proto + "://" + domain + r.URL.RequestURI()
 }

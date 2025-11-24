@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"testing"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -25,95 +27,83 @@ func TestAuthNIP98(t *testing.T) {
 		err     error
 	}{
 		{
-			name:    "missing authorization",
+			name:    "missing authorization header",
 			request: &http.Request{},
 			err:     ErrInvalidAuthHeader,
 		},
 		{
 			name:    "invalid auth scheme",
-			request: &http.Request{Header: http.Header{"Authorization": []string{"Nastr", "xxx"}}},
+			request: &http.Request{Header: http.Header{"Authorization": []string{"Nastr xxxx"}}},
 			err:     ErrInvalidAuthScheme,
 		},
 		{
 			name:    "invalid auth base 64",
-			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr", "xxx"}}},
+			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr xxx"}}},
 			err:     ErrInvalidAuthBase64,
 		},
 		{
 			name:    "invalid auth event",
-			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr", base64.StdEncoding.EncodeToString([]byte("invalid json"))}}},
+			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr " + base64.StdEncoding.EncodeToString([]byte("invalid json"))}}},
 			err:     ErrInvalidEventJSON,
 		},
 		{
 			name:    "invalid event kind",
-			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr", Base64(nostr.Event{})}}},
+			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr " + Base64(nostr.Event{})}}},
 			err:     ErrInvalidAuthKind,
 		},
 		{
 			name:    "invalid event created_at",
-			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr", Base64(nostr.Event{Kind: nostr.KindHTTPAuth})}}},
+			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr " + Base64(nostr.Event{Kind: nostr.KindHTTPAuth})}}},
 			err:     ErrExpiredAuthEvent,
 		},
 		{
 			name: "invalid event u tag",
 			request: &http.Request{
-				Header: http.Header{"Authorization": []string{"Nostr", Base64(
+				Header: http.Header{"Authorization": []string{"Nostr " + Base64(
 					nostr.Event{
 						Kind:      nostr.KindHTTPAuth,
 						CreatedAt: nostr.Now(),
 						Tags: nostr.Tags{
-							{"u", "https://example.com/api/test"},
+							{"u", "http://invalid"},
 							{"method", "GET"},
 						}}),
 				}},
 				Method: http.MethodGet,
-				URL: &url.URL{
-					Scheme: "https",
-					Host:   "example.com",
-					Path:   "/test1",
-				},
+				URL:    &url.URL{Path: "/api/test"},
 			},
 			err: ErrInvalidAuthURL,
 		},
 		{
 			name: "invalid event method tag",
 			request: &http.Request{
-				Header: http.Header{"Authorization": []string{"Nostr", Base64(
+				Header: http.Header{"Authorization": []string{"Nostr " + Base64(
 					nostr.Event{
 						Kind:      nostr.KindHTTPAuth,
 						CreatedAt: nostr.Now(),
 						Tags: nostr.Tags{
-							{"u", "https://example.com/api/test"},
-							{"method", "GET"},
+							{"u", "http://example.com/api/test"},
+							{"method", "POST"},
 						}}),
 				}},
-				Method: http.MethodPost,
-				URL: &url.URL{
-					Scheme: "https",
-					Host:   "example.com",
-					Path:   "/api/test",
-				},
+				Method: http.MethodGet,
+				URL:    &url.URL{Path: "/api/test"},
 			},
 			err: ErrInvalidAuthMethod,
 		},
 		{
 			name: "valid",
 			request: &http.Request{
-				Header: http.Header{"Authorization": []string{"Nostr", Base64(
+				Header: http.Header{"Authorization": []string{"Nostr " + Base64(
 					Signed(nostr.Event{
 						Kind:      nostr.KindHTTPAuth,
 						CreatedAt: nostr.Now(),
 						Tags: nostr.Tags{
-							{"u", "https://example.com/api/test"},
+							{"u", "http://example.com/api/test"},
 							{"method", "GET"},
 						}})),
 				}},
 				Method: http.MethodGet,
-				URL: &url.URL{
-					Scheme: "https",
-					Host:   "example.com",
-					Path:   "/api/test",
-				},
+				URL:    &url.URL{Path: "/api/test"},
 			},
 			pubkey: "3909edd62d1f553df2d2961a9ff61c262387a8bcfe7885b70b3fa56a21f712f0",
 		},
@@ -121,7 +111,8 @@ func TestAuthNIP98(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			pubkey, err := authNIP98(test.request)
+			h := Handler{Domain: "example.com"}
+			pubkey, err := h.authNIP98(test.request)
 			if !errors.Is(err, test.err) {
 				t.Fatalf("expected error %v, got %v", test.err, err)
 			}
@@ -133,12 +124,52 @@ func TestAuthNIP98(t *testing.T) {
 	}
 }
 
+func TestParseNIP98(t *testing.T) {
+	tests := []struct {
+		auth     string
+		expected *nostr.Event
+		err      error
+	}{
+		{auth: "", err: ErrInvalidAuthHeader},
+		{auth: "Nastr xxx", err: ErrInvalidAuthScheme},
+		{auth: "Nostr xxx", err: ErrInvalidAuthBase64},
+		{auth: "Nostr Y2lhbw0K", err: ErrInvalidEventJSON},
+		{
+			auth: "Nostr ew0KICAiaWQiOiAiZmU5NjRlNzU4OTAzMzYwZjI4ZDg0MjRkMDkyZGE4NDk0ZWQyMDdjYmE4MjMxMTBiZTNhNTdkZmU0YjU3ODczNCIsDQogICJwdWJrZXkiOiAiNjNmZTYzMThkYzU4NTgzY2ZlMTY4MTBmODZkZDA5ZTE4YmZkNzZhYWJjMjRhMDA4MWNlMjg1NmYzMzA1MDRlZCIsDQogICJjb250ZW50IjogIiIsDQogICJraW5kIjogMjcyMzUsDQogICJjcmVhdGVkX2F0IjogMTY4MjMyNzg1MiwNCiAgInRhZ3MiOiBbDQogICAgWyJ1IiwgImh0dHBzOi8vYXBpLnNub3J0LnNvY2lhbC9hcGkvdjEvbjVzcC9saXN0Il0sDQogICAgWyJtZXRob2QiLCAiR0VUIl0NCiAgXSwNCiAgInNpZyI6ICI1ZWQ5ZDhlYzk1OGJjODU0Zjk5N2JkYzI0YWMzMzdkMDA1YWYzNzIzMjQ3NDdlZmU0YTAwZTI0ZjRjMzA0MzdmZjRkZDgzMDg2ODRiZWQ0NjdkOWQ2YmUzZTVhNTE3YmI0M2IxNzMyY2M3ZDMzOTQ5YTNhYWY4NjcwNWMyMjE4NCINCn0=",
+			expected: &nostr.Event{
+				ID:        "fe964e758903360f28d8424d092da8494ed207cba823110be3a57dfe4b578734",
+				PubKey:    "63fe6318dc58583cfe16810f86dd09e18bfd76aabc24a0081ce2856f330504ed",
+				Kind:      27235,
+				CreatedAt: 1682327852,
+				Tags: nostr.Tags{
+					{"u", "https://api.snort.social/api/v1/n5sp/list"},
+					{"method", "GET"},
+				},
+				Sig: "5ed9d8ec958bc854f997bdc24ac337d005af372324747efe4a00e24f4c30437ff4dd8308684bed467d9d6be3e5a517bb43b1732cc7d33949a3aaf86705c22184",
+			},
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("Case=%d", i), func(t *testing.T) {
+			event, err := parseNIP98(test.auth)
+			if !errors.Is(err, test.err) {
+				t.Fatalf("expected error %v, got %v", test.err, err)
+			}
+
+			if !reflect.DeepEqual(event, test.expected) {
+				t.Fatalf("expected event %v, got %v", test.expected, event)
+			}
+		})
+	}
+}
+
 func Base64(e nostr.Event) string {
 	bytes, err := e.MarshalJSON()
 	if err != nil {
 		panic(err)
 	}
-	return base64.StdEncoding.EncodeToString(bytes)
+	return base64.URLEncoding.EncodeToString(bytes)
 }
 
 var sk = "6c670052fb1ea99a2b8e03895fea6df717e3c54fef676ab320dc59a57dfea441"

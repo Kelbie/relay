@@ -10,14 +10,28 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
 )
 
 type Bucket struct {
 	Tokens       int   `redis:"tokens"`
 	LastModified int64 `redis:"last_modified"` // unix time
+}
+
+// ToEvent encodes the bucket as an unsigned nostr event.
+func (b Bucket) ToEvent() nostr.Event {
+	return nostr.Event{
+		Kind:      22243,
+		CreatedAt: nostr.Now(),
+		Tags: nostr.Tags{
+			{"credits", strconv.Itoa(b.Tokens)},
+			{"lastRequest", strconv.FormatInt(b.LastModified, 10)},
+		},
+	}
 }
 
 type RefillPolicy struct {
