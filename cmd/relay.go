@@ -6,18 +6,16 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
-	"github.com/vertex-lab/relay/pkg/credits"
 	"github.com/vertex-lab/relay/pkg/dvm"
 )
 
 func SetupRelay() *rely.Relay {
 	relay := rely.NewRelay(
-		rely.WithDomain("vertexlab.io"),
+		rely.WithDomain(config.Relay.Domain),
 		rely.WithQueueCapacity(config.Relay.QueueCapacity),
 		rely.WithMaxProcessors(config.Relay.Processors),
 	)
@@ -68,11 +66,12 @@ func creditQuery(pubkey string) (nostr.Event, error) {
 		return nostr.Event{}, fmt.Errorf("failed to query credits of pubkey %s: %w", pubkey, err)
 	}
 
-	credits, err := CreditEvent(bucket)
+	event := bucket.ToEvent()
+	err = event.Sign(config.Relay.SecretKey)
 	if err != nil {
-		return nostr.Event{}, fmt.Errorf("failed to query credits of pubkey %s: %w", pubkey, err)
+		return nostr.Event{}, fmt.Errorf("failed to sign credit event: %w", err)
 	}
-	return credits, nil
+	return event, nil
 }
 
 func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {
@@ -136,22 +135,4 @@ func ContainCreditQuery(filters nostr.Filters) bool {
 		}
 	}
 	return false
-}
-
-// CreditEvent returns the [credits.Bucket] as a signed kind 22243 nostr event
-func CreditEvent(b credits.Bucket) (nostr.Event, error) {
-	event := nostr.Event{
-		Kind:      22243,
-		CreatedAt: nostr.Now(),
-		Tags: nostr.Tags{
-			{"credits", strconv.Itoa(b.Tokens)},
-			{"lastRequest", strconv.FormatInt(b.LastModified, 10)},
-		},
-	}
-
-	err := event.Sign(config.Relay.SecretKey)
-	if err != nil {
-		return nostr.Event{}, fmt.Errorf("failed to sign credit event: %w", err)
-	}
-	return event, nil
 }

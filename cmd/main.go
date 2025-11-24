@@ -45,11 +45,12 @@ func main() {
 	}
 	defer service.Close()
 
-	api := api.Handler{Service: service, SecretKey: config.Relay.SecretKey}
+	api := api.Handler{Service: service, SecretKey: config.Relay.SecretKey, Domain: config.Relay.Domain}
 	relay := SetupRelay()
 
 	router := http.NewServeMux()
 	router.HandleFunc("POST /api/v1/dvms", api.HandleDVMs)
+	router.HandleFunc("GET /api/v1/credits", api.GetCredits)
 	router.Handle("/", relay)
 
 	server := http.Server{Addr: config.Relay.Address, Handler: router}

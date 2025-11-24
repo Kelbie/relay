@@ -36,7 +36,9 @@ func (c Config) Validate() error {
 }
 
 type RelayConfig struct {
-	Address       string `envconfig:"RELAY_ADDRESS"`
+	Address string `envconfig:"RELAY_ADDRESS"`
+	// the domain of the server/relay, used for nip-42 and nip-98 auth
+	Domain        string `envconfig:"RELAY_DOMAIN"`
 	QueueCapacity int    `envconfig:"QUEUE_CAPACITY"`
 	Processors    int    `envconfig:"PROCESSORS"`
 	SecretKey     string `envconfig:"SECRET_KEY"`
