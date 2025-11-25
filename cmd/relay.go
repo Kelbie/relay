@@ -14,25 +14,35 @@ import (
 )
 
 func SetupRelay() *rely.Relay {
-	relay := rely.NewRelay(
+	relay = rely.NewRelay(
 		rely.WithDomain(config.Relay.Domain),
 		rely.WithQueueCapacity(config.Relay.QueueCapacity),
 		rely.WithMaxProcessors(config.Relay.Processors),
 	)
 
-	dvm := dvm.Handler{
-		Service:   service,
-		SecretKey: config.Relay.SecretKey,
-	}
-
 	relay.Reject.Event = append(relay.Reject.Event, UnsupportedDVM)
 	relay.Reject.Req = append(relay.Reject.Req, FiltersExceed(50), WithSearch, UnauthedCredits)
 	relay.Reject.Count = append(relay.Reject.Count, FiltersExceed(100))
+
 	relay.On.Connect = func(c rely.Client) { c.SendAuth() }
 	relay.On.Req = Query
 	relay.On.Count = Count
+
+	dvm := dvm.Handler{Service: service, SecretKey: config.Relay.SecretKey}
 	relay.On.Event = Process(dvm)
 	return relay
+}
+
+func Process(dvm dvm.Handler) func(rely.Client, *nostr.Event) error {
+	return func(client rely.Client, request *nostr.Event) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		response := dvm.Process(ctx, request)
+		relay.Broadcast(response)
+		_, err := service.Sqlite.Save(ctx, response)
+		return err
+	}
 }
 
 func Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
@@ -83,17 +93,6 @@ func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool,
 		return 0, false, err
 	}
 	return count, false, nil
-}
-
-func Process(dvm dvm.Handler) func(rely.Client, *nostr.Event) error {
-	return func(client rely.Client, request *nostr.Event) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		response := dvm.Process(ctx, request)
-		_, err := service.Sqlite.Save(ctx, response)
-		return err
-	}
 }
 
 func UnsupportedDVM(_ rely.Client, event *nostr.Event) error {

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pippellia-btc/rely"
 	"github.com/vertex-lab/relay/pkg/api"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/core"
@@ -20,6 +21,7 @@ import (
 var (
 	config  cfg.Config
 	service *core.Service
+	relay   *rely.Relay
 )
 
 func main() {
@@ -46,7 +48,7 @@ func main() {
 	defer service.Close()
 
 	api := api.Handler{Service: service, SecretKey: config.Relay.SecretKey}
-	relay := SetupRelay()
+	relay = SetupRelay()
 
 	router := http.NewServeMux()
 	router.HandleFunc("POST /api/v1/dvms", api.HandleDVMs)
