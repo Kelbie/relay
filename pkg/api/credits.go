@@ -30,7 +30,7 @@ var (
 
 // GetCredits handles the endpoint GET /api/v1/credits
 func (h Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
-	pubkey, err := h.authNIP98(r)
+	pubkey, err := authNIP98(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -59,7 +59,7 @@ func (h Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
 
 // authNIP98 performs all required NIP-98 auth validation (no "payload" check),
 // returning the pubkey that performed the authentication, or an error if invalid.
-func (h Handler) authNIP98(r *http.Request) (pubkey string, err error) {
+func authNIP98(r *http.Request) (pubkey string, err error) {
 	event, err := parseNIP98(r.Header.Get("Authorization"))
 	if err != nil {
 		return "", err
@@ -77,8 +77,8 @@ func (h Handler) authNIP98(r *http.Request) (pubkey string, err error) {
 		return "", ErrInvalidAuthMethod
 	}
 
-	if tagValue(event, "u") != normalizeURL(r, h.Domain) {
-		return "", ErrInvalidAuthURL
+	if tagValue(event, "u") != normalizeURL(r) {
+		return "", fmt.Errorf("%w: expected %v, got %v", ErrInvalidAuthURL, normalizeURL(r), tagValue(event, "u"))
 	}
 
 	if err := verify(event); err != nil {
@@ -98,7 +98,7 @@ func parseNIP98(auth string) (*nostr.Event, error) {
 		return nil, ErrInvalidAuthScheme
 	}
 
-	bytes, err := base64.URLEncoding.DecodeString(parts[1])
+	bytes, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidAuthBase64, err)
 	}
@@ -119,18 +119,15 @@ func tagValue(e *nostr.Event, tagKey string) string {
 	return ""
 }
 
-func normalizeURL(r *http.Request, fallbackDomain string) string {
-	proto := "http"
-	if p := r.URL.Scheme; p != "" {
-		proto = p
-	}
-	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
-		proto = p
+func normalizeURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
 	}
 
-	domain := fallbackDomain
-	if d := r.URL.Hostname(); d != "" {
-		domain = d
+	host := r.Host
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
+		host = h
 	}
-	return proto + "://" + domain + r.URL.RequestURI()
+	return scheme + "://" + host + r.URL.RequestURI()
 }

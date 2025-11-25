@@ -25,7 +25,6 @@ var (
 type Handler struct {
 	Service   *core.Service
 	SecretKey string
-	Domain    string // the domain of the server/relay
 }
 
 // HandleDVMs handles the endpoint /api/v1/dvms

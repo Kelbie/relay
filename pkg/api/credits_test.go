@@ -38,7 +38,7 @@ func TestAuthNIP98(t *testing.T) {
 		},
 		{
 			name:    "invalid auth base 64",
-			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr xxx"}}},
+			request: &http.Request{Header: http.Header{"Authorization": []string{"Nostr aGVsbG8gd29ybGQ!"}}},
 			err:     ErrInvalidAuthBase64,
 		},
 		{
@@ -68,6 +68,7 @@ func TestAuthNIP98(t *testing.T) {
 							{"method", "GET"},
 						}}),
 				}},
+				Host:   "example.com",
 				Method: http.MethodGet,
 				URL:    &url.URL{Path: "/api/test"},
 			},
@@ -85,6 +86,7 @@ func TestAuthNIP98(t *testing.T) {
 							{"method", "POST"},
 						}}),
 				}},
+				Host:   "example.com",
 				Method: http.MethodGet,
 				URL:    &url.URL{Path: "/api/test"},
 			},
@@ -102,6 +104,7 @@ func TestAuthNIP98(t *testing.T) {
 							{"method", "GET"},
 						}})),
 				}},
+				Host:   "example.com",
 				Method: http.MethodGet,
 				URL:    &url.URL{Path: "/api/test"},
 			},
@@ -111,8 +114,7 @@ func TestAuthNIP98(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			h := Handler{Domain: "example.com"}
-			pubkey, err := h.authNIP98(test.request)
+			pubkey, err := authNIP98(test.request)
 			if !errors.Is(err, test.err) {
 				t.Fatalf("expected error %v, got %v", test.err, err)
 			}
@@ -132,10 +134,10 @@ func TestParseNIP98(t *testing.T) {
 	}{
 		{auth: "", err: ErrInvalidAuthHeader},
 		{auth: "Nastr xxx", err: ErrInvalidAuthScheme},
-		{auth: "Nostr xxx", err: ErrInvalidAuthBase64},
+		{auth: "Nostr aGVsbG8gd29ybGQ!", err: ErrInvalidAuthBase64},
 		{auth: "Nostr Y2lhbw0K", err: ErrInvalidEventJSON},
 		{
-			auth: "Nostr ew0KICAiaWQiOiAiZmU5NjRlNzU4OTAzMzYwZjI4ZDg0MjRkMDkyZGE4NDk0ZWQyMDdjYmE4MjMxMTBiZTNhNTdkZmU0YjU3ODczNCIsDQogICJwdWJrZXkiOiAiNjNmZTYzMThkYzU4NTgzY2ZlMTY4MTBmODZkZDA5ZTE4YmZkNzZhYWJjMjRhMDA4MWNlMjg1NmYzMzA1MDRlZCIsDQogICJjb250ZW50IjogIiIsDQogICJraW5kIjogMjcyMzUsDQogICJjcmVhdGVkX2F0IjogMTY4MjMyNzg1MiwNCiAgInRhZ3MiOiBbDQogICAgWyJ1IiwgImh0dHBzOi8vYXBpLnNub3J0LnNvY2lhbC9hcGkvdjEvbjVzcC9saXN0Il0sDQogICAgWyJtZXRob2QiLCAiR0VUIl0NCiAgXSwNCiAgInNpZyI6ICI1ZWQ5ZDhlYzk1OGJjODU0Zjk5N2JkYzI0YWMzMzdkMDA1YWYzNzIzMjQ3NDdlZmU0YTAwZTI0ZjRjMzA0MzdmZjRkZDgzMDg2ODRiZWQ0NjdkOWQ2YmUzZTVhNTE3YmI0M2IxNzMyY2M3ZDMzOTQ5YTNhYWY4NjcwNWMyMjE4NCINCn0=",
+			auth: "Nostr ew0KICAiaWQiOiAiZmU5NjRlNzU4OTAzMzYwZjI4ZDg0MjRkMDkyZGE4NDk0ZWQyMDdjYmE4MjMxMTBiZTNhNTdkZmU0YjU3ODczNCIsDQogICJwdWJrZXkiOiAiNjNmZTYzMThkYzU4NTgzY2ZlMTY4MTBmODZkZDA5ZTE4YmZkNzZhYWJjMjRhMDA4MWNlMjg1NmYzMzA1MDRlZCIsDQogICJjb250ZW50IjogIiIsDQogICJraW5kIjogMjcyMzUsDQogICJjcmVhdGVkX2F0IjogMTY4MjMyNzg1MiwNCiAgInRhZ3MiOiBbDQogICAgWyJ1IiwgImh0dHBzOi8vYXBpLnNub3J0LnNvY2lhbC9hcGkvdjEvbjVzcC9saXN0Il0sDQogICAgWyJtZXRob2QiLCAiR0VUIl0NCiAgXSwNCiAgInNpZyI6ICI1ZWQ5ZDhlYzk1OGJjODU0Zjk5N2JkYzI0YWMzMzdkMDA1YWYzNzIzMjQ3NDdlZmU0YTAwZTI0ZjRjMzA0MzdmZjRkZDgzMDg2ODRiZWQ0NjdkOWQ2YmUzZTVhNTE3YmI0M2IxNzMyY2M3ZDMzOTQ5YTNhYWY4NjcwNWMyMjE4NCINCn0",
 			expected: &nostr.Event{
 				ID:        "fe964e758903360f28d8424d092da8494ed207cba823110be3a57dfe4b578734",
 				PubKey:    "63fe6318dc58583cfe16810f86dd09e18bfd76aabc24a0081ce2856f330504ed",
@@ -169,7 +171,7 @@ func Base64(e nostr.Event) string {
 	if err != nil {
 		panic(err)
 	}
-	return base64.URLEncoding.EncodeToString(bytes)
+	return base64.RawURLEncoding.EncodeToString(bytes)
 }
 
 var sk = "6c670052fb1ea99a2b8e03895fea6df717e3c54fef676ab320dc59a57dfea441"

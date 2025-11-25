@@ -45,7 +45,7 @@ func main() {
 	}
 	defer service.Close()
 
-	api := api.Handler{Service: service, SecretKey: config.Relay.SecretKey, Domain: config.Relay.Domain}
+	api := api.Handler{Service: service, SecretKey: config.Relay.SecretKey}
 	relay := SetupRelay()
 
 	router := http.NewServeMux()

@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,6 +51,62 @@ func TestAPI_CreditManagement(t *testing.T) {
 	}
 
 	err = checkFormat(response, expectedKind, expectedTags)
+	if err != nil {
+		t.Fatalf("the format of the response is wrong: %v", err)
+	}
+}
+
+func TestAPI_GetCredits(t *testing.T) {
+	method := "GET"
+	url := "http://localhost:3334/api/v1/credits"
+
+	request, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		t.Fatalf("failed to create the request: %v", err)
+	}
+
+	auth := &nostr.Event{
+		Kind:      nostr.KindHTTPAuth,
+		CreatedAt: nostr.Now(),
+		Tags: nostr.Tags{
+			{"u", url},
+			{"method", method},
+		},
+	}
+
+	if err := auth.Sign(sk); err != nil {
+		t.Fatalf("failed to sign: %v", err)
+	}
+
+	json, err := auth.MarshalJSON()
+	if err != nil {
+		t.Fatalf("failed to marshal event: %v", err)
+	}
+
+	header := "Nostr " + base64.RawURLEncoding.EncodeToString(json)
+	request.Header["Authorization"] = []string{header}
+
+	response, err := apiResponse(request)
+	if err != nil {
+		t.Fatalf("failed to call credits API: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		t.Errorf("API returned status code %d", response.StatusCode)
+		t.Fatalf("body: %v", string(body))
+	}
+
+	credits, err := parseEvent(response.Body)
+	if err != nil {
+		t.Fatalf("failed to parse response body: %v", err)
+	}
+
+	expectedKind := 22243
+	expectedTags := nostr.Tags{{"credits"}, {"lastRequest"}}
+
+	err = checkFormat(credits, expectedKind, expectedTags)
 	if err != nil {
 		t.Fatalf("the format of the response is wrong: %v", err)
 	}
@@ -216,36 +273,40 @@ func TestAPI_SearchProfiles(t *testing.T) {
 	}
 }
 
-// apiDVM construct a POST requestuest with body the JSON of the specified nostr requestuest.
+// apiDVM construct a POST request with body the JSON of the specified nostr request.
 func apiDVM(requestuestEvent *nostr.Event, url string) (*nostr.Event, error) {
 	requestuestBody, err := json.Marshal(requestuestEvent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal requestuest event: %v", err)
+		return nil, fmt.Errorf("failed to marshal request event: %v", err)
 	}
 
-	requestuest, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(requestuestBody))
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(requestuestBody))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP requestuest: %v", err)
+		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
 	}
-	requestuest.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Content-Type", "application/json")
 
-	response, err := apiResponse(requestuest)
+	response, err := apiResponse(request)
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
+	if response.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("API returned status code %d", response.StatusCode)
+	}
+	return parseEvent(response.Body)
+}
+
+func parseEvent(body io.ReadCloser) (*nostr.Event, error) {
+	defer body.Close()
+
+	bytes, err := io.ReadAll(body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read body: %w", err)
 	}
 
-	if response.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("API returned status code %d\n body: %v", response.StatusCode, string(body))
-	}
-
 	responseEvent := &nostr.Event{}
-	if err := json.Unmarshal(body, responseEvent); err != nil {
+	if err := json.Unmarshal(bytes, responseEvent); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response body: %w", err)
 	}
 	return responseEvent, nil
