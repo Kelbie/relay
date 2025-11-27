@@ -21,7 +21,7 @@ type Limiter struct {
 
 type Bucket struct {
 	mu         sync.Mutex
-	Tokens     float64
+	Tokens     float32
 	LastRefill time.Time
 }
 
@@ -42,7 +42,7 @@ func NewLimiter(r Refiller) *Limiter {
 }
 
 // Reject returns true if the entity cannot pay the cost, false if it can.
-func (l *Limiter) Reject(entity string, cost float64) bool {
+func (l *Limiter) Reject(entity string, cost float32) bool {
 	if cost <= 0 {
 		return false
 	}
@@ -81,10 +81,10 @@ func (l *Limiter) Reject(entity string, cost float64) bool {
 // FlatRefiller applies the same refill policy to every bucket.
 // Every `Interval`, it refills `TokensPerInterval` without exceeding the `MaxTokens`.
 type FlatRefiller struct {
-	InitialTokens     float64
-	MaxTokens         float64
-	TokensPerInterval float64
-	Interval          time.Duration
+	InitialTokens     float32       `envconfig:"INITIAL_TOKENS"`
+	MaxTokens         float32       `envconfig:"MAX_TOKENS"`
+	TokensPerInterval float32       `envconfig:"TOKENS_PER_INTERVAL"`
+	Interval          time.Duration `envconfig:"INTERVAL"`
 }
 
 func (r FlatRefiller) NewBucket(_ string) *Bucket {
@@ -99,18 +99,12 @@ func (r FlatRefiller) Refill(_ string, b *Bucket) error {
 		return nil
 	}
 
-	if b.Tokens >= r.MaxTokens {
-		// if a bucket has more than the maximum tokens,
-		// don't continue as that would decrease its tokens.
-		return nil
-	}
-
 	refills := time.Since(b.LastRefill) / r.Interval
 	if refills == 0 {
 		return nil
 	}
 
-	b.Tokens = min(r.MaxTokens, b.Tokens+float64(refills)*r.TokensPerInterval)
+	b.Tokens = min(r.MaxTokens, b.Tokens+float32(refills)*r.TokensPerInterval)
 	b.LastRefill = b.LastRefill.Add(refills * r.Interval)
 	return nil
 }

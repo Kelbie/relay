@@ -66,17 +66,12 @@ func TestFlatRefill(t *testing.T) {
 		expected *Bucket
 	}{
 		{
-			name:     "tokens higher than max (don't decrease)",
-			bucket:   &Bucket{Tokens: 10_000},
-			expected: &Bucket{Tokens: 10_000},
-		},
-		{
 			name:     "no refill (too soon)",
 			bucket:   &Bucket{Tokens: 10, LastRefill: time.Now()},
 			expected: &Bucket{Tokens: 10, LastRefill: time.Now()},
 		},
 		{
-			name:     "refill",
+			name:     "2 refills",
 			bucket:   &Bucket{Tokens: 10, LastRefill: time.Now().Add(-2 * time.Hour)},
 			expected: &Bucket{Tokens: 30, LastRefill: time.Now()},
 		},
