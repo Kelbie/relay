@@ -7,7 +7,7 @@ import (
 )
 
 func TestReject(t *testing.T) {
-	refiller := DefaultRefiller{
+	refiller := FlatRefiller{
 		InitialTokens:     100,
 		MaxTokens:         100,
 		TokensPerInterval: 0,
@@ -31,7 +31,7 @@ func TestReject(t *testing.T) {
 
 // Run this test with go test --race
 func TestConcurrency(t *testing.T) {
-	refiller := DefaultRefiller{
+	refiller := FlatRefiller{
 		InitialTokens:     1000,
 		MaxTokens:         1000,
 		TokensPerInterval: 100,
@@ -53,8 +53,8 @@ func TestConcurrency(t *testing.T) {
 	wg.Wait()
 }
 
-func TestDefaultRefill(t *testing.T) {
-	refiller := DefaultRefiller{
+func TestFlatRefill(t *testing.T) {
+	refiller := FlatRefiller{
 		MaxTokens:         100,
 		TokensPerInterval: 10,
 		Interval:          time.Hour,
@@ -89,7 +89,7 @@ func TestDefaultRefill(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			refiller.Refill(test.bucket)
+			refiller.Refill("", test.bucket)
 
 			if test.bucket.Tokens != test.expected.Tokens {
 				t.Fatalf("expected tokens %v, got %v", test.expected.Tokens, test.bucket.Tokens)
