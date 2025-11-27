@@ -81,10 +81,10 @@ func (l *Limiter) Reject(entity string, cost float32) bool {
 // FlatRefiller applies the same refill policy to every bucket.
 // Every `Interval`, it refills `TokensPerInterval` without exceeding the `MaxTokens`.
 type FlatRefiller struct {
-	InitialTokens     float32       `envconfig:"INITIAL_TOKENS"`
-	MaxTokens         float32       `envconfig:"MAX_TOKENS"`
-	TokensPerInterval float32       `envconfig:"TOKENS_PER_INTERVAL"`
-	Interval          time.Duration `envconfig:"INTERVAL"`
+	InitialTokens     float32       `env:"INITIAL_TOKENS"`
+	MaxTokens         float32       `env:"MAX_TOKENS"`
+	TokensPerInterval float32       `env:"TOKENS_PER_INTERVAL"`
+	Interval          time.Duration `env:"INTERVAL"`
 }
 
 func (r FlatRefiller) NewBucket(_ string) *Bucket {

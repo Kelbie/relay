@@ -35,9 +35,9 @@ func (b Bucket) ToEvent() nostr.Event {
 }
 
 type RefillPolicy struct {
-	Amount        int           `envconfig:"REFILL_AMOUNT"`
-	Interval      time.Duration `envconfig:"REFILL_INTERVAL"`
-	WalkThreshold int           `envconfig:"REFILL_WALK_THRESHOLD"`
+	Amount        int           `env:"CREDITS_REFILL_AMOUNT"`
+	Interval      time.Duration `env:"CREDITS_REFILL_INTERVAL"`
+	WalkThreshold int           `env:"CREDITS_REFILL_WALK_THRESHOLD"`
 }
 
 var NoRefill = RefillPolicy{Amount: 0}
@@ -61,11 +61,16 @@ func (p RefillPolicy) Validate() error {
 	return nil
 }
 
-func (p RefillPolicy) Print() {
-	fmt.Println("Refill Policy:")
-	fmt.Printf("  Amount: %d\n", p.Amount)
-	fmt.Printf("  Interval: %v\n", p.Interval)
-	fmt.Printf("  Walk Threshold: %d\n", p.WalkThreshold)
+func (p RefillPolicy) String() string {
+	return fmt.Sprintf(
+		"Credits Policy:\n"+
+			"\tAmount: %d\n"+
+			"\tInterval: %v\n"+
+			"\tWalk Threshold: %d\n",
+		p.Amount,
+		p.Interval,
+		p.WalkThreshold,
+	)
 }
 
 type Manager struct {

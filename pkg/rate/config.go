@@ -15,17 +15,17 @@ type LimiterConfig struct {
 }
 
 type trustedConfig struct {
-	List     []string     `envconfig:"RATE_TRUSTED"`
-	Refiller FlatRefiller `envconfig:"RATE_TRUSTED"`
+	List     []string     `env:"RATE_TRUSTED_LIST"`
+	Refiller FlatRefiller `envPrefix:"RATE_TRUSTED_"`
 }
 
 type untrustedConfig struct {
-	List     []string     `envconfig:"RATE_UNTRUSTED"`
-	Refiller FlatRefiller `envconfig:"RATE_UNTRUSTED"`
+	List     []string     `env:"RATE_UNTRUSTED_LIST"`
+	Refiller FlatRefiller `envPrefix:"RATE_UNTRUSTED_"`
 }
 
 type defaultConfig struct {
-	Refiller FlatRefiller `envconfig:"RATE_DEFAULT"`
+	Refiller FlatRefiller `envPrefix:"RATE_DEFAULT_"`
 }
 
 func NewConfig() LimiterConfig {

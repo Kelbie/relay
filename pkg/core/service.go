@@ -48,8 +48,8 @@ type Service struct {
 }
 
 type ServiceConfig struct {
-	RedisAddress string `envconfig:"REDIS_ADDRESS"`
-	SqlitePath   string `envconfig:"SQLITE_PATH"`
+	RedisAddress string `env:"REDIS_ADDRESS"`
+	SqlitePath   string `env:"SQLITE_PATH"`
 	Refill       credits.RefillPolicy
 }
 
@@ -91,11 +91,15 @@ func NewServiceConfig() ServiceConfig {
 	}
 }
 
-func (c ServiceConfig) Print() {
-	fmt.Println("Service Config:")
-	fmt.Printf("  Redis Address: %s\n", c.RedisAddress)
-	fmt.Printf("  Sqlite Path: %s\n", c.SqlitePath)
-	c.Refill.Print()
+func (c ServiceConfig) String() string {
+	return fmt.Sprintf(
+		"Service Config:\n"+
+			"\tRedis Address: %s\n"+
+			"\tSqlite Path: %s\n"+
+			"\t"+strings.ReplaceAll(c.Refill.String(), "\n", "\n\t"),
+		c.RedisAddress,
+		c.SqlitePath,
+	)
 }
 
 func (c ServiceConfig) Validate() error {

@@ -5,9 +5,9 @@ go 1.24.1
 toolchain go1.24.4
 
 require (
+	github.com/caarlos0/env/v11 v11.3.1
 	github.com/goccy/go-json v0.10.5
 	github.com/joho/godotenv v1.5.1
-	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/nbd-wtf/go-nostr v0.52.0
 	github.com/pippellia-btc/rely v1.0.0-gamma
 	github.com/pippellia-btc/slicex v0.2.5
