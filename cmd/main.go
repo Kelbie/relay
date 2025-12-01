@@ -10,19 +10,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pippellia-btc/rely"
 	"github.com/vertex-lab/relay/pkg/api"
-	cfg "github.com/vertex-lab/relay/pkg/config"
+	"github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/rate"
+	"github.com/vertex-lab/relay/pkg/relay"
 
 	"github.com/nbd-wtf/go-nostr"
-)
-
-var (
-	config  cfg.Config
-	service *core.Service
-	relay   *rely.Relay
 )
 
 func main() {
@@ -36,13 +30,12 @@ func main() {
 	slog.Info("--------- starting up the relay --------")
 	defer slog.Info("-----------------------------------------")
 
-	var err error
-	config, err = cfg.Load()
+	config, err := config.Load()
 	if err != nil {
 		panic(err)
 	}
 
-	service, err = core.NewService(config.Service)
+	service, err := core.NewService(config.Service)
 	if err != nil {
 		panic(err)
 	}
@@ -53,7 +46,7 @@ func main() {
 	)
 
 	api := api.Handler{Service: service, Limiter: limiter, SecretKey: config.Relay.SecretKey}
-	relay = SetupRelay()
+	relay := relay.Setup(config.Relay, service, limiter)
 
 	router := http.NewServeMux()
 	router.HandleFunc("POST /api/v1/dvms", api.HandleDVMs)

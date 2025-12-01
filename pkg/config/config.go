@@ -10,20 +10,21 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/rate"
+	"github.com/vertex-lab/relay/pkg/relay"
 )
 
 type Config struct {
-	Relay   RelayConfig
 	Service core.ServiceConfig
 	Limiter rate.LimiterConfig
+	Relay   relay.Config
 }
 
 // New returns a config with default paramenters.
 func New() Config {
 	return Config{
-		Relay:   NewRelayConfig(),
 		Service: core.NewServiceConfig(),
 		Limiter: rate.NewConfig(),
+		Relay:   relay.NewConfig(),
 	}
 }
 
@@ -40,64 +41,10 @@ func (c Config) Validate() error {
 	return nil
 }
 
-type RelayConfig struct {
-	Address       string `env:"RELAY_ADDRESS"`
-	Domain        string `env:"RELAY_DOMAIN"` // the domain of the server/relay, used for nip-42
-	QueueCapacity int    `env:"QUEUE_CAPACITY"`
-	Processors    int    `env:"PROCESSORS"`
-	SecretKey     string `env:"SECRET_KEY"`
-	PublicKey     string ``
-}
-
-// NewRelayConfig returns a relay configuration structure with default paramenters.
-func NewRelayConfig() RelayConfig {
-	return RelayConfig{
-		Address:       "localhost:3334",
-		QueueCapacity: 1000,
-		Processors:    4,
-	}
-}
-
 func (c Config) Print() {
-	fmt.Println(c.Relay)
 	fmt.Println(c.Service)
 	fmt.Println(c.Limiter)
-}
-
-func (c RelayConfig) Validate() error {
-	if c.QueueCapacity < 0 {
-		return fmt.Errorf("queue capacity value must be positiveL %d", c.QueueCapacity)
-	}
-
-	if c.Processors < 0 {
-		return fmt.Errorf("processors value must be positive: %d", c.Processors)
-	}
-
-	pk, err := nostr.GetPublicKey(c.SecretKey)
-	if err != nil {
-		return fmt.Errorf("secret key is invalid: %w", err)
-	}
-
-	if pk != c.PublicKey {
-		return fmt.Errorf("secret and public keys don't match")
-	}
-	return nil
-}
-
-func (c RelayConfig) String() string {
-	return fmt.Sprintf(
-		"Relay Config:\n"+
-			"\tAddress: %s\n"+
-			"\tQueue Capacity: %d\n"+
-			"\tProcessors: %d\n"+
-			"\tSecretKey: %s\n"+
-			"\tPublicKey: %s\n",
-		c.Address,
-		c.QueueCapacity,
-		c.Processors,
-		c.SecretKey,
-		c.PublicKey,
-	)
+	fmt.Println(c.Relay)
 }
 
 // Load creates a new [Config] with default parameters, that get overwritten by
