@@ -11,6 +11,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
+	"github.com/vertex-lab/relay/pkg/rate"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
@@ -24,6 +25,7 @@ var (
 
 type Handler struct {
 	Service   *core.Service
+	Limiter   *rate.Limiter
 	SecretKey string
 }
 
@@ -31,6 +33,13 @@ type Handler struct {
 func (h Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed. use POST", http.StatusBadRequest)
+		return
+	}
+
+	ip := rely.GetIP(r).Group()
+	if h.Limiter.Reject(ip, 1) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte("Rate limit exceeded. Try again later."))
 		return
 	}
 

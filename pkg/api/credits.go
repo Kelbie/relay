@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
+	"github.com/pippellia-btc/rely"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -30,6 +31,13 @@ var (
 
 // GetCredits handles the endpoint GET /api/v1/credits
 func (h Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
+	ip := rely.GetIP(r).Group()
+	if h.Limiter.Reject(ip, 1) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte("Rate limit exceeded. Try again later."))
+		return
+	}
+
 	pubkey, err := authNIP98(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)

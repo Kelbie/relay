@@ -14,6 +14,7 @@ import (
 	"github.com/vertex-lab/relay/pkg/api"
 	cfg "github.com/vertex-lab/relay/pkg/config"
 	"github.com/vertex-lab/relay/pkg/core"
+	"github.com/vertex-lab/relay/pkg/rate"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -47,7 +48,11 @@ func main() {
 	}
 	defer service.Close()
 
-	api := api.Handler{Service: service, SecretKey: config.Relay.SecretKey}
+	limiter := rate.NewLimiter(
+		rate.NewDynamicRefiller(config.Limiter),
+	)
+
+	api := api.Handler{Service: service, Limiter: limiter, SecretKey: config.Relay.SecretKey}
 	relay = SetupRelay()
 
 	router := http.NewServeMux()
