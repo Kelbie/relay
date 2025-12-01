@@ -9,7 +9,7 @@ require (
 	github.com/goccy/go-json v0.10.5
 	github.com/joho/godotenv v1.5.1
 	github.com/nbd-wtf/go-nostr v0.52.0
-	github.com/pippellia-btc/rely v1.0.0-gamma
+	github.com/pippellia-btc/rely v1.2.0
 	github.com/pippellia-btc/slicex v0.2.5
 	github.com/redis/go-redis/v9 v9.8.0
 	github.com/vertex-lab/crawler_v2 v1.4.3
@@ -37,7 +37,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.32 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/pippellia-btc/smallset v0.4.1 // indirect
+	github.com/pippellia-btc/smallset v0.4.2 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

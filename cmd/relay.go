@@ -61,27 +61,37 @@ func query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]no
 	}
 
 	if ContainCreditQuery(filters) {
-		credits, err := creditQuery(client.Pubkey())
+		credits, err := creditQuery(client.Pubkeys()...)
 		if err != nil {
 			return nil, err
 		}
-		events = append(events, credits)
+		events = append(events, credits...)
 	}
 	return events, nil
 }
 
-func creditQuery(pubkey string) (nostr.Event, error) {
-	bucket, err := service.Credits.Bucket(pubkey)
-	if err != nil {
-		return nostr.Event{}, fmt.Errorf("failed to query credits of pubkey %s: %w", pubkey, err)
+func creditQuery(pubkeys ...string) ([]nostr.Event, error) {
+	if len(pubkeys) == 0 {
+		return nil, nil
 	}
 
-	event := bucket.ToEvent()
-	err = event.Sign(config.Relay.SecretKey)
-	if err != nil {
-		return nostr.Event{}, fmt.Errorf("failed to sign credit event: %w", err)
+	events := make([]nostr.Event, 0, len(pubkeys))
+	for _, pk := range pubkeys {
+
+		bucket, err := service.Credits.Bucket(pk)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query credits of pubkey %s: %w", pk, err)
+		}
+
+		event := bucket.ToEvent()
+		err = event.Sign(config.Relay.SecretKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to sign credit event: %w", err)
+		}
+
+		events = append(events, event)
 	}
-	return event, nil
+	return events, nil
 }
 
 func Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {
@@ -121,7 +131,7 @@ func WithSearch(_ rely.Client, filters nostr.Filters) error {
 }
 
 func UnauthedCredits(client rely.Client, filters nostr.Filters) error {
-	if ContainCreditQuery(filters) && client.Pubkey() == "" {
+	if ContainCreditQuery(filters) && !client.IsAuthed() {
 		return errors.New("auth-required: you must be authenticated to request your credit balance")
 	}
 	return nil

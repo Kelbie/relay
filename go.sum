@@ -113,12 +113,12 @@ github.com/onsi/gomega v1.4.1/go.mod h1:C1qb7wdrVGGVU+Z6iS04AVkA3Q65CEZX59MT0QO5
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
-github.com/pippellia-btc/rely v1.0.0-gamma h1:JEuCNwiDtFqdR19VNVVIFc4gYsyj7n0PbJXftQQLLnU=
-github.com/pippellia-btc/rely v1.0.0-gamma/go.mod h1:pm5HY8kv9hlcZGMP12P1oXOFcdkiVT+As3btwpDEKI4=
+github.com/pippellia-btc/rely v1.2.0 h1:eYv64NCZgBM0bgFJ5i2Gphuw08dqBQqMPKUIK6E0fkM=
+github.com/pippellia-btc/rely v1.2.0/go.mod h1:IWh9dWrqSDEtFCzz3wrpEaRUEshFb+D9Fc0/b7L9ugE=
 github.com/pippellia-btc/slicex v0.2.5 h1:cthD4tKjg9CiWFjotIQinhqF2r7K83mkqHBX3cjig4I=
 github.com/pippellia-btc/slicex v0.2.5/go.mod h1:fu7VjA9Cdk76wIUlkzWOYiMG8/VEs1fJiUhkKqEopd8=
-github.com/pippellia-btc/smallset v0.4.1 h1:QmPiDnpth91/o6W/z6tNZo4F0zpWYmUZQ9OJskQWz38=
-github.com/pippellia-btc/smallset v0.4.1/go.mod h1:VYIMqOCTpNyTqg08nBHG2xHIepR9Px70R6iKcSY28hY=
+github.com/pippellia-btc/smallset v0.4.2 h1:0TMEWEnc4khhqE68Qfr571P+3bZAGGCT/XDK8YaDXJQ=
+github.com/pippellia-btc/smallset v0.4.2/go.mod h1:VYIMqOCTpNyTqg08nBHG2xHIepR9Px70R6iKcSY28hY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/puzpuzpuz/xsync/v3 v3.5.1 h1:GJYJZwO6IdxN/IKbneznS6yPkVC+c3zyY/j19c++5Fg=
