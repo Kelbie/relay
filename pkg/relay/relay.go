@@ -24,7 +24,6 @@ type handler struct {
 	service   *core.Service
 	relay     *rely.Relay
 	limiter   *rate.Limiter
-	dvm       dvm.Handler
 	secretKey string
 }
 
@@ -38,15 +37,14 @@ func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Re
 	h := handler{
 		service:   service,
 		relay:     relay,
-		dvm:       dvm.Handler{Service: service, SecretKey: config.SecretKey},
 		limiter:   limiter,
 		secretKey: config.SecretKey,
 	}
 
-	relay.Reject.Connection = []func(rely.Stats, *http.Request) error{h.ConnRateLimit(0.1), rely.RegistrationFailWithin(3 * time.Second)}
-	relay.Reject.Event = []func(rely.Client, *nostr.Event) error{h.EventRateLimit(1), UnsupportedDVM, rely.InvalidID, rely.InvalidSignature}
-	relay.Reject.Req = []func(rely.Client, nostr.Filters) error{h.QueryRateLimit(0.1), FiltersExceed(50), WithSearch, UnauthedCredits}
-	relay.Reject.Count = []func(rely.Client, nostr.Filters) error{h.QueryRateLimit(0.1), FiltersExceed(100)}
+	relay.Reject.Connection.Prepend(h.CostPerConn(1))
+	relay.Reject.Event.Prepend(h.CostPerEvent(1), UnsupportedDVM)
+	relay.Reject.Req.Prepend(h.CostPerFilter(0.1), FiltersExceed(50), WithSearch, UnauthedCredits)
+	relay.Reject.Count.Prepend(h.CostPerFilter(0.1), FiltersExceed(100))
 
 	relay.On.Connect = func(c rely.Client) { c.SendAuth() }
 	relay.On.Req = h.Query
@@ -59,7 +57,7 @@ func (h handler) Process(_ rely.Client, request *nostr.Event) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	response := h.dvm.Process(ctx, request)
+	response := dvm.Handler{Service: h.service, SecretKey: h.secretKey}.Process(ctx, request)
 	h.relay.Broadcast(response)
 	_, err := h.service.Sqlite.Save(ctx, response)
 	return err
@@ -125,7 +123,7 @@ func (h handler) Count(client rely.Client, filters nostr.Filters) (count int64, 
 	return count, false, nil
 }
 
-func (h handler) ConnRateLimit(cost float32) func(rely.Stats, *http.Request) error {
+func (h handler) CostPerConn(cost float32) func(rely.Stats, *http.Request) error {
 	return func(_ rely.Stats, r *http.Request) error {
 		ip := rely.GetIP(r).Group()
 		if h.limiter.Reject(ip, cost) {
@@ -135,11 +133,10 @@ func (h handler) ConnRateLimit(cost float32) func(rely.Stats, *http.Request) err
 	}
 }
 
-func (h handler) QueryRateLimit(baseCost float32) func(rely.Client, nostr.Filters) error {
+func (h handler) CostPerFilter(cost float32) func(rely.Client, nostr.Filters) error {
 	return func(c rely.Client, f nostr.Filters) error {
 		ip := c.IP().Group()
-		cost := baseCost * float32(len(f))
-		if h.limiter.Reject(ip, cost) {
+		if h.limiter.Reject(ip, cost*float32(len(f))) {
 			defer c.Disconnect()
 			return ErrIPRateLimited
 		}
@@ -147,7 +144,7 @@ func (h handler) QueryRateLimit(baseCost float32) func(rely.Client, nostr.Filter
 	}
 }
 
-func (h handler) EventRateLimit(cost float32) func(rely.Client, *nostr.Event) error {
+func (h handler) CostPerEvent(cost float32) func(rely.Client, *nostr.Event) error {
 	return func(c rely.Client, _ *nostr.Event) error {
 		ip := c.IP().Group()
 		if h.limiter.Reject(ip, cost) {
