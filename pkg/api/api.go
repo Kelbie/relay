@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/vertex-lab/relay/pkg/dvm"
-
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
+	"github.com/vertex-lab/relay/pkg/dvm"
 )
 
 const MaxRequestBody = 500_000 // 0.5MB
@@ -20,6 +19,47 @@ const MaxRequestBody = 500_000 // 0.5MB
 var (
 	ErrInvalidEventJSON = errors.New("invalid event json")
 )
+
+// GetCredits handles the endpoint GET /api/v1/credits
+func (h *Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
+	ip := rely.GetIP(r).Group()
+	if h.limiter.Reject(ip, 1) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte("Rate limit exceeded. Try again later."))
+		return
+	}
+
+	pubkey, err := authNIP98(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	bucket, err := h.service.Credits.Bucket(pubkey)
+	if err != nil {
+		http.Error(w, "internal error while retrieving the credits", http.StatusInternalServerError)
+		return
+	}
+
+	credits := bucket.ToEvent()
+	if err := credits.Sign(h.secretKey); err != nil {
+		// the handler failed to sign the response, likely caused by an invalid secret key.
+		// This is an unrecoverable error since all responses must be signed.
+		panic(fmt.Errorf("api.Handler.GetCredits: failed to sign: %w", err))
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(credits)
+	if err != nil {
+		slog.Error("encoding failed", "error", err)
+	}
+
+	tot := h.stats.credits.Add(1)
+	if (tot % h.stats.logEvery) == 0 {
+		slog.Info(fmt.Sprintf("API: processed %d credits", tot))
+	}
+}
 
 // HandleDVMs handles the endpoint /api/v1/dvms
 func (h *Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
