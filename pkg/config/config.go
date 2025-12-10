@@ -7,7 +7,6 @@ import (
 	"github.com/caarlos0/env/v11"
 	_ "github.com/joho/godotenv/autoload"
 
-	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/api"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/rate"
@@ -63,10 +62,7 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("config.Load: %w", err)
 	}
 
-	config.Relay.PublicKey, err = nostr.GetPublicKey(config.Relay.SecretKey)
-	if err != nil {
-		return Config{}, fmt.Errorf("secret key is invalid: %w", err)
-	}
+	config.Relay.Init()
 
 	if err := config.Validate(); err != nil {
 		return Config{}, fmt.Errorf("config.Load: %w", err)

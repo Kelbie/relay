@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -26,15 +27,32 @@ func NewConfig() Config {
 	}
 }
 
+// Init initializes the config, deriving the public key from the secret key.
+func (c *Config) Init() error {
+	pk, err := nostr.GetPublicKey(c.SecretKey)
+	if err != nil {
+		return fmt.Errorf("Init: secret key is invalid: %w", err)
+	}
+
+	c.PublicKey = pk
+	return nil
+}
+
 func (c Config) Validate() error {
 	if c.QueueCapacity < 0 {
-		return fmt.Errorf("queue capacity value must be positiveL %d", c.QueueCapacity)
+		return fmt.Errorf("queue capacity value must be positive: %d", c.QueueCapacity)
 	}
+
 	if c.Processors < 0 {
 		return fmt.Errorf("processors value must be positive: %d", c.Processors)
 	}
+
 	if c.LogEvery == 0 {
 		return fmt.Errorf("log every must be positive: %d", c.LogEvery)
+	}
+
+	if !nostr.IsValid32ByteHex(c.SecretKey) {
+		return errors.New("secret key is invalid")
 	}
 
 	pk, err := nostr.GetPublicKey(c.SecretKey)
@@ -43,7 +61,7 @@ func (c Config) Validate() error {
 	}
 
 	if pk != c.PublicKey {
-		return fmt.Errorf("secret and public keys don't match")
+		return fmt.Errorf("public key and secret key don't match")
 	}
 	return nil
 }

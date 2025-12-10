@@ -34,9 +34,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("log every must be positive: %d", c.LogEvery)
 	}
 
-	_, err := nostr.GetPublicKey(c.SecretKey)
-	if err != nil {
-		return fmt.Errorf("secret key is invalid: %w", err)
+	if !nostr.IsValid32ByteHex(c.SecretKey) {
+		return fmt.Errorf("secret key is invalid")
 	}
 	return nil
 }
