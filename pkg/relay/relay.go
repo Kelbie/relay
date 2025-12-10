@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -25,6 +26,14 @@ type handler struct {
 	relay     *rely.Relay
 	limiter   *rate.Limiter
 	secretKey string
+	stats
+}
+
+type stats struct {
+	dvms       atomic.Uint32
+	reqs       atomic.Uint32
+	counts     atomic.Uint32
+	printEvery uint32
 }
 
 func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Relay {
@@ -39,6 +48,7 @@ func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Re
 		relay:     relay,
 		limiter:   limiter,
 		secretKey: config.SecretKey,
+		stats:     stats{printEvery: config.PrintEvery},
 	}
 
 	relay.Reject.Connection.Prepend(h.CostPerConn(1))
@@ -53,26 +63,43 @@ func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Re
 	return relay
 }
 
-func (h handler) Process(_ rely.Client, request *nostr.Event) error {
+func (h *handler) Process(_ rely.Client, request *nostr.Event) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	response := dvm.Handler{Service: h.service, SecretKey: h.secretKey}.Process(ctx, request)
-	h.relay.Broadcast(response)
+	if err := h.relay.Broadcast(response); err != nil {
+		slog.Error("failed to broadcast dvm response", "error", err)
+	}
+
 	_, err := h.service.Sqlite.Save(ctx, response)
-	return err
+	if err != nil {
+		slog.Error("failed to save dvm response", "error", err)
+		return err
+	}
+
+	tot := h.stats.dvms.Add(1)
+	if (tot % h.stats.printEvery) == 0 {
+		slog.Info(fmt.Sprintf("processed %d dvms", tot))
+	}
+	return nil
 }
 
-func (h handler) Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
+func (h *handler) Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
 	events, err := h.query(ctx, client, filters)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("failed to query", "filters", filters, "error", err)
 		return nil, err
 	}
+
+	tot := h.stats.reqs.Add(1)
+	if (tot % h.stats.printEvery) == 0 {
+		slog.Info(fmt.Sprintf("processed %d reqs", tot))
+	}
 	return events, err
 }
 
-func (h handler) query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
+func (h *handler) query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
 	events, err := h.service.Sqlite.Query(ctx, filters...)
 	if err != nil {
 		return nil, err
@@ -88,7 +115,7 @@ func (h handler) query(ctx context.Context, client rely.Client, filters nostr.Fi
 	return events, nil
 }
 
-func (h handler) creditQuery(pubkeys ...string) ([]nostr.Event, error) {
+func (h *handler) creditQuery(pubkeys ...string) ([]nostr.Event, error) {
 	if len(pubkeys) == 0 {
 		return nil, nil
 	}
@@ -112,18 +139,24 @@ func (h handler) creditQuery(pubkeys ...string) ([]nostr.Event, error) {
 	return events, nil
 }
 
-func (h handler) Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {
+func (h *handler) Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	count, err = h.service.Sqlite.Count(ctx, filters...)
 	if err != nil {
+		slog.Error("failed to count", "filters", filters, "error", err)
 		return 0, false, err
+	}
+
+	tot := h.stats.counts.Add(1)
+	if (tot % h.stats.printEvery) == 0 {
+		slog.Info(fmt.Sprintf("processed %d counts", tot))
 	}
 	return count, false, nil
 }
 
-func (h handler) CostPerConn(cost float32) func(rely.Stats, *http.Request) error {
+func (h *handler) CostPerConn(cost float32) func(rely.Stats, *http.Request) error {
 	return func(_ rely.Stats, r *http.Request) error {
 		ip := rely.GetIP(r).Group()
 		if h.limiter.Reject(ip, cost) {
@@ -133,7 +166,7 @@ func (h handler) CostPerConn(cost float32) func(rely.Stats, *http.Request) error
 	}
 }
 
-func (h handler) CostPerFilter(cost float32) func(rely.Client, nostr.Filters) error {
+func (h *handler) CostPerFilter(cost float32) func(rely.Client, nostr.Filters) error {
 	return func(c rely.Client, f nostr.Filters) error {
 		ip := c.IP().Group()
 		if h.limiter.Reject(ip, cost*float32(len(f))) {
@@ -144,7 +177,7 @@ func (h handler) CostPerFilter(cost float32) func(rely.Client, nostr.Filters) er
 	}
 }
 
-func (h handler) CostPerEvent(cost float32) func(rely.Client, *nostr.Event) error {
+func (h *handler) CostPerEvent(cost float32) func(rely.Client, *nostr.Event) error {
 	return func(c rely.Client, _ *nostr.Event) error {
 		ip := c.IP().Group()
 		if h.limiter.Reject(ip, cost) {
