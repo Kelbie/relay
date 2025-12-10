@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"sync/atomic"
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -27,13 +26,6 @@ type handler struct {
 	limiter   *rate.Limiter
 	secretKey string
 	stats
-}
-
-type stats struct {
-	dvms     atomic.Uint32
-	reqs     atomic.Uint32
-	counts   atomic.Uint32
-	logEvery uint32
 }
 
 func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Relay {
@@ -78,10 +70,7 @@ func (h *handler) Process(_ rely.Client, request *nostr.Event) error {
 		return err
 	}
 
-	tot := h.stats.dvms.Add(1)
-	if (tot % h.stats.logEvery) == 0 {
-		slog.Info(fmt.Sprintf("processed %d dvms", tot))
-	}
+	h.stats.Record(statsDVM)
 	return nil
 }
 
@@ -92,10 +81,7 @@ func (h *handler) Query(ctx context.Context, client rely.Client, filters nostr.F
 		return nil, err
 	}
 
-	tot := h.stats.reqs.Add(1)
-	if (tot % h.stats.logEvery) == 0 {
-		slog.Info(fmt.Sprintf("processed %d reqs", tot))
-	}
+	h.stats.Record(statsREQ)
 	return events, err
 }
 
@@ -110,6 +96,8 @@ func (h *handler) query(ctx context.Context, client rely.Client, filters nostr.F
 		if err != nil {
 			return nil, err
 		}
+
+		h.stats.Record(statsCredit)
 		events = append(events, credits...)
 	}
 	return events, nil
@@ -149,10 +137,7 @@ func (h *handler) Count(client rely.Client, filters nostr.Filters) (count int64,
 		return 0, false, err
 	}
 
-	tot := h.stats.counts.Add(1)
-	if (tot % h.stats.logEvery) == 0 {
-		slog.Info(fmt.Sprintf("processed %d counts", tot))
-	}
+	h.stats.Record(statsCOUNT)
 	return count, false, nil
 }
 
