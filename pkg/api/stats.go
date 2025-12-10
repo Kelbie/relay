@@ -1,4 +1,4 @@
-package relay
+package api
 
 import (
 	"fmt"
@@ -8,15 +8,11 @@ import (
 
 var (
 	statsDVM    = "dvms"
-	statsREQ    = "reqs"
-	statsCOUNT  = "counts"
 	statsCredit = "credits"
 )
 
 type stats struct {
 	dvms     atomic.Uint32
-	reqs     atomic.Uint32
-	counts   atomic.Uint32
 	credits  atomic.Uint32
 	logEvery uint32
 }
@@ -27,19 +23,15 @@ func (s *stats) Record(metricName string) {
 	switch metricName {
 	case statsDVM:
 		counter = &s.dvms
-	case statsREQ:
-		counter = &s.reqs
-	case statsCOUNT:
-		counter = &s.counts
 	case statsCredit:
 		counter = &s.credits
 	default:
-		slog.Warn(fmt.Sprintf("Relay: Attempted to record unknown metric: %s", metricName))
+		slog.Warn(fmt.Sprintf("API: Attempted to record unknown metric: %s", metricName))
 		return
 	}
 
 	tot := counter.Add(1)
 	if (tot % s.logEvery) == 0 {
-		slog.Info("Relay record", "metric", metricName, "total", tot)
+		slog.Info("API record", "metric", metricName, "total", tot)
 	}
 }

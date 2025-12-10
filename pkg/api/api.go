@@ -11,7 +11,9 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
+	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
+	"github.com/vertex-lab/relay/pkg/rate"
 )
 
 const MaxRequestBody = 500_000 // 0.5MB
@@ -19,6 +21,14 @@ const MaxRequestBody = 500_000 // 0.5MB
 var (
 	ErrInvalidEventJSON = errors.New("invalid event json")
 )
+
+type Handler struct {
+	service   *core.Service
+	limiter   *rate.Limiter
+	secretKey string
+
+	stats
+}
 
 // GetCredits handles the endpoint GET /api/v1/credits
 func (h *Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
@@ -53,12 +63,10 @@ func (h *Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(credits)
 	if err != nil {
 		slog.Error("encoding failed", "error", err)
+		return
 	}
 
-	tot := h.stats.credits.Add(1)
-	if (tot % h.stats.logEvery) == 0 {
-		slog.Info(fmt.Sprintf("API: processed %d credits", tot))
-	}
+	h.stats.Record(statsCredit)
 }
 
 // HandleDVMs handles the endpoint /api/v1/dvms
@@ -92,7 +100,10 @@ func (h *Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		slog.Error("encoding failed", "error", err)
+		return
 	}
+
+	h.stats.Record(statsDVM)
 }
 
 // ParseDVM parses the nostr event from the request body.

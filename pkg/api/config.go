@@ -2,26 +2,11 @@ package api
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/rate"
 )
-
-type Handler struct {
-	service   *core.Service
-	limiter   *rate.Limiter
-	secretKey string
-
-	stats
-}
-
-type stats struct {
-	dvms     atomic.Uint32
-	credits  atomic.Uint32
-	logEvery uint32
-}
 
 func NewHandler(config Config, service *core.Service, limiter *rate.Limiter) Handler {
 	return Handler{
