@@ -30,10 +30,10 @@ type handler struct {
 }
 
 type stats struct {
-	dvms       atomic.Uint32
-	reqs       atomic.Uint32
-	counts     atomic.Uint32
-	printEvery uint32
+	dvms     atomic.Uint32
+	reqs     atomic.Uint32
+	counts   atomic.Uint32
+	logEvery uint32
 }
 
 func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Relay {
@@ -48,7 +48,7 @@ func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Re
 		relay:     relay,
 		limiter:   limiter,
 		secretKey: config.SecretKey,
-		stats:     stats{printEvery: config.PrintEvery},
+		stats:     stats{logEvery: config.LogEvery},
 	}
 
 	relay.Reject.Connection.Prepend(h.CostPerConn(1))
@@ -79,7 +79,7 @@ func (h *handler) Process(_ rely.Client, request *nostr.Event) error {
 	}
 
 	tot := h.stats.dvms.Add(1)
-	if (tot % h.stats.printEvery) == 0 {
+	if (tot % h.stats.logEvery) == 0 {
 		slog.Info(fmt.Sprintf("processed %d dvms", tot))
 	}
 	return nil
@@ -93,7 +93,7 @@ func (h *handler) Query(ctx context.Context, client rely.Client, filters nostr.F
 	}
 
 	tot := h.stats.reqs.Add(1)
-	if (tot % h.stats.printEvery) == 0 {
+	if (tot % h.stats.logEvery) == 0 {
 		slog.Info(fmt.Sprintf("processed %d reqs", tot))
 	}
 	return events, err
@@ -150,7 +150,7 @@ func (h *handler) Count(client rely.Client, filters nostr.Filters) (count int64,
 	}
 
 	tot := h.stats.counts.Add(1)
-	if (tot % h.stats.printEvery) == 0 {
+	if (tot % h.stats.logEvery) == 0 {
 		slog.Info(fmt.Sprintf("processed %d counts", tot))
 	}
 	return count, false, nil

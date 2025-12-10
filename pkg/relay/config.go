@@ -9,10 +9,10 @@ import (
 type Config struct {
 	Address       string `env:"RELAY_ADDRESS"`
 	Domain        string `env:"RELAY_DOMAIN"` // the domain used for nip-42
-	QueueCapacity int    `env:"QUEUE_CAPACITY"`
-	Processors    int    `env:"PROCESSORS"`
-	PrintEvery    uint32 `env:"RELAY_PRINT_EVERY"`
-	SecretKey     string `env:"SECRET_KEY"`
+	QueueCapacity int    `env:"RELAY_QUEUE_CAPACITY"`
+	Processors    int    `env:"RELAY_PROCESSORS"`
+	LogEvery      uint32 `env:"RELAY_LOG_EVERY"`
+	SecretKey     string `env:"RELAY_SECRET_KEY"`
 	PublicKey     string ``
 }
 
@@ -22,7 +22,7 @@ func NewConfig() Config {
 		Address:       "localhost:3334",
 		QueueCapacity: 1000,
 		Processors:    4,
-		PrintEvery:    1000,
+		LogEvery:      1000,
 	}
 }
 
@@ -33,8 +33,8 @@ func (c Config) Validate() error {
 	if c.Processors < 0 {
 		return fmt.Errorf("processors value must be positive: %d", c.Processors)
 	}
-	if c.PrintEvery == 0 {
-		return fmt.Errorf("print every must be positive: %d", c.PrintEvery)
+	if c.LogEvery == 0 {
+		return fmt.Errorf("log every must be positive: %d", c.LogEvery)
 	}
 
 	pk, err := nostr.GetPublicKey(c.SecretKey)
@@ -52,15 +52,17 @@ func (c Config) String() string {
 	return fmt.Sprintf(
 		"Relay Config:\n"+
 			"\tAddress: %s\n"+
+			"\tDomain: %s\n"+
 			"\tQueue Capacity: %d\n"+
 			"\tProcessors: %d\n"+
-			"\tPrintEvery: %d\n"+
+			"\tLogEvery: %d\n"+
 			"\tSecretKey: %s\n"+
 			"\tPublicKey: %s\n",
 		c.Address,
+		c.Domain,
 		c.QueueCapacity,
 		c.Processors,
-		c.PrintEvery,
+		c.LogEvery,
 		c.SecretKey,
 		c.PublicKey,
 	)
