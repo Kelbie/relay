@@ -30,9 +30,9 @@ var (
 )
 
 // GetCredits handles the endpoint GET /api/v1/credits
-func (h Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if h.Limiter.Reject(ip, 1) {
+	if h.limiter.Reject(ip, 1) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte("Rate limit exceeded. Try again later."))
 		return
@@ -44,14 +44,14 @@ func (h Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bucket, err := h.Service.Credits.Bucket(pubkey)
+	bucket, err := h.service.Credits.Bucket(pubkey)
 	if err != nil {
 		http.Error(w, "internal error while retrieving the credits", http.StatusInternalServerError)
 		return
 	}
 
 	credits := bucket.ToEvent()
-	if err := credits.Sign(h.SecretKey); err != nil {
+	if err := credits.Sign(h.secretKey); err != nil {
 		// the handler failed to sign the response, likely caused by an invalid secret key.
 		// This is an unrecoverable error since all responses must be signed.
 		panic(fmt.Errorf("api.Handler.GetCredits: failed to sign: %w", err))

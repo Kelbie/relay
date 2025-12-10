@@ -9,9 +9,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
-	"github.com/vertex-lab/relay/pkg/rate"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/pippellia-btc/rely"
@@ -23,21 +21,15 @@ var (
 	ErrInvalidEventJSON = errors.New("invalid event json")
 )
 
-type Handler struct {
-	Service   *core.Service
-	Limiter   *rate.Limiter
-	SecretKey string
-}
-
 // HandleDVMs handles the endpoint /api/v1/dvms
-func (h Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed. use POST", http.StatusBadRequest)
 		return
 	}
 
 	ip := rely.GetIP(r).Group()
-	if h.Limiter.Reject(ip, 1) {
+	if h.limiter.Reject(ip, 1) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte("Rate limit exceeded. Try again later."))
 		return
@@ -53,11 +45,7 @@ func (h Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	handler := dvm.Handler{
-		Service:   h.Service,
-		SecretKey: h.SecretKey,
-	}
-	response := handler.Process(ctx, event)
+	response := dvm.Handler{Service: h.service, SecretKey: h.secretKey}.Process(ctx, event)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

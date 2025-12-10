@@ -45,7 +45,7 @@ func main() {
 		rate.NewDynamicRefiller(config.Limiter),
 	)
 
-	api := api.Handler{Service: service, Limiter: limiter, SecretKey: config.Relay.SecretKey}
+	api := api.NewHandler(config.API, service, limiter)
 	relay := relay.Setup(config.Relay, service, limiter)
 
 	router := http.NewServeMux()
