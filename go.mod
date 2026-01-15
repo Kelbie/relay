@@ -2,8 +2,6 @@ module github.com/vertex-lab/relay
 
 go 1.24.1
 
-toolchain go1.24.4
-
 require (
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/goccy/go-json v0.10.5
