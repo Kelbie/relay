@@ -39,6 +39,8 @@ func (h *Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setCORSHeaders(w)
+
 	pubkey, err := authNIP98(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -83,7 +85,9 @@ func (h *Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setCORSHeaders(w)
 	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBody)
+
 	event, err := ParseDVM(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -104,6 +108,14 @@ func (h *Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.stats.Record(statsDVM)
+}
+
+// setCORSHeaders sets the CORS headers on the response writer
+func setCORSHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
 // ParseDVM parses the nostr event from the request body.
