@@ -14,7 +14,7 @@ type Config struct {
 	Processors    int    `env:"RELAY_PROCESSORS"`
 	LogEvery      uint32 `env:"RELAY_LOG_EVERY"`
 	SecretKey     string `env:"RELAY_SECRET_KEY"`
-	PublicKey     string ``
+	PublicKey     string `env:"-"`
 }
 
 // NewConfig returns a relay configuration structure with default paramenters.

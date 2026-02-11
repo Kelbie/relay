@@ -50,14 +50,19 @@ func main() {
 	router.HandleFunc("GET /api/v1/credits", api.GetCredits)
 	router.Handle("/", relay)
 
-	server := http.Server{Addr: config.Relay.Address, Handler: router}
-	exitErr := make(chan error, 1)
+	exit := make(chan error, 1)
+	server := http.Server{
+		Addr:              config.Relay.Address,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
 	go func() {
 		relay.Start(ctx)
 		err := server.ListenAndServe()
 		if !errors.Is(err, http.ErrServerClosed) {
-			exitErr <- err
+			exit <- err
 		}
 	}()
 
@@ -72,7 +77,7 @@ func main() {
 			panic(err)
 		}
 
-	case err := <-exitErr:
+	case err := <-exit:
 		panic(err)
 	}
 }
