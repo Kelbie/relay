@@ -47,14 +47,8 @@ type Service struct {
 	Credits credits.Manager
 }
 
-type ServiceConfig struct {
-	RedisAddress string `env:"REDIS_ADDRESS"`
-	SqlitePath   string `env:"SQLITE_PATH"`
-	Refill       credits.RefillPolicy
-}
-
-// New creates a [Service] initialized with the specified [ServiceConfig].
-func NewService(c ServiceConfig) (*Service, error) {
+// New creates a [Service] initialized with the specified [Config].
+func NewService(c Config) (*Service, error) {
 	sqlite, err := store.New(c.SqlitePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
@@ -81,29 +75,6 @@ func NewService(c ServiceConfig) (*Service, error) {
 		Redis:   redis,
 		Credits: credits,
 	}, nil
-}
-
-func NewServiceConfig() ServiceConfig {
-	return ServiceConfig{
-		RedisAddress: "localhost:6379",
-		SqlitePath:   "relay.sqlite",
-		Refill:       credits.NewRefillPolicy(),
-	}
-}
-
-func (c ServiceConfig) String() string {
-	return fmt.Sprintf(
-		"Service Config:\n"+
-			"\tRedis Address: %s\n"+
-			"\tSqlite Path: %s\n"+
-			"\t"+strings.ReplaceAll(c.Refill.String(), "\n", "\n\t"),
-		c.RedisAddress,
-		c.SqlitePath,
-	)
-}
-
-func (c ServiceConfig) Validate() error {
-	return c.Refill.Validate()
 }
 
 // Close closes the service database connections, releasing resources.

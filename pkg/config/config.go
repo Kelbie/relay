@@ -14,7 +14,7 @@ import (
 )
 
 type Config struct {
-	Service core.ServiceConfig
+	Service core.Config
 	Limiter rate.Config
 	Relay   relay.Config
 	API     api.Config
@@ -23,7 +23,7 @@ type Config struct {
 // New returns a config with default paramenters.
 func New() Config {
 	return Config{
-		Service: core.NewServiceConfig(),
+		Service: core.NewConfig(),
 		Limiter: rate.NewConfig(),
 		Relay:   relay.NewConfig(),
 		API:     api.NewConfig(),
