@@ -148,8 +148,8 @@ github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:a1lVb/DtPvCB8fslRZhAngC2+aY1QWCk3Cedj/Gdt08=
 github.com/vertex-lab/crawler_v2 v1.4.3 h1:gdVCHE2bal4SeaNRNkys3zMsCJUJ6bABTQ0cF8JF2Zk=
 github.com/vertex-lab/crawler_v2 v1.4.3/go.mod h1:shsKTiqhKgOwr7Dgw8XsF4FIq1pt2+1Xs0udaBj+fgw=
-github.com/vertex-lab/nostr-sqlite v0.3.2 h1:8nZYYIwiKnWLA446qA/wL/Gy+bU0kuaxdLfUyfeTt/E=
-github.com/vertex-lab/nostr-sqlite v0.3.2/go.mod h1:5bw1wMgJhSdrumsZAWxqy+P0u1g+q02PnlGQn15dnSM=
+github.com/vertex-lab/nostr-sqlite v0.5.0 h1:3h856zPmgkT7iagaPu58NG2Om4MTiLrsb7jm2aTVy5I=
+github.com/vertex-lab/nostr-sqlite v0.5.0/go.mod h1:yJ0pDPh1a5g5tr6q3CrgD8N5ILnQAFf8XX5Unl44MXY=
 golang.org/x/arch v0.15.0 h1:QtOrQd0bTUnhNVNndMpLHNWrDmYzZ2KDqSrEymqInZw=
 golang.org/x/arch v0.15.0/go.mod h1:JmwW7aLIoRUKgaTzhkiEFxvcEiQGyOg9BMonBJUS7EE=
 golang.org/x/crypto v0.0.0-20170930174604-9419663f5a44/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
