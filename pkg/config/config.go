@@ -15,7 +15,7 @@ import (
 
 type Config struct {
 	Service core.ServiceConfig
-	Limiter rate.LimiterConfig
+	Limiter rate.Config
 	Relay   relay.Config
 	API     api.Config
 }

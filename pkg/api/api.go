@@ -24,16 +24,24 @@ var (
 
 type Handler struct {
 	service   *core.Service
-	limiter   *rate.Limiter
+	limiter   rate.Limiter
 	secretKey string
-
 	stats
+}
+
+func NewHandler(config Config, service *core.Service, limiter rate.Limiter) Handler {
+	return Handler{
+		service:   service,
+		limiter:   limiter,
+		secretKey: config.SecretKey,
+		stats:     stats{logEvery: config.LogEvery},
+	}
 }
 
 // GetCredits handles the endpoint GET /api/v1/credits
 func (h *Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if h.limiter.Reject(ip, 1) {
+	if !h.limiter.Allow(ip, 1) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte("Rate limit exceeded. Try again later."))
 		return
@@ -79,7 +87,7 @@ func (h *Handler) HandleDVMs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ip := rely.GetIP(r).Group()
-	if h.limiter.Reject(ip, 1) {
+	if !h.limiter.Allow(ip, 1) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte("Rate limit exceeded. Try again later."))
 		return

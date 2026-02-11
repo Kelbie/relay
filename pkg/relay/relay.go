@@ -24,12 +24,12 @@ var (
 type handler struct {
 	service   *core.Service
 	relay     *rely.Relay
-	limiter   *rate.Limiter
+	limiter   rate.Limiter
 	secretKey string
 	stats
 }
 
-func Setup(config Config, service *core.Service, limiter *rate.Limiter) *rely.Relay {
+func Setup(config Config, service *core.Service, limiter rate.Limiter) *rely.Relay {
 
 	info := nip11.RelayInformationDocument{
 		Name:          "Vertex Relay",
@@ -153,20 +153,21 @@ func (h *handler) Count(client rely.Client, filters nostr.Filters) (count int64,
 	return count, false, nil
 }
 
-func (h *handler) CostPerConn(cost float32) func(rely.Stats, *http.Request) error {
+func (h *handler) CostPerConn(cost float64) func(rely.Stats, *http.Request) error {
 	return func(_ rely.Stats, r *http.Request) error {
 		ip := rely.GetIP(r).Group()
-		if h.limiter.Reject(ip, cost) {
+		if !h.limiter.Allow(ip, cost) {
 			return ErrIPRateLimited
 		}
 		return nil
 	}
 }
 
-func (h *handler) CostPerFilter(cost float32) func(rely.Client, nostr.Filters) error {
+func (h *handler) CostPerFilter(cost float64) func(rely.Client, nostr.Filters) error {
 	return func(c rely.Client, f nostr.Filters) error {
+		cost = cost * float64(len(f))
 		ip := c.IP().Group()
-		if h.limiter.Reject(ip, cost*float32(len(f))) {
+		if !h.limiter.Allow(ip, cost) {
 			defer c.Disconnect()
 			return ErrIPRateLimited
 		}
@@ -174,10 +175,10 @@ func (h *handler) CostPerFilter(cost float32) func(rely.Client, nostr.Filters) e
 	}
 }
 
-func (h *handler) CostPerEvent(cost float32) func(rely.Client, *nostr.Event) error {
+func (h *handler) CostPerEvent(cost float64) func(rely.Client, *nostr.Event) error {
 	return func(c rely.Client, _ *nostr.Event) error {
 		ip := c.IP().Group()
-		if h.limiter.Reject(ip, cost) {
+		if !h.limiter.Allow(ip, cost) {
 			defer c.Disconnect()
 			return ErrIPRateLimited
 		}

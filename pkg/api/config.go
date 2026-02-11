@@ -4,18 +4,7 @@ import (
 	"fmt"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/vertex-lab/relay/pkg/core"
-	"github.com/vertex-lab/relay/pkg/rate"
 )
-
-func NewHandler(config Config, service *core.Service, limiter *rate.Limiter) Handler {
-	return Handler{
-		service:   service,
-		limiter:   limiter,
-		secretKey: config.SecretKey,
-		stats:     stats{logEvery: config.LogEvery},
-	}
-}
 
 type Config struct {
 	SecretKey string `env:"API_SECRET_KEY"`
