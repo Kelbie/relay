@@ -187,9 +187,8 @@ func (h *handler) CostPerConn(cost float64) func(rely.Stats, *http.Request) erro
 
 func (h *handler) CostPerFilter(cost float64) func(c rely.Client, id string, f nostr.Filters) error {
 	return func(c rely.Client, id string, f nostr.Filters) error {
-		cost = cost * float64(len(f))
 		ip := c.IP().Group()
-		if !h.limiter.Allow(ip, cost) {
+		if !h.limiter.Allow(ip, cost*float64(len(f))) {
 			defer c.Disconnect()
 			return ErrIPRateLimited
 		}
