@@ -68,7 +68,7 @@ func (c Config) Validate() error {
 
 func (c Config) String() string {
 	return fmt.Sprintf(
-		"Relay Config:\n"+
+		"Relay:\n"+
 			"\tAddress: %s\n"+
 			"\tDomain: %s\n"+
 			"\tQueue Capacity: %d\n"+
@@ -81,7 +81,7 @@ func (c Config) String() string {
 		c.QueueCapacity,
 		c.Processors,
 		c.LogEvery,
-		c.SecretKey,
+		c.SecretKey[0:4]+"...REDACTED..."+c.SecretKey[len(c.SecretKey)-4:],
 		c.PublicKey,
 	)
 }

@@ -31,10 +31,10 @@ func (c Config) Validate() error {
 
 func (c Config) String() string {
 	return fmt.Sprintf(
-		"API Config:\n"+
+		"API:\n"+
 			"\tLogEvery: %d\n"+
 			"\tSecretKey: %s\n",
 		c.LogEvery,
-		c.SecretKey,
+		c.SecretKey[0:4]+"...REDACTED..."+c.SecretKey[len(c.SecretKey)-4:],
 	)
 }
