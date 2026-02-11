@@ -38,7 +38,7 @@ func TestParseDVMs(t *testing.T) {
 		{
 			name: "invalid signature",
 			body: bytes.NewReader(invalidSignature),
-			err:  rely.ErrInvalidEventSignature,
+			err:  rely.ErrInvalidEventSig,
 		},
 		{
 			name: "valid",

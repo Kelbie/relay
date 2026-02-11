@@ -151,10 +151,10 @@ func verify(e *nostr.Event) error {
 
 	match, err := e.CheckSignature()
 	if err != nil {
-		return fmt.Errorf("%w: %w", rely.ErrInvalidEventSignature, err)
+		return fmt.Errorf("%w: %w", rely.ErrInvalidEventSig, err)
 	}
 	if !match {
-		return rely.ErrInvalidEventSignature
+		return rely.ErrInvalidEventSig
 	}
 	return nil
 }

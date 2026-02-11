@@ -30,7 +30,6 @@ type handler struct {
 }
 
 func Setup(config Config, service *core.Service, limiter rate.Limiter) *rely.Relay {
-
 	info := nip11.RelayInformationDocument{
 		Name:          "Vertex Relay",
 		Description:   "DVM Web of Trust Relay powered by Vertex",
@@ -41,7 +40,7 @@ func Setup(config Config, service *core.Service, limiter rate.Limiter) *rely.Rel
 	}
 
 	relay := rely.NewRelay(
-		rely.WithDomain(config.Domain),
+		rely.WithAuthURL(config.Domain),
 		rely.WithQueueCapacity(config.QueueCapacity),
 		rely.WithMaxProcessors(config.Processors),
 		rely.WithInfo(info),
@@ -55,10 +54,33 @@ func Setup(config Config, service *core.Service, limiter rate.Limiter) *rely.Rel
 		stats:     stats{logEvery: config.LogEvery},
 	}
 
-	relay.Reject.Connection.Prepend(h.CostPerConn(1))
-	relay.Reject.Event.Prepend(h.CostPerEvent(1), UnsupportedDVM)
-	relay.Reject.Req.Prepend(h.CostPerFilter(0.1), FiltersExceed(50), WithSearch, UnauthedCredits)
-	relay.Reject.Count.Prepend(h.CostPerFilter(0.1), FiltersExceed(100))
+	relay.Reject.Connection.Clear()
+	relay.Reject.Connection.Append(
+		rely.RegistrationFailWithin(3*time.Second),
+		h.CostPerConn(1),
+	)
+
+	relay.Reject.Event.Clear()
+	relay.Reject.Event.Append(
+		h.CostPerEvent(5),
+		rely.InvalidID,
+		rely.InvalidSignature,
+		UnsupportedDVM,
+	)
+
+	relay.Reject.Req.Clear()
+	relay.Reject.Req.Prepend(
+		h.CostPerFilter(0.1),
+		FiltersExceed(50),
+		WithSearch,
+		UnauthedCredits,
+	)
+
+	relay.Reject.Count.Clear()
+	relay.Reject.Count.Append(
+		h.CostPerFilter(0.1),
+		FiltersExceed(100),
+	)
 
 	relay.On.Connect = func(c rely.Client) { c.SendAuth() }
 	relay.On.Req = h.Query
@@ -86,7 +108,7 @@ func (h *handler) Process(_ rely.Client, request *nostr.Event) error {
 	return nil
 }
 
-func (h *handler) Query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
+func (h *handler) Query(ctx context.Context, client rely.Client, id string, filters nostr.Filters) ([]nostr.Event, error) {
 	events, err := h.query(ctx, client, filters)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("failed to query", "filters", filters, "error", err)
@@ -139,7 +161,7 @@ func (h *handler) creditQuery(pubkeys ...string) ([]nostr.Event, error) {
 	return events, nil
 }
 
-func (h *handler) Count(client rely.Client, filters nostr.Filters) (count int64, approx bool, err error) {
+func (h *handler) Count(client rely.Client, id string, filters nostr.Filters) (count int64, approx bool, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -163,8 +185,8 @@ func (h *handler) CostPerConn(cost float64) func(rely.Stats, *http.Request) erro
 	}
 }
 
-func (h *handler) CostPerFilter(cost float64) func(rely.Client, nostr.Filters) error {
-	return func(c rely.Client, f nostr.Filters) error {
+func (h *handler) CostPerFilter(cost float64) func(c rely.Client, id string, f nostr.Filters) error {
+	return func(c rely.Client, id string, f nostr.Filters) error {
 		cost = cost * float64(len(f))
 		ip := c.IP().Group()
 		if !h.limiter.Allow(ip, cost) {
@@ -193,8 +215,8 @@ func UnsupportedDVM(_ rely.Client, event *nostr.Event) error {
 	return nil
 }
 
-func FiltersExceed(n int) func(rely.Client, nostr.Filters) error {
-	return func(_ rely.Client, filters nostr.Filters) error {
+func FiltersExceed(n int) func(c rely.Client, id string, filters nostr.Filters) error {
+	return func(_ rely.Client, _ string, filters nostr.Filters) error {
 		if len(filters) > n {
 			return fmt.Errorf("number of filters exceed the maximum allowed (%d): %d", n, len(filters))
 		}
@@ -202,7 +224,7 @@ func FiltersExceed(n int) func(rely.Client, nostr.Filters) error {
 	}
 }
 
-func WithSearch(_ rely.Client, filters nostr.Filters) error {
+func WithSearch(_ rely.Client, id string, filters nostr.Filters) error {
 	for _, f := range filters {
 		if f.Search != "" {
 			return errors.New("NIP-50 search is not supported")
@@ -211,7 +233,7 @@ func WithSearch(_ rely.Client, filters nostr.Filters) error {
 	return nil
 }
 
-func UnauthedCredits(client rely.Client, filters nostr.Filters) error {
+func UnauthedCredits(client rely.Client, id string, filters nostr.Filters) error {
 	if ContainCreditQuery(filters) && !client.IsAuthed() {
 		return errors.New("auth-required: you must be authenticated to request your credit balance")
 	}

@@ -41,10 +41,7 @@ func main() {
 	}
 	defer service.Close()
 
-	limiter := rate.NewLimiter(
-		rate.NewDynamicRefiller(config.Limiter),
-	)
-
+	limiter := rate.NewLimiter(config.Limiter)
 	api := api.NewHandler(config.API, service, limiter)
 	relay := relay.Setup(config.Relay, service, limiter)
 

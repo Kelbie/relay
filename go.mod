@@ -8,7 +8,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/nbd-wtf/go-nostr v0.52.0
 	github.com/pippellia-btc/rate v0.2.1
-	github.com/pippellia-btc/rely v1.2.1
+	github.com/pippellia-btc/rely v1.5.0
 	github.com/pippellia-btc/slicex v0.2.5
 	github.com/redis/go-redis/v9 v9.8.0
 	github.com/vertex-lab/crawler_v2 v1.4.3
