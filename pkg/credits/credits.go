@@ -125,7 +125,7 @@ var (
 // Deduct tries to deduct the cost from the pubkey's tokens.
 // It succeed if and only if the error is nil.
 func (m Manager) Deduct(pubkey string, cost int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	if cost < 0 {
