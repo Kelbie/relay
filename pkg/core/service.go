@@ -13,6 +13,7 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler_v2/pkg/graph"
+	"github.com/vertex-lab/crawler_v2/pkg/leaks"
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
 	"github.com/vertex-lab/crawler_v2/pkg/regraph"
 	"github.com/vertex-lab/crawler_v2/pkg/store"
@@ -44,6 +45,7 @@ var (
 type Service struct {
 	Sqlite  *sqlite.Store
 	Graph   regraph.DB
+	Leaks   *leaks.DB
 	Credits credits.Manager
 }
 
@@ -56,6 +58,7 @@ func NewService(c Config) (*Service, error) {
 	slog.Info("sqlite connected", "address", c.SqlitePath)
 
 	redis := redis.NewClient(&redis.Options{Addr: c.RedisAddress})
+	leaks := leaks.NewDB(redis)
 	graph, err := regraph.New(redis)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
@@ -66,12 +69,12 @@ func NewService(c Config) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
-
 	slog.Info("credits manager initialized")
 
 	return &Service{
 		Sqlite:  sqlite,
 		Graph:   graph,
+		Leaks:   leaks,
 		Credits: credits,
 	}, nil
 }
@@ -166,6 +169,10 @@ type DetailedProfile struct {
 	Rank      float64 `json:"rank"`
 	Follows   int     `json:"follows"`
 	Followers int     `json:"followers"`
+
+	// optional fields if the profile leaked its secret key
+	LeakedSecret string `json:"leaked_secret,omitempty"`
+	LeakedAt     int64  `json:"leaked_at,omitempty"`
 }
 
 // NpubToHex tries to convert an npub to an hex pubkey.
@@ -184,6 +191,5 @@ func NpubToHex(key string) (string, error) {
 
 		return pk, nil
 	}
-
 	return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
 }

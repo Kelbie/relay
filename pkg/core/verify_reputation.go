@@ -142,5 +142,14 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 		response.TopFollowers[i].Pubkey = topPubkeys[i]
 		response.TopFollowers[i].Rank = topRanks[i]
 	}
+
+	if target.Status == graph.StatusLeaked {
+		leakedSecret, leakedAt, err := s.Leaks.Read(ctx, target.Pubkey)
+		if err != nil {
+			return VerifyReputationResult{}, err
+		}
+		response.Target.LeakedSecret = leakedSecret
+		response.Target.LeakedAt = leakedAt.Unix()
+	}
 	return response, nil
 }
