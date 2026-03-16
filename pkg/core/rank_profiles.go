@@ -98,7 +98,7 @@ func (s *Service) RankProfiles(ctx context.Context, args RankProfilesArgs) (Rank
 }
 
 func (s *Service) rankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResult, error) {
-	nodes, err := s.Redis.NodeCount(ctx)
+	nodes, err := s.Graph.NodeCount(ctx)
 	if err != nil {
 		return RankProfilesResult{}, err
 	}

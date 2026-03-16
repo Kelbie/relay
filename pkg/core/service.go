@@ -43,7 +43,7 @@ var (
 // Service encapsulates the business logic of the Vertex services.
 type Service struct {
 	Sqlite  *sqlite.Store
-	Redis   regraph.DB
+	Graph   regraph.DB
 	Credits credits.Manager
 }
 
@@ -53,17 +53,16 @@ func NewService(c Config) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
-
 	slog.Info("sqlite connected", "address", c.SqlitePath)
 
-	redis, err := regraph.New(&redis.Options{Addr: c.RedisAddress})
+	redis := redis.NewClient(&redis.Options{Addr: c.RedisAddress})
+	graph, err := regraph.New(redis)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
-
 	slog.Info("redis connected", "address", c.RedisAddress)
 
-	credits, err := credits.NewManager(redis.Client, c.Refill)
+	credits, err := credits.NewManager(redis, c.Refill)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize service: %w", err)
 	}
@@ -72,7 +71,7 @@ func NewService(c Config) (*Service, error) {
 
 	return &Service{
 		Sqlite:  sqlite,
-		Redis:   redis,
+		Graph:   graph,
 		Credits: credits,
 	}, nil
 }
@@ -80,7 +79,7 @@ func NewService(c Config) (*Service, error) {
 // Close closes the service database connections, releasing resources.
 func (s *Service) Close() error {
 	err1 := s.Sqlite.Close()
-	err2 := s.Redis.Close()
+	err2 := s.Graph.Close()
 
 	if err1 == nil && err2 == nil {
 		return nil
@@ -118,7 +117,7 @@ type Algorithm struct {
 // RankPubkeys ranks the pubkeys according to the provided [Algorithm].
 // If a pubkey is not found, the rank is always assumed to be 0.
 func (s *Service) rankPubkeys(ctx context.Context, pubkeys []string, algo Algorithm) ([]float64, error) {
-	nodes, err := s.Redis.NodeIDs(ctx, pubkeys...)
+	nodes, err := s.Graph.NodeIDs(ctx, pubkeys...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +129,7 @@ func (s *Service) rankPubkeys(ctx context.Context, pubkeys []string, algo Algori
 func (s *Service) rankNodes(ctx context.Context, nodes []graph.ID, algo Algorithm) ([]float64, error) {
 	switch algo.Sort {
 	case Followers:
-		counts, err := s.Redis.FollowerCounts(ctx, nodes...)
+		counts, err := s.Graph.FollowerCounts(ctx, nodes...)
 		if err != nil {
 			return nil, err
 		}
@@ -142,15 +141,15 @@ func (s *Service) rankNodes(ctx context.Context, nodes []graph.ID, algo Algorith
 		return ranks, nil
 
 	case Global:
-		return pagerank.Global(ctx, s.Redis, nodes...)
+		return pagerank.Global(ctx, s.Graph, nodes...)
 
 	case Personalized:
-		source, err := s.Redis.NodeByKey(ctx, algo.Source)
+		source, err := s.Graph.NodeByKey(ctx, algo.Source)
 		if err != nil {
 			return nil, err
 		}
 
-		return pagerank.PersonalizedWithTargets(ctx, s.Redis, source.ID, nodes, 100_000)
+		return pagerank.PersonalizedWithTargets(ctx, s.Graph, source.ID, nodes, 100_000)
 
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrInvalidSort, algo.Sort)

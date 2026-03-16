@@ -81,7 +81,7 @@ func (s *Service) RecommendFollows(ctx context.Context, args RecommendFollowsArg
 type nodeRanking = slicex.Pairs[graph.ID, float64] // a slice of (node ID, rank)
 
 func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResult, error) {
-	nodes, err := s.Redis.NodeCount(ctx)
+	nodes, err := s.Graph.NodeCount(ctx)
 	if err != nil {
 		return RecommendFollowsResult{}, err
 	}
@@ -106,7 +106,7 @@ func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArg
 	}
 
 	recommendedNodes, ranks := candidates.MaxK(args.Limit).Unpack()
-	recommendedPubkeys, err := s.Redis.Pubkeys(ctx, recommendedNodes...)
+	recommendedPubkeys, err := s.Graph.Pubkeys(ctx, recommendedNodes...)
 	if err != nil {
 		return RecommendFollowsResult{}, err
 	}
@@ -125,7 +125,7 @@ func (s *Service) recommendFollows(ctx context.Context, args RecommendFollowsArg
 func (s *Service) candidatesWithGlobal(ctx context.Context, source string) (nodeRanking, error) {
 	avoid := make([]graph.ID, 0, 100) // pre-allocate
 
-	node, err := s.Redis.NodeByKey(ctx, source)
+	node, err := s.Graph.NodeByKey(ctx, source)
 	if err != nil && !errors.Is(err, graph.ErrNodeNotFound) {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (s *Service) candidatesWithGlobal(ctx context.Context, source string) (node
 	if !errors.Is(err, graph.ErrNodeNotFound) {
 		// add the node representing the source and its follows to avoid,
 		// so they can't get recommended.
-		follows, err := s.Redis.Follows(ctx, node.ID)
+		follows, err := s.Graph.Follows(ctx, node.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +149,7 @@ func (s *Service) candidatesWithGlobal(ctx context.Context, source string) (node
 	}
 
 	candidates = slicex.Difference(candidates, avoid)
-	ranks, err := pagerank.Global(ctx, s.Redis, candidates...)
+	ranks, err := pagerank.Global(ctx, s.Graph, candidates...)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (s *Service) candidatesWithGlobal(ctx context.Context, source string) (node
 func (s *Service) candidatesWithFollowers(ctx context.Context, source string) (nodeRanking, error) {
 	avoid := make([]graph.ID, 0, 100) // pre-allocate
 
-	node, err := s.Redis.NodeByKey(ctx, source)
+	node, err := s.Graph.NodeByKey(ctx, source)
 	if err != nil && !errors.Is(err, graph.ErrNodeNotFound) {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (s *Service) candidatesWithFollowers(ctx context.Context, source string) (n
 	if !errors.Is(err, graph.ErrNodeNotFound) {
 		// add the node representing the source and its follows to avoid,
 		// so they can't get recommended.
-		follows, err := s.Redis.Follows(ctx, node.ID)
+		follows, err := s.Graph.Follows(ctx, node.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func (s *Service) candidatesWithFollowers(ctx context.Context, source string) (n
 	}
 
 	candidates = slicex.Difference(candidates, avoid)
-	counts, err := s.Redis.FollowerCounts(ctx, candidates...)
+	counts, err := s.Graph.FollowerCounts(ctx, candidates...)
 	if err != nil {
 		return nil, err
 	}
@@ -198,17 +198,17 @@ func (s *Service) candidatesWithFollowers(ctx context.Context, source string) (n
 }
 
 func (s *Service) candidatesWithPersonalized(ctx context.Context, source string) (nodeRanking, error) {
-	node, err := s.Redis.NodeByKey(ctx, source)
+	node, err := s.Graph.NodeByKey(ctx, source)
 	if err != nil {
 		return nil, err
 	}
 
-	follows, err := s.Redis.Follows(ctx, node.ID)
+	follows, err := s.Graph.Follows(ctx, node.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	pp, err := pagerank.Personalized(ctx, s.Redis, node.ID, 100_000)
+	pp, err := pagerank.Personalized(ctx, s.Graph, node.ID, 100_000)
 	if err != nil {
 		return nil, err
 	}

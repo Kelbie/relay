@@ -96,13 +96,14 @@ func setup(db regraph.DB) error {
 
 // We simulate running the Lua function "automatic_refill" by calling [Deduct] with a cost of 0.
 func TestAutomaticRefill(t *testing.T) {
-	db, err := regraph.New(&redis.Options{Addr: testAddress})
+	redis := redis.NewClient(&redis.Options{Addr: testAddress})
+	defer redis.FlushAll(ctx)
+
+	graph, err := regraph.New(redis)
 	if err != nil {
 		t.Fatalf("setup failed %v", err)
 	}
-	defer db.Client.FlushAll(ctx)
-
-	if err := setup(db); err != nil {
+	if err := setup(graph); err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,7 +154,7 @@ func TestAutomaticRefill(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			manager, err := NewManager(db.Client, test.refill)
+			manager, err := NewManager(redis, test.refill)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -177,13 +178,14 @@ func TestAutomaticRefill(t *testing.T) {
 
 // We simulate running the Lua function "deduct" without "automatic_refill" by using [NoRefill].
 func TestDeduct(t *testing.T) {
-	db, err := regraph.New(&redis.Options{Addr: testAddress})
+	redis := redis.NewClient(&redis.Options{Addr: testAddress})
+	defer redis.FlushAll(ctx)
+
+	graph, err := regraph.New(redis)
 	if err != nil {
 		t.Fatalf("setup failed %v", err)
 	}
-	defer db.Client.FlushAll(context.Background())
-
-	if err := setup(db); err != nil {
+	if err := setup(graph); err != nil {
 		t.Fatal(err)
 	}
 
@@ -211,7 +213,7 @@ func TestDeduct(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			manager, err := NewManager(db.Client, NoRefill)
+			manager, err := NewManager(redis, NoRefill)
 			if err != nil {
 				t.Fatal(err)
 			}

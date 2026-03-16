@@ -89,12 +89,12 @@ func (s *Service) VerifyReputation(ctx context.Context, args VerifyReputationArg
 }
 
 func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArgs) (VerifyReputationResult, error) {
-	nodes, err := s.Redis.NodeCount(ctx)
+	nodes, err := s.Graph.NodeCount(ctx)
 	if err != nil {
 		return VerifyReputationResult{}, err
 	}
 
-	target, err := s.Redis.NodeByKey(ctx, args.Target)
+	target, err := s.Graph.NodeByKey(ctx, args.Target)
 	if errors.Is(err, graph.ErrNodeNotFound) {
 		// target is not found, assume it's a low-reputation key (rank of 0)
 		response := VerifyReputationResult{}
@@ -106,12 +106,12 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 		return VerifyReputationResult{}, err
 	}
 
-	followers, err := s.Redis.Followers(ctx, target.ID)
+	followers, err := s.Graph.Followers(ctx, target.ID)
 	if err != nil {
 		return VerifyReputationResult{}, err
 	}
 
-	followCount, err := s.Redis.FollowCounts(ctx, target.ID)
+	followCount, err := s.Graph.FollowCounts(ctx, target.ID)
 	if err != nil {
 		return VerifyReputationResult{}, err
 	}
@@ -125,7 +125,7 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 	followerRanking := slicex.Pack(followers, ranks[1:])
 	topFollowers, topRanks := followerRanking.MaxK(args.Limit).Unpack()
 
-	topPubkeys, err := s.Redis.Pubkeys(ctx, topFollowers...)
+	topPubkeys, err := s.Graph.Pubkeys(ctx, topFollowers...)
 	if err != nil {
 		return VerifyReputationResult{}, err
 	}

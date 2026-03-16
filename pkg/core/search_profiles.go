@@ -86,7 +86,7 @@ func (s *Service) SearchProfiles(ctx context.Context, args SearchProfilesArgs) (
 }
 
 func (s *Service) searchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResult, error) {
-	nodes, err := s.Redis.NodeCount(ctx)
+	nodes, err := s.Graph.NodeCount(ctx)
 	if err != nil {
 		return SearchProfilesResult{}, err
 	}

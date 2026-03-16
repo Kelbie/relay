@@ -1,9 +1,9 @@
 module github.com/vertex-lab/relay
 
-go 1.24.1
+go 1.25
 
 require (
-	github.com/caarlos0/env/v11 v11.3.1
+	github.com/caarlos0/env/v11 v11.4.0
 	github.com/goccy/go-json v0.10.5
 	github.com/joho/godotenv v1.5.1
 	github.com/nbd-wtf/go-nostr v0.52.0
@@ -11,8 +11,8 @@ require (
 	github.com/pippellia-btc/rely v1.5.0
 	github.com/pippellia-btc/slicex v0.2.5
 	github.com/redis/go-redis/v9 v9.8.0
-	github.com/vertex-lab/crawler_v2 v1.4.3
-	github.com/vertex-lab/nostr-sqlite v0.5.0
+	github.com/vertex-lab/crawler_v2 v1.5.3
+	github.com/vertex-lab/nostr-sqlite v0.6.1
 )
 
 require (
