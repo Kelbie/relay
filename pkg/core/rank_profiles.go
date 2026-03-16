@@ -100,7 +100,7 @@ func (s *Service) RankProfiles(ctx context.Context, args RankProfilesArgs) (Rank
 func (s *Service) rankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResult, error) {
 	nodes, err := s.Redis.NodeCount(ctx)
 	if err != nil {
-		return RankProfilesResult{}, nil
+		return RankProfilesResult{}, err
 	}
 
 	ranks, err := s.rankPubkeys(ctx, args.Targets, args.Algorithm)

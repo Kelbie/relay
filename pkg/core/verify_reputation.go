@@ -91,18 +91,18 @@ func (s *Service) VerifyReputation(ctx context.Context, args VerifyReputationArg
 func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArgs) (VerifyReputationResult, error) {
 	nodes, err := s.Redis.NodeCount(ctx)
 	if err != nil {
-		return VerifyReputationResult{}, nil
+		return VerifyReputationResult{}, err
 	}
 
 	target, err := s.Redis.NodeByKey(ctx, args.Target)
+	if errors.Is(err, graph.ErrNodeNotFound) {
+		// target is not found, assume it's a low-reputation key (rank of 0)
+		response := VerifyReputationResult{}
+		response.Nodes = nodes
+		response.Target.Pubkey = args.Target
+		return response, nil
+	}
 	if err != nil {
-		if errors.Is(err, graph.ErrNodeNotFound) {
-			// target is not found, assume it's a low-reputation key (rank of 0)
-			response := VerifyReputationResult{}
-			response.Nodes = nodes
-			response.Target.Pubkey = args.Target
-			return response, nil
-		}
 		return VerifyReputationResult{}, err
 	}
 
