@@ -45,6 +45,7 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 	case *core.VerifyReputationArgs:
 		result, err := h.Service.VerifyReputation(ctx, *args)
 		if err != nil {
+			slog.Error("dvm.Handler", "err", err)
 			return Error(request, err)
 		}
 
@@ -57,6 +58,7 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 	case *core.RecommendFollowsArgs:
 		result, err := h.Service.RecommendFollows(ctx, *args)
 		if err != nil {
+			slog.Error("dvm.Handler", "err", err)
 			return Error(request, err)
 		}
 
@@ -69,6 +71,7 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 	case *core.RankProfilesArgs:
 		result, err := h.Service.RankProfiles(ctx, *args)
 		if err != nil {
+			slog.Error("dvm.Handler", "err", err)
 			return Error(request, err)
 		}
 
@@ -81,6 +84,7 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 	case *core.SearchProfilesArgs:
 		result, err := h.Service.SearchProfiles(ctx, *args)
 		if err != nil {
+			slog.Error("dvm.Handler", "err", err)
 			return Error(request, err)
 		}
 
