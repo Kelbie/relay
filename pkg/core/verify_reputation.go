@@ -37,8 +37,8 @@ func NewVerifyReputationArgs(pubkey string) VerifyReputationArgs {
 // Normalize the args in place. It validates all the arguments, converting from
 // npub to hex pubkeys if necessary.
 func (a *VerifyReputationArgs) Normalize() error {
-	if a.Limit < 1 || a.Limit > VerifyReputationLimit {
-		return fmt.Errorf("%w: limit must be an integer between 1 and %d: %d", ErrInvalidLimit, VerifyReputationLimit, a.Limit)
+	if a.Limit < 0 || a.Limit > VerifyReputationLimit {
+		return fmt.Errorf("%w: limit must be an integer between 0 and %d: %d", ErrInvalidLimit, VerifyReputationLimit, a.Limit)
 	}
 
 	if !slices.Contains(VerifyReputationSorts, a.Sort) {
@@ -94,53 +94,20 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 		return VerifyReputationResult{}, err
 	}
 
+	res := VerifyReputationResult{
+		Nodes: nodes,
+		Target: DetailedProfile{
+			Pubkey: args.Target,
+		},
+	}
+
 	target, err := s.Graph.NodeByKey(ctx, args.Target)
 	if errors.Is(err, graph.ErrNodeNotFound) {
 		// target is not found, assume it's a low-reputation key (rank of 0)
-		response := VerifyReputationResult{}
-		response.Nodes = nodes
-		response.Target.Pubkey = args.Target
-		return response, nil
+		return res, nil
 	}
 	if err != nil {
 		return VerifyReputationResult{}, err
-	}
-
-	followers, err := s.Graph.Followers(ctx, target.ID)
-	if err != nil {
-		return VerifyReputationResult{}, err
-	}
-
-	followCount, err := s.Graph.FollowCounts(ctx, target.ID)
-	if err != nil {
-		return VerifyReputationResult{}, err
-	}
-
-	toRank := append([]graph.ID{target.ID}, followers...)
-	ranks, err := s.rankNodes(ctx, toRank, args.Algorithm)
-	if err != nil {
-		return VerifyReputationResult{}, err
-	}
-
-	followerRanking := slicex.Pack(followers, ranks[1:])
-	topFollowers, topRanks := followerRanking.MaxK(args.Limit).Unpack()
-
-	topPubkeys, err := s.Graph.Pubkeys(ctx, topFollowers...)
-	if err != nil {
-		return VerifyReputationResult{}, err
-	}
-
-	response := VerifyReputationResult{}
-	response.Nodes = nodes
-	response.Target.Pubkey = args.Target
-	response.Target.Rank = ranks[0]
-	response.Target.Follows = followCount[0]
-	response.Target.Followers = len(followers)
-	response.TopFollowers = make([]Profile, len(topPubkeys))
-
-	for i := range topPubkeys {
-		response.TopFollowers[i].Pubkey = topPubkeys[i]
-		response.TopFollowers[i].Rank = topRanks[i]
 	}
 
 	if target.Status == graph.StatusLeaked {
@@ -148,8 +115,53 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 		if err != nil {
 			return VerifyReputationResult{}, err
 		}
-		response.Target.LeakedSecret = leakedSecret
-		response.Target.LeakedAt = leakedAt.Unix()
+		res.Target.LeakedSecret = leakedSecret
+		res.Target.LeakedAt = leakedAt.Unix()
 	}
-	return response, nil
+
+	followCount, err := s.Graph.FollowCounts(ctx, target.ID)
+	if err != nil {
+		return VerifyReputationResult{}, err
+	}
+	res.Target.Follows = followCount[0]
+
+	var followers []graph.ID
+	if args.Limit > 0 {
+		followers, err = s.Graph.Followers(ctx, target.ID)
+		if err != nil {
+			return VerifyReputationResult{}, err
+		}
+		res.Target.Followers = len(followers)
+
+	} else {
+		followerCount, err := s.Graph.FollowerCounts(ctx, target.ID)
+		if err != nil {
+			return VerifyReputationResult{}, err
+		}
+		res.Target.Followers = followerCount[0]
+	}
+
+	toRank := append([]graph.ID{target.ID}, followers...)
+	ranks, err := s.rankNodes(ctx, toRank, args.Algorithm)
+	if err != nil {
+		return VerifyReputationResult{}, err
+	}
+	res.Target.Rank = ranks[0]
+
+	if args.Limit > 0 {
+		followerRanking := slicex.Pack(followers, ranks[1:])
+		topFollowers, topRanks := followerRanking.MaxK(args.Limit).Unpack()
+
+		topPubkeys, err := s.Graph.Pubkeys(ctx, topFollowers...)
+		if err != nil {
+			return VerifyReputationResult{}, err
+		}
+
+		res.TopFollowers = make([]Profile, len(topPubkeys))
+		for i := range topPubkeys {
+			res.TopFollowers[i].Pubkey = topPubkeys[i]
+			res.TopFollowers[i].Rank = topRanks[i]
+		}
+	}
+	return res, nil
 }
