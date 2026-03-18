@@ -164,15 +164,20 @@ type Profile struct {
 	Rank   float64 `json:"rank"`
 }
 
+type Leak struct {
+	Status     string `json:"status"`
+	Proof      string `json:"proof,omitempty"`
+	DetectedAt int64  `json:"detected_at,omitempty"`
+}
+
 type DetailedProfile struct {
 	Pubkey    string  `json:"pubkey"`
 	Rank      float64 `json:"rank"`
 	Follows   int     `json:"follows"`
 	Followers int     `json:"followers"`
 
-	// optional fields if the profile leaked its secret key
-	LeakedSecret string `json:"leaked_secret,omitempty"`
-	LeakedAt     int64  `json:"leaked_at,omitempty"`
+	// present only if the profile leaked its key
+	Leak *Leak `json:"leak,omitempty"`
 }
 
 // NpubToHex tries to convert an npub to an hex pubkey.

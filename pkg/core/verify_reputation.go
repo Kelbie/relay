@@ -111,12 +111,21 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 	}
 
 	if target.Status == graph.StatusLeaked {
-		leakedSecret, leakedAt, err := s.Leaks.Read(ctx, target.Pubkey)
+		record, err := s.Leaks.Read(ctx, target.Pubkey)
 		if err != nil {
 			return VerifyReputationResult{}, err
 		}
-		res.Target.LeakedSecret = leakedSecret
-		res.Target.LeakedAt = leakedAt.Unix()
+
+		var unix int64
+		if !record.DetectedAt.IsZero() {
+			unix = record.DetectedAt.Unix()
+		}
+
+		res.Target.Leak = &Leak{
+			Status:     string(record.Status),
+			Proof:      record.Proof,
+			DetectedAt: unix,
+		}
 	}
 
 	followCount, err := s.Graph.FollowCounts(ctx, target.ID)
