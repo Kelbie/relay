@@ -103,7 +103,8 @@ func (s *Service) verifyReputation(ctx context.Context, args VerifyReputationArg
 
 	target, err := s.Graph.NodeByKey(ctx, args.Target)
 	if errors.Is(err, graph.ErrNodeNotFound) {
-		// target is not found, assume it's a low-reputation key (rank of 0)
+		// target is not found, assume it's a low-reputation key
+		// with rank of 0 and no follows / followers
 		return res, nil
 	}
 	if err != nil {
