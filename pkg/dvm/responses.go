@@ -45,52 +45,56 @@ func (h Handler) process(ctx context.Context, request *nostr.Event) *nostr.Event
 	case *core.VerifyReputationArgs:
 		result, err := h.Service.VerifyReputation(ctx, *args)
 		if err != nil {
-			slog.Error("dvm.Handler", "err", err)
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 
 		response, err := VerifyReputation(request, *args, result)
 		if err != nil {
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 		return response
 
 	case *core.RecommendFollowsArgs:
 		result, err := h.Service.RecommendFollows(ctx, *args)
 		if err != nil {
-			slog.Error("dvm.Handler", "err", err)
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 
 		response, err := RecommendFollows(request, *args, result)
 		if err != nil {
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 		return response
 
 	case *core.RankProfilesArgs:
 		result, err := h.Service.RankProfiles(ctx, *args)
 		if err != nil {
-			slog.Error("dvm.Handler", "err", err)
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 
 		response, err := RankProfiles(request, *args, result)
 		if err != nil {
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 		return response
 
 	case *core.SearchProfilesArgs:
 		result, err := h.Service.SearchProfiles(ctx, *args)
 		if err != nil {
-			slog.Error("dvm.Handler", "err", err)
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 
 		response, err := SearchProfiles(request, *args, result)
 		if err != nil {
-			return Error(request, err)
+			slog.Error("dvm.Handler", "err", err, "args", args, "request", request)
+			return Error(request, core.ErrInternal)
 		}
 		return response
 

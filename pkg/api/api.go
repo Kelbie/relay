@@ -57,6 +57,7 @@ func (h *Handler) GetCredits(w http.ResponseWriter, r *http.Request) {
 
 	bucket, err := h.service.Credits.Bucket(pubkey)
 	if err != nil {
+		slog.Error("api.GetCredits failed", "error", err)
 		http.Error(w, "internal error while retrieving the credits", http.StatusInternalServerError)
 		return
 	}

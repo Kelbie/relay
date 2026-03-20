@@ -80,7 +80,7 @@ type SearchProfilesResult struct {
 func (s *Service) SearchProfiles(ctx context.Context, args SearchProfilesArgs) (SearchProfilesResult, error) {
 	response, err := s.searchProfiles(ctx, args)
 	if err != nil {
-		return SearchProfilesResult{}, fmt.Errorf("SearchProfiles %w: %w", ErrInternal, err)
+		return SearchProfilesResult{}, fmt.Errorf("SearchProfiles: %w", err)
 	}
 	return response, nil
 }

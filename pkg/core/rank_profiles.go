@@ -92,7 +92,7 @@ type RankProfilesResult struct {
 func (s *Service) RankProfiles(ctx context.Context, args RankProfilesArgs) (RankProfilesResult, error) {
 	response, err := s.rankProfiles(ctx, args)
 	if err != nil {
-		return RankProfilesResult{}, fmt.Errorf("RankProfiles %w: %w", ErrInternal, err)
+		return RankProfilesResult{}, fmt.Errorf("RankProfiles: %w", err)
 	}
 	return response, nil
 }

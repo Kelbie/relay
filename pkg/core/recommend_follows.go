@@ -73,7 +73,7 @@ type RecommendFollowsResult struct {
 func (s *Service) RecommendFollows(ctx context.Context, args RecommendFollowsArgs) (RecommendFollowsResult, error) {
 	response, err := s.recommendFollows(ctx, args)
 	if err != nil {
-		return RecommendFollowsResult{}, fmt.Errorf("RecommendFollows %w: %w", ErrInternal, err)
+		return RecommendFollowsResult{}, fmt.Errorf("RecommendFollows: %w", err)
 	}
 	return response, nil
 }

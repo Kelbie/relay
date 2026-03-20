@@ -83,7 +83,7 @@ type VerifyReputationResult struct {
 func (s *Service) VerifyReputation(ctx context.Context, args VerifyReputationArgs) (VerifyReputationResult, error) {
 	response, err := s.verifyReputation(ctx, args)
 	if err != nil {
-		return VerifyReputationResult{}, fmt.Errorf("VerifyReputation %w: %w", ErrInternal, err)
+		return VerifyReputationResult{}, fmt.Errorf("VerifyReputation: %w", err)
 	}
 	return response, nil
 }
