@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -37,9 +38,9 @@ func Setup(
 
 	info := nip11.RelayInformationDocument{
 		Name:          "Vertex Relay",
-		Description:   "DVM Web of Trust Relay powered by Vertex",
+		Description:   "Web of Trust Relay powered by Vertex",
 		PubKey:        config.PublicKey,
-		SupportedNIPs: []any{1, 11, 42, 45},
+		SupportedNIPs: []any{1, 11, 42, 45, 50},
 		Software:      "https://github.com/vertex-lab/relay",
 		Icon:          "https://image.nostr.build/7afc9d727d6486851cc2fe09865e7cc383449f8bad1700a9508db4d2815b6f1a.png",
 	}
@@ -73,10 +74,10 @@ func Setup(
 	)
 
 	relay.Reject.Req.Clear()
-	relay.Reject.Req.Prepend(
+	relay.Reject.Req.Append(
 		h.CostPerFilter(0.1),
 		FiltersExceed(50),
-		WithSearch,
+		InvalidSearch,
 		UnauthedCredits,
 	)
 
@@ -102,8 +103,7 @@ func (h *handler) Process(_ rely.Client, request *nostr.Event) error {
 		slog.Error("failed to broadcast dvm response", "error", err)
 	}
 
-	_, err := h.service.Sqlite.Save(ctx, response)
-	if err != nil {
+	if _, err := h.service.Sqlite.Save(ctx, response); err != nil {
 		slog.Error("failed to save dvm response", "error", err)
 		return err
 	}
@@ -113,6 +113,9 @@ func (h *handler) Process(_ rely.Client, request *nostr.Event) error {
 }
 
 func (h *handler) Query(ctx context.Context, client rely.Client, id string, filters nostr.Filters) ([]nostr.Event, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
 	events, err := h.query(ctx, client, filters)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("failed to query", "filters", filters, "error", err)
@@ -124,6 +127,16 @@ func (h *handler) Query(ctx context.Context, client rely.Client, id string, filt
 }
 
 func (h *handler) query(ctx context.Context, client rely.Client, filters nostr.Filters) ([]nostr.Event, error) {
+	if IsSearchQuery(filters) {
+		events, err := h.searchQuery(ctx, filters[0])
+		if err != nil {
+			return nil, err
+		}
+
+		h.stats.Record(statsSearch)
+		return events, nil
+	}
+
 	events, err := h.service.Sqlite.Query(ctx, filters...)
 	if err != nil {
 		return nil, err
@@ -148,7 +161,6 @@ func (h *handler) creditQuery(pubkeys ...string) ([]nostr.Event, error) {
 
 	events := make([]nostr.Event, 0, len(pubkeys))
 	for _, pk := range pubkeys {
-
 		bucket, err := h.service.Credits.Bucket(pk)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query credits of pubkey %s: %w", pk, err)
@@ -163,6 +175,52 @@ func (h *handler) creditQuery(pubkeys ...string) ([]nostr.Event, error) {
 		events = append(events, event)
 	}
 	return events, nil
+}
+
+func (h *handler) searchQuery(ctx context.Context, filter nostr.Filter) ([]nostr.Event, error) {
+	if filter.LimitZero {
+		return nil, nil
+	}
+	if filter.Limit == 0 {
+		filter.Limit = 20
+	}
+	if filter.Limit > 20 {
+		filter.Limit = 20
+	}
+
+	args := core.SearchProfilesArgs{
+		Algorithm: core.Algorithm{Sort: core.Global},
+		Search:    filter.Search,
+		Limit:     filter.Limit,
+	}
+	if err := args.Normalize(); err != nil {
+		return nil, err
+	}
+
+	search, err := h.service.SearchProfiles(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+
+	pubkeys := make([]string, 0, len(search.Results))
+	ranks := make(map[string]float64, len(search.Results))
+	for _, p := range search.Results {
+		pubkeys = append(pubkeys, p.Pubkey)
+		ranks[p.Pubkey] = p.Rank
+	}
+
+	filter.Authors = pubkeys
+	filter.Search = ""
+
+	profiles, err := h.service.Sqlite.Query(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	slices.SortFunc(profiles, func(e1, e2 nostr.Event) int {
+		return cmp.Compare(ranks[e1.PubKey], ranks[e2.PubKey])
+	})
+	return profiles, nil
 }
 
 func (h *handler) Count(client rely.Client, id string, filters nostr.Filters) (count int64, approx bool, err error) {
@@ -227,13 +285,34 @@ func FiltersExceed(n int) func(c rely.Client, id string, filters nostr.Filters) 
 	}
 }
 
-func WithSearch(_ rely.Client, id string, filters nostr.Filters) error {
+func InvalidSearch(_ rely.Client, _ string, filters nostr.Filters) error {
+	searches := 0
 	for _, f := range filters {
 		if f.Search != "" {
-			return errors.New("NIP-50 search is not supported")
+			searches++
 		}
 	}
+
+	if searches == 0 {
+		return nil
+	}
+	if len(filters) != 1 {
+		return errors.New("only one filter is allowed for search queries")
+	}
+	if !slices.Equal(filters[0].Kinds, []int{nostr.KindProfileMetadata}) {
+		return errors.New("we support only kind:0 search queries")
+	}
+	if len(filters[0].Authors) > 0 {
+		return errors.New("we don't support authors in kind:0 search queries")
+	}
 	return nil
+}
+
+func IsSearchQuery(filters nostr.Filters) bool {
+	if len(filters) != 1 {
+		return false
+	}
+	return filters[0].Search != ""
 }
 
 func UnauthedCredits(client rely.Client, id string, filters nostr.Filters) error {
