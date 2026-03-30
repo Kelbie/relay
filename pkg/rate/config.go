@@ -13,7 +13,7 @@ import (
 // Config is the configuration for the rate limiter.
 // It contains 3 [rate.Refiller]s:
 // - Trusted: for trusted clients in the TrustedList
-// - Default: for default clients
+// - Unknown: for unknown clients
 // - Untrusted: for untrusted clients in the UntrustedList
 type Config struct {
 	TrustedList []string `env:"RATE_TRUSTED_LIST"`
@@ -28,10 +28,10 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Trusted: Refiller{
-			InitialTokens: 10_000, MaxTokens: 10_000, TokensPerInterval: 10_000, Interval: time.Minute,
+			InitialTokens: 30_000, MaxTokens: 10_000, TokensPerInterval: 10_000, Interval: time.Minute,
 		},
 		Unknown: Refiller{
-			InitialTokens: 300, MaxTokens: 300, TokensPerInterval: 100, Interval: time.Minute,
+			InitialTokens: 2000, MaxTokens: 1000, TokensPerInterval: 1000, Interval: time.Minute,
 		},
 	}
 }
