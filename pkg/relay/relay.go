@@ -62,12 +62,12 @@ func Setup(
 	relay.Reject.Connection.Clear()
 	relay.Reject.Connection.Append(
 		rely.RegistrationFailWithin(3*time.Second),
-		h.CostPerConn(1),
+		RateConnIP(limiter, 1),
 	)
 
 	relay.Reject.Event.Clear()
 	relay.Reject.Event.Append(
-		h.CostPerEvent(5),
+		RateEventIP(limiter, 5),
 		rely.InvalidID,
 		rely.InvalidSignature,
 		UnsupportedDVM,
@@ -75,7 +75,7 @@ func Setup(
 
 	relay.Reject.Req.Clear()
 	relay.Reject.Req.Append(
-		h.CostPerFilter(0.1),
+		RateFiltersIP(limiter, 0.1),
 		FiltersExceed(50),
 		InvalidSearch,
 		UnauthedCredits,
@@ -83,7 +83,7 @@ func Setup(
 
 	relay.Reject.Count.Clear()
 	relay.Reject.Count.Append(
-		h.CostPerFilter(0.1),
+		RateFiltersIP(limiter, 0.1),
 		FiltersExceed(100),
 	)
 
@@ -237,32 +237,32 @@ func (h *handler) Count(client rely.Client, id string, filters nostr.Filters) (c
 	return count, false, nil
 }
 
-func (h *handler) CostPerConn(cost float64) func(rely.Stats, *http.Request) error {
+func RateConnIP(l rate.Limiter, cost float64) func(rely.Stats, *http.Request) error {
 	return func(_ rely.Stats, r *http.Request) error {
 		ip := rely.GetIP(r).Group()
-		if !h.limiter.Allow(ip, cost) {
+		if !l.Allow(ip, cost) {
 			return ErrIPRateLimited
 		}
 		return nil
 	}
 }
 
-func (h *handler) CostPerFilter(cost float64) func(c rely.Client, id string, f nostr.Filters) error {
-	return func(c rely.Client, id string, f nostr.Filters) error {
+func RateFiltersIP(l rate.Limiter, cost float64) func(c rely.Client, _ string, f nostr.Filters) error {
+	return func(c rely.Client, _ string, f nostr.Filters) error {
 		ip := c.IP().Group()
-		if !h.limiter.Allow(ip, cost*float64(len(f))) {
-			defer c.Disconnect()
+		if !l.Allow(ip, cost*float64(len(f))) {
+			c.Disconnect()
 			return ErrIPRateLimited
 		}
 		return nil
 	}
 }
 
-func (h *handler) CostPerEvent(cost float64) func(rely.Client, *nostr.Event) error {
+func RateEventIP(l rate.Limiter, cost float64) func(c rely.Client, _ *nostr.Event) error {
 	return func(c rely.Client, _ *nostr.Event) error {
 		ip := c.IP().Group()
-		if !h.limiter.Allow(ip, cost) {
-			defer c.Disconnect()
+		if !l.Allow(ip, cost) {
+			c.Disconnect()
 			return ErrIPRateLimited
 		}
 		return nil
