@@ -28,10 +28,10 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Trusted: Refiller{
-			InitialTokens: 30_000, MaxTokens: 10_000, TokensPerInterval: 10_000, Interval: time.Minute,
+			InitialTokens: 30_000, MaxTokens: 30_000, TokensPerInterval: 10_000, Interval: time.Minute,
 		},
 		Unknown: Refiller{
-			InitialTokens: 2000, MaxTokens: 1000, TokensPerInterval: 1000, Interval: time.Minute,
+			InitialTokens: 3000, MaxTokens: 3000, TokensPerInterval: 1000, Interval: time.Minute,
 		},
 	}
 }
