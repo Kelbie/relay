@@ -29,7 +29,12 @@ type handler struct {
 	stats
 }
 
-func Setup(config Config, service *core.Service, limiter rate.Limiter) *rely.Relay {
+func Setup(
+	config Config,
+	service *core.Service,
+	limiter rate.Limiter,
+) *rely.Relay {
+
 	info := nip11.RelayInformationDocument{
 		Name:          "Vertex Relay",
 		Description:   "DVM Web of Trust Relay powered by Vertex",
@@ -51,7 +56,6 @@ func Setup(config Config, service *core.Service, limiter rate.Limiter) *rely.Rel
 		relay:     relay,
 		limiter:   limiter,
 		secretKey: config.SecretKey,
-		stats:     stats{logEvery: config.LogEvery},
 	}
 
 	relay.Reject.Connection.Clear()
