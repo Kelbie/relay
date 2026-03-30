@@ -75,7 +75,7 @@ func Setup(
 
 	relay.Reject.Req.Clear()
 	relay.Reject.Req.Append(
-		RateFiltersIP(limiter, 0.1),
+		RateFiltersIP(limiter, 1),
 		FiltersExceed(50),
 		InvalidSearch,
 		UnauthedCredits,
@@ -83,7 +83,7 @@ func Setup(
 
 	relay.Reject.Count.Clear()
 	relay.Reject.Count.Append(
-		RateFiltersIP(limiter, 0.1),
+		RateFiltersIP(limiter, 1),
 		FiltersExceed(100),
 	)
 
