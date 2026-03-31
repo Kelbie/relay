@@ -305,6 +305,9 @@ func InvalidSearch(_ rely.Client, _ string, filters nostr.Filters) error {
 	if len(filters[0].Authors) > 0 {
 		return errors.New("we don't support authors in kind:0 search queries")
 	}
+	if len(filters[0].Search) < 3 {
+		return errors.New("search query must be at least 3 characters")
+	}
 	return nil
 }
 
