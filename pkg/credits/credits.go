@@ -5,17 +5,18 @@ package credits
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
 )
+
+//go:embed credits.lua
+var creditsLua string
 
 type Bucket struct {
 	Tokens       int   `redis:"tokens"`
@@ -48,25 +49,13 @@ func NewManager(client *redis.Client, refill RefillPolicy) (Manager, error) {
 	return manager, nil
 }
 
-// init loads the Lua "credits.lua" script from the same directory as this source file
+// init loads the Lua "credits.lua" script embedded at compile time
 // and registers (or replaces) it as a Redis function.
 func (m Manager) init() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		return errors.New("cannot determine caller directory")
-	}
-
-	dir := filepath.Dir(filename)
-	path := filepath.Join(dir, "credits.lua")
-	code, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read %s: %w", path, err)
-	}
-
-	err = m.client.FunctionLoadReplace(ctx, string(code)).Err()
+	err := m.client.FunctionLoadReplace(ctx, creditsLua).Err()
 	if err != nil {
 		return fmt.Errorf("failed to load redis function: %w", err)
 	}
