@@ -308,6 +308,9 @@ func InvalidSearch(_ rely.Client, _ string, filters nostr.Filters) error {
 	if len(filters[0].Search) < 3 {
 		return errors.New("search query must be at least 3 characters")
 	}
+	if len(filters[0].Search) > 100 {
+		return errors.New("search query must be at most 100 characters")
+	}
 	return nil
 }
 
