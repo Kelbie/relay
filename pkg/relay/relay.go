@@ -218,7 +218,7 @@ func (h *handler) searchQuery(ctx context.Context, filter nostr.Filter) ([]nostr
 	}
 
 	slices.SortFunc(profiles, func(e1, e2 nostr.Event) int {
-		return cmp.Compare(ranks[e1.PubKey], ranks[e2.PubKey])
+		return cmp.Compare(ranks[e2.PubKey], ranks[e1.PubKey])
 	})
 	return profiles, nil
 }
