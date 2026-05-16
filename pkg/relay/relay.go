@@ -12,7 +12,7 @@ import (
 
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip11"
-	"github.com/pippellia-btc/rely"
+	"github.com/pippellia-btc/rely/v2"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
@@ -94,22 +94,24 @@ func Setup(
 	return relay
 }
 
-func (h *handler) Process(_ rely.Client, request *nostr.Event) error {
+func (h *handler) Process(_ rely.Client, request *nostr.Event) rely.EventResult {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	response := dvm.Handler{Service: h.service, SecretKey: h.secretKey}.Process(ctx, request)
-	if err := h.relay.Broadcast(response); err != nil {
-		slog.Error("failed to broadcast dvm response", "error", err)
-	}
+	response := dvm.Handler{
+		Service:   h.service,
+		SecretKey: h.secretKey,
+	}.Process(ctx, request)
 
 	if _, err := h.service.Sqlite.Save(ctx, response); err != nil {
 		slog.Error("failed to save dvm response", "error", err)
-		return err
+		return rely.Fail(err.Error())
 	}
-
+	if err := h.relay.Broadcast(response); err != nil {
+		slog.Error("failed to broadcast dvm response", "error", err)
+	}
 	h.stats.Record(statsDVM)
-	return nil
+	return rely.Success().NoBroadcast() // no need to broadcast the request.
 }
 
 func (h *handler) Query(ctx context.Context, client rely.Client, id string, filters nostr.Filters) ([]nostr.Event, error) {

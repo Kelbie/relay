@@ -10,7 +10,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/pippellia-btc/rely"
+	"github.com/pippellia-btc/rely/v2"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
 	"github.com/vertex-lab/relay/pkg/rate"
