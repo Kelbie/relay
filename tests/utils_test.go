@@ -1,12 +1,15 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip11"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/credits"
@@ -37,6 +40,8 @@ var (
 
 	sk = "140494e2df64262cf14849db6e6e5333bca3e1d465cdd1acf2329a20a11b0b9c"
 	pk = "3b0bc9a352e3b471b39879892c2116c1dc70f2aaff374f3cd01473ce19b2dcb4"
+
+	relayPubkey string
 )
 
 func init() {
@@ -48,6 +53,15 @@ func init() {
 
 	if _, err := creditManager.TopUp(pk, 100); err != nil {
 		log.Printf("init: failed to top-up: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	info, err := nip11.Fetch(ctx, localhost)
+	if err != nil {
+		log.Printf("init: failed to fetch relay info: %v", err)
+	} else {
+		relayPubkey = info.PubKey
 	}
 }
 
