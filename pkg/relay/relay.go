@@ -15,6 +15,7 @@ import (
 	"github.com/pippellia-btc/rely/v2"
 	"github.com/vertex-lab/relay/pkg/core"
 	"github.com/vertex-lab/relay/pkg/dvm"
+	"github.com/vertex-lab/relay/pkg/nip85"
 	"github.com/vertex-lab/relay/pkg/rate"
 )
 
@@ -27,6 +28,7 @@ type handler struct {
 	relay     *rely.Relay
 	limiter   rate.Limiter
 	secretKey string
+	publicKey string
 	stats
 }
 
@@ -115,6 +117,10 @@ func (h *handler) Process(_ rely.Client, request *nostr.Event) rely.EventResult 
 }
 
 func (h *handler) Query(ctx context.Context, client rely.Client, id string, filters nostr.Filters) ([]nostr.Event, error) {
+	if len(filters) == 0 {
+		return nil, nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -136,6 +142,16 @@ func (h *handler) query(ctx context.Context, client rely.Client, filters nostr.F
 		}
 
 		h.stats.Record(statsSearch)
+		return events, nil
+	}
+
+	if nip85.IsQuery(filters, h.publicKey) {
+		events, err := h.nip85Query(ctx, filters[0])
+		if err != nil {
+			return nil, err
+		}
+
+		h.stats.Record(statsNIP85)
 		return events, nil
 	}
 
@@ -223,6 +239,32 @@ func (h *handler) searchQuery(ctx context.Context, filter nostr.Filter) ([]nostr
 		return cmp.Compare(ranks[e2.PubKey], ranks[e1.PubKey])
 	})
 	return profiles, nil
+}
+
+// nip85Query generates on-demand NIP-85 kind:30382 assertion events for the
+// pubkeys listed in the filter's #d tag. Ranks are normalized to 0-100 using [nip85.Rank]
+func (h *handler) nip85Query(ctx context.Context, f nostr.Filter) ([]nostr.Event, error) {
+	args := nip85.Args(f.Tags["d"])
+	if err := args.Normalize(); err != nil {
+		return nil, err
+	}
+
+	result, err := h.service.RankProfiles(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]nostr.Event, 0, len(result.Profiles))
+	for _, p := range result.Profiles {
+		rank := nip85.Rank(p.Rank, result.Nodes)
+		event := nip85.Event(p.Pubkey, rank)
+
+		if err := event.Sign(h.secretKey); err != nil {
+			return nil, fmt.Errorf("nip85Query: failed to sign event: %w", err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
 }
 
 func (h *handler) Count(client rely.Client, id string, filters nostr.Filters) (count int64, approx bool, err error) {

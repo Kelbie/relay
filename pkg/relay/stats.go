@@ -12,12 +12,14 @@ const (
 	statsSearch = "search"
 	statsCredit = "credits"
 	statsCOUNT  = "counts"
+	statsNIP85  = "nip85"
 
 	logDVM    uint32 = 1000
 	logREQ    uint32 = 100_000
 	logSearch uint32 = 1000
 	logCredit uint32 = 1000
 	logCOUNT  uint32 = 1000
+	logNIP85  uint32 = 1000
 )
 
 type stats struct {
@@ -26,6 +28,7 @@ type stats struct {
 	search  atomic.Uint32
 	credits atomic.Uint32
 	counts  atomic.Uint32
+	nip85   atomic.Uint32
 }
 
 func (s *stats) Record(metricName string) {
@@ -52,6 +55,10 @@ func (s *stats) Record(metricName string) {
 	case statsCOUNT:
 		counter = &s.counts
 		logEvery = logCOUNT
+
+	case statsNIP85:
+		counter = &s.nip85
+		logEvery = logNIP85
 
 	default:
 		slog.Warn(fmt.Sprintf("Relay: Attempted to record unknown metric: %s", metricName))
