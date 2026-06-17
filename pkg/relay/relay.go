@@ -59,6 +59,7 @@ func Setup(
 		relay:     relay,
 		limiter:   limiter,
 		secretKey: config.SecretKey,
+		publicKey: config.PublicKey,
 	}
 
 	relay.Reject.Connection.Clear()
