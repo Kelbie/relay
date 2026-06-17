@@ -52,6 +52,7 @@ func Setup(
 		rely.WithQueueCapacity(config.QueueCapacity),
 		rely.WithMaxProcessors(config.Processors),
 		rely.WithInfo(info),
+		rely.WithoutMultiAuth(),
 	)
 
 	h := handler{
@@ -147,7 +148,7 @@ func (h *handler) query(ctx context.Context, client rely.Client, filters nostr.F
 	}
 
 	if nip85.IsQuery(filters, h.publicKey) {
-		events, err := h.nip85Query(ctx, filters[0])
+		events, err := h.nip85Query(ctx, client, filters[0])
 		if err != nil {
 			return nil, err
 		}
@@ -244,9 +245,17 @@ func (h *handler) searchQuery(ctx context.Context, filter nostr.Filter) ([]nostr
 
 // nip85Query generates on-demand NIP-85 kind:30382 assertion events for the
 // pubkeys listed in the filter's #d tag. Ranks are normalized to 0-100 using [nip85.Rank]
-func (h *handler) nip85Query(ctx context.Context, f nostr.Filter) ([]nostr.Event, error) {
+func (h *handler) nip85Query(ctx context.Context, c rely.Client, f nostr.Filter) ([]nostr.Event, error) {
 	args := nip85.Args(f.Tags["d"])
 	if err := args.Normalize(); err != nil {
+		return nil, err
+	}
+
+	pubkeys := c.Pubkeys()
+	if len(pubkeys) != 1 {
+		return nil, errors.New("auth-required: you must be authenticated to request nip85 trusted assertions")
+	}
+	if err := h.service.Allow(pubkeys[0], &args); err != nil {
 		return nil, err
 	}
 
