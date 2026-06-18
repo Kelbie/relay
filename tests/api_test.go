@@ -18,7 +18,7 @@ import (
 	"github.com/vertex-lab/relay/pkg/dvm"
 )
 
-var dvmEndpoint = localhost + "/api/v1/dvms"
+var apiEndpoint = fmt.Sprintf("http://localhost:%s/api/v1/dvms", port)
 
 func TestAPI_CreditManagement(t *testing.T) {
 	requestuest := &nostr.Event{
@@ -38,7 +38,7 @@ func TestAPI_CreditManagement(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	response, err := apiDVM(requestuest, dvmEndpoint)
+	response, err := apiDVM(requestuest, apiEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestAPI_VerifyReputation(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := apiDVM(request, dvmEndpoint)
+	response, err := apiDVM(request, apiEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestAPI_RankProfiles(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := apiDVM(request, dvmEndpoint)
+	response, err := apiDVM(request, apiEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestAPI_RecommendFollows(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := apiDVM(request, dvmEndpoint)
+	response, err := apiDVM(request, apiEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestAPI_SearchProfiles(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := apiDVM(request, dvmEndpoint)
+	response, err := apiDVM(request, apiEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}

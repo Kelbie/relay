@@ -9,9 +9,9 @@ require (
 	github.com/nbd-wtf/go-nostr v0.52.0
 	github.com/pippellia-btc/rate v0.2.1
 	github.com/pippellia-btc/rely/v2 v2.0.0-beta
-	github.com/pippellia-btc/slicex v0.2.5
+	github.com/pippellia-btc/slicex v0.2.6
 	github.com/redis/go-redis/v9 v9.8.0
-	github.com/vertex-lab/crawler_v2 v1.5.5
+	github.com/vertex-lab/crawler_v2 v1.5.9
 	github.com/vertex-lab/nostr-sqlite v0.6.1
 )
 

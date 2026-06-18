@@ -83,6 +83,7 @@ func Setup(
 		FiltersExceed(50),
 		InvalidSearch,
 		UnauthedCredits,
+		UnauthedNIP85(config.PublicKey),
 	)
 
 	relay.Reject.Count.Clear()
@@ -380,6 +381,15 @@ func UnauthedCredits(client rely.Client, id string, filters nostr.Filters) error
 		return errors.New("auth-required: you must be authenticated to request your credit balance")
 	}
 	return nil
+}
+
+func UnauthedNIP85(relayPubkey string) func(client rely.Client, id string, filters nostr.Filters) error {
+	return func(client rely.Client, id string, filters nostr.Filters) error {
+		if nip85.IsQuery(filters, relayPubkey) && !client.IsAuthed() {
+			return errors.New("auth-required: you must be authenticated to request nip85 trusted assertions")
+		}
+		return nil
+	}
 }
 
 func ContainCreditQuery(filters nostr.Filters) bool {

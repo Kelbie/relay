@@ -15,6 +15,8 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
+var relayURL = fmt.Sprintf("ws://localhost:%s", port)
+
 func TestDVM_CreditManagement(t *testing.T) {
 	request := &nostr.Event{
 		Kind: dvm.KindVerifyReputation,
@@ -40,7 +42,7 @@ func TestDVM_CreditManagement(t *testing.T) {
 		{"status", "error", credits.ErrInsufficientCredits.Error()},
 	}
 
-	response, err := dvmResponse(request, localhost)
+	response, err := dvmResponse(request, relayURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +71,7 @@ func TestDVM_VerifyReputation(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := dvmResponse(request, relayURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +113,7 @@ func TestDVM_RankProfiles(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := dvmResponse(request, relayURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +151,7 @@ func TestDVM_RecommendFollows(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := dvmResponse(request, relayURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +189,7 @@ func TestDVM_SearchProfiles(t *testing.T) {
 	expectedTags := nostr.Tags{{"e", request.ID}, {"p", pk}, {"sort", core.Global}, {"nodes"}}
 	expectedKind := request.Kind + 1000
 
-	response, err := dvmResponse(request, localhost)
+	response, err := dvmResponse(request, relayURL)
 	if err != nil {
 		t.Fatal(err)
 	}

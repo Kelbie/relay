@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/vertex-lab/crawler_v2/pkg/relays"
 	"github.com/vertex-lab/relay/pkg/nip85"
 )
 
@@ -22,7 +23,7 @@ func TestNIP85_RankProfiles(t *testing.T) {
 
 	expectedPubkeys := []string{calle, fran, randomKey, "zzz"}
 
-	events, err := nip85Response(filter, localhost)
+	events, err := nip85Response(filter, relayURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,19 +44,17 @@ func nip85Response(filter nostr.Filter, relayURL string) ([]nostr.Event, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	relay, err := nostr.RelayConnect(ctx, relayURL)
+	relay, err := relays.New(ctx, relayURL, relays.WithAuthKey(sk))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to %s: %w", relayURL, err)
 	}
 
-	ch, err := relay.QueryEvents(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
+	// give time to the client to authenticate before querying
+	time.Sleep(10 * time.Millisecond)
 
-	var events []nostr.Event
-	for ev := range ch {
-		events = append(events, *ev)
+	events, err := relay.Query(ctx, "test-nip-85", filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query: %w", err)
 	}
 	return events, nil
 }

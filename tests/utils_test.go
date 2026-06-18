@@ -36,7 +36,7 @@ var (
 
 var (
 	vertexURL string = "wss://relay.vertexlab.io"
-	localhost string = "http://localhost:3334"
+	port      string = "3334"
 
 	sk = "140494e2df64262cf14849db6e6e5333bca3e1d465cdd1acf2329a20a11b0b9c"
 	pk = "3b0bc9a352e3b471b39879892c2116c1dc70f2aaff374f3cd01473ce19b2dcb4"
@@ -57,7 +57,7 @@ func init() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	info, err := nip11.Fetch(ctx, localhost)
+	info, err := nip11.Fetch(ctx, relayURL)
 	if err != nil {
 		log.Printf("init: failed to fetch relay info: %v", err)
 	} else {
