@@ -14,9 +14,7 @@ import (
 func (s *Service) StatsPubkey(ctx context.Context, r ore.StatsPubkeyRequest) (ore.StatsPubkeyResponse, error) {
 	target, err := s.Graph.NodeByKey(ctx, r.Pubkey)
 	if errors.Is(err, graph.ErrNodeNotFound) {
-		// target is not found, assume it's a low-reputation key
-		// with rank of 0 and no follows / followers
-		return ore.StatsPubkeyResponse{Pubkey: r.Pubkey, Rank: 0}, nil
+		return ore.StatsPubkeyResponse{}, ErrUnknownPubkey
 	}
 	if err != nil {
 		return ore.StatsPubkeyResponse{}, err

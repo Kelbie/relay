@@ -19,6 +19,7 @@ import (
 var (
 	ErrUnsupportedAlgo   = errors.New("unsupported algorithm")
 	ErrBadlyFormattedKey = errors.New("badly formatted key")
+	ErrUnknownPubkey     = errors.New("pubkey is unknown")
 )
 
 // Service encapsulates the business logic of the Vertex services.
