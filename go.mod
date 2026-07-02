@@ -1,12 +1,13 @@
 module github.com/vertex-lab/relay
 
-go 1.25
+go 1.25.5
 
 require (
+	github.com/Open-Ranking/go-sdk v0.1.0
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/goccy/go-json v0.10.5
 	github.com/joho/godotenv v1.5.1
-	github.com/nbd-wtf/go-nostr v0.52.0
+	github.com/nbd-wtf/go-nostr v0.52.3
 	github.com/pippellia-btc/rate v0.2.1
 	github.com/pippellia-btc/rely/v2 v2.0.0-beta
 	github.com/pippellia-btc/slicex v0.2.6
@@ -36,6 +37,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.32 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/pippellia-btc/nwt v0.4.1 // indirect
 	github.com/pippellia-btc/smallset v0.4.2 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
