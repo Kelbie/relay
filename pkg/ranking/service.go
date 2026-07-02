@@ -16,11 +16,37 @@ import (
 	sqlite "github.com/vertex-lab/nostr-sqlite"
 )
 
+// Errors returned by the ranking service.
 var (
 	ErrUnsupportedAlgo   = errors.New("unsupported algorithm")
 	ErrBadlyFormattedKey = errors.New("badly formatted key")
 	ErrUnknownPubkey     = errors.New("pubkey is unknown")
 )
+
+// Supported open ranking algorithms.
+var (
+	GlobalPagerank       ore.AlgorithmID = "global-pagerank"
+	FollowersCount       ore.AlgorithmID = "followers-count"
+	PersonalizedPagerank ore.AlgorithmID = "personalized-pagerank"
+	SignatureProof       ore.AlgorithmID = "signature-proof"
+
+	GlobalPagerankAlgo       = ore.Algorithm{ID: GlobalPagerank, Name: "Global PageRank", Description: "Global PageRank over the Nostr follow graph."}
+	FollowersCountAlgo       = ore.Algorithm{ID: FollowersCount, Name: "Followers Count", Description: "Follower count in the Nostr follow graph."}
+	PersonalizedPagerankAlgo = ore.Algorithm{ID: PersonalizedPagerank, Name: "Personalized PageRank", Description: "PageRank relative to a point of view.", POV: true}
+	SignatureProofAlgo       = ore.Algorithm{ID: SignatureProof, Name: "Signature Proof", Description: "Detects compromised keys via leaked private key signatures. Defined in ORE-08"}
+)
+
+// The capability document representing what this package actually supports.
+// Change every time the capabilities change.
+var Capabilities = ore.CapabilityDoc{
+	StatsPubkey:        []ore.Algorithm{GlobalPagerankAlgo, FollowersCountAlgo, PersonalizedPagerankAlgo},
+	RankPubkeys:        []ore.Algorithm{GlobalPagerankAlgo, FollowersCountAlgo, PersonalizedPagerankAlgo},
+	RecommendPubkeys:   []ore.Algorithm{GlobalPagerankAlgo, FollowersCountAlgo, PersonalizedPagerankAlgo},
+	SearchPubkeys:      []ore.Algorithm{GlobalPagerankAlgo, FollowersCountAlgo, PersonalizedPagerankAlgo},
+	Followers:          []ore.Algorithm{GlobalPagerankAlgo, FollowersCountAlgo, PersonalizedPagerankAlgo},
+	CompromisedPubkeys: []ore.Algorithm{SignatureProofAlgo},
+	// Muters: nil — not supported, endpoint returns 501.
+}
 
 // Service encapsulates the business logic of the Vertex services.
 type Service struct {
@@ -62,15 +88,6 @@ func (s *Service) Close() error {
 	}
 	return fmt.Errorf("service failed to close: sqlite: %w; redis: %w", err1, err2)
 }
-
-// Supported open ranking algorithms.
-var (
-	GlobalPagerank       ore.AlgorithmID = "global-pagerank"
-	FollowersCount       ore.AlgorithmID = "followers-count"
-	PersonalizedPagerank ore.AlgorithmID = "personalized-pagerank"
-
-	SignatureProof ore.AlgorithmID = "signature-proof"
-)
 
 const (
 	minute   = 60
