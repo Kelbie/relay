@@ -12,6 +12,7 @@ type Config struct {
 	Ranking ranking.Config
 	Refill  credits.RefillPolicy
 
+	Address           string        `env:"ADDRESS"`
 	ReadHeaderTimeout time.Duration `env:"READ_HEADER_TIMEOUT"`
 	IdleTimeout       time.Duration `env:"IDLE_TIMEOUT"`
 	RequestTimeout    time.Duration `env:"REQUEST_TIMEOUT"`

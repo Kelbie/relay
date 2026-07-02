@@ -11,7 +11,6 @@ import (
 
 	ore "github.com/Open-Ranking/go-sdk"
 	"github.com/pippellia-btc/rely/v2"
-	"github.com/vertex-lab/relay/pkg/credits"
 	"github.com/vertex-lab/relay/pkg/ranking"
 	"github.com/vertex-lab/relay/pkg/rate"
 )
@@ -19,7 +18,6 @@ import (
 // Server implements the Open Ranking protocol.
 type Server struct {
 	service *ranking.Service
-	credits *credits.Manager // TODO: use it when it will be paid
 	limiter rate.Limiter
 
 	caps   ore.CapabilityDoc
@@ -27,10 +25,9 @@ type Server struct {
 }
 
 // NewServer creates a new Open Ranking server.
-func NewServer(c Config, s *ranking.Service, credits *credits.Manager, limiter rate.Limiter) Server {
+func NewServer(c Config, s *ranking.Service, limiter rate.Limiter) Server {
 	return Server{
 		service: s,
-		credits: credits,
 		limiter: limiter,
 		caps:    ranking.Capabilities,
 		config:  c,
