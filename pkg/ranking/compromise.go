@@ -7,10 +7,10 @@ import (
 	"github.com/Open-Ranking/go-sdk/compromise"
 )
 
-// CompromisePubkeys returns the compromise information rank of a batch of pubkeys, as defined by ORE-08.
+// CompromisedPubkeys returns the compromise information rank of a batch of pubkeys, as defined by ORE-08.
 // The request is assumed to have been validated by the caller.
 // Learn more here: https://github.com/Open-Ranking/protocol/blob/main/08.md
-func (s *Service) CompromisePubkeys(ctx context.Context, r ore.CompromisedPubkeysRequest) (ore.CompromisedPubkeysResponse, error) {
+func (s *Service) CompromisedPubkeys(ctx context.Context, r ore.CompromisedPubkeysRequest) (ore.CompromisedPubkeysResponse, error) {
 	records, err := s.Leaks.ReadMany(ctx, r.Pubkeys...)
 	if err != nil {
 		return ore.CompromisedPubkeysResponse{}, err
