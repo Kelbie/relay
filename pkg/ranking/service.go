@@ -26,7 +26,7 @@ var (
 type Service struct {
 	Sqlite *sqlite.Store
 	Graph  regraph.DB
-	Leaks  *leaks.DB
+	Leaks  leaks.DB
 }
 
 // New creates a [Service] initialized with the specified [Config].
@@ -68,6 +68,8 @@ var (
 	GlobalPagerank       ore.AlgorithmID = "global-pagerank"
 	FollowersCount       ore.AlgorithmID = "followers-count"
 	PersonalizedPagerank ore.AlgorithmID = "personalized-pagerank"
+
+	SignatureProof ore.AlgorithmID = "signature-proof"
 )
 
 const (

@@ -12,7 +12,7 @@ require (
 	github.com/pippellia-btc/rely/v2 v2.0.0-beta
 	github.com/pippellia-btc/slicex v0.2.6
 	github.com/redis/go-redis/v9 v9.8.0
-	github.com/vertex-lab/crawler_v2 v1.5.9
+	github.com/vertex-lab/crawler_v2 v1.6.2
 	github.com/vertex-lab/nostr-sqlite v0.6.1
 )
 

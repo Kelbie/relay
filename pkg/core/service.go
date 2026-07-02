@@ -45,7 +45,7 @@ var (
 type Service struct {
 	Sqlite  *sqlite.Store
 	Graph   regraph.DB
-	Leaks   *leaks.DB
+	Leaks   leaks.DB
 	Credits credits.Manager
 }
 
