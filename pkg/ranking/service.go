@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 
 	ore "github.com/Open-Ranking/go-sdk"
+	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler_v2/pkg/leaks"
 	"github.com/vertex-lab/crawler_v2/pkg/regraph"
@@ -14,7 +16,10 @@ import (
 	sqlite "github.com/vertex-lab/nostr-sqlite"
 )
 
-var ErrUnsupportedAlgo = errors.New("unsupported algorithm")
+var (
+	ErrUnsupportedAlgo   = errors.New("unsupported algorithm")
+	ErrBadlyFormattedKey = errors.New("badly formatted key")
+)
 
 // Service encapsulates the business logic of the Vertex services.
 type Service struct {
@@ -65,6 +70,7 @@ var (
 )
 
 const (
+	minute   = 60
 	hour     = 3600        // number of seconds in an hour
 	infinite = math.MaxInt // for when the TTL is infinite
 )
@@ -81,4 +87,22 @@ func TTL(algo ore.AlgorithmID) int {
 	default:
 		return 0
 	}
+}
+
+// NpubToHex tries to convert an npub to an hex pubkey.
+func NpubToHex(key string) (string, error) {
+	key = strings.TrimSpace(key)
+	if strings.HasPrefix(key, "npub1") {
+		_, pubkey, err := nip19.Decode(key)
+		if err != nil {
+			return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
+		}
+
+		pk, ok := pubkey.(string)
+		if !ok {
+			return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
+		}
+		return pk, nil
+	}
+	return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
 }

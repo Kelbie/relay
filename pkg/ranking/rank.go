@@ -14,17 +14,12 @@ import (
 // The request is assumed to have been validated by the caller.
 // Learn more here: https://github.com/Open-Ranking/protocol/blob/main/03.md
 func (s *Service) RankPubkeys(ctx context.Context, r ore.RankPubkeysRequest) (ore.RankPubkeysResponse, error) {
-	nodes, err := s.Graph.NodeIDs(ctx, r.Pubkeys...)
-	if err != nil {
-		return ore.RankPubkeysResponse{}, err
-	}
-	ranks, err := s.rankNodes(ctx, r.Algorithm, r.POV, nodes...)
+	ranks, err := s.rankPubkeys(ctx, r.Algorithm, r.POV, r.Pubkeys...)
 	if err != nil {
 		return ore.RankPubkeysResponse{}, err
 	}
 
-	ranking := slicex.Pack(r.Pubkeys, ranks)
-	top := ranking.MaxK(r.Limit)
+	top := slicex.Pack(r.Pubkeys, ranks).MaxK(r.Limit)
 	ttl := TTL(r.Algorithm)
 
 	res := ore.RankPubkeysResponse{
@@ -36,6 +31,19 @@ func (s *Service) RankPubkeys(ctx context.Context, r ore.RankPubkeysRequest) (or
 		res.Results[i].Rank = t.Val
 	}
 	return res, nil
+}
+
+// rankPubkeys ranks the pubkeys according to the provided [ore.AlgorithmID].
+// If a pubkey is not found, the rank is always assumed to be 0.
+func (s *Service) rankPubkeys(ctx context.Context, algo ore.AlgorithmID, pov string, pubkeys ...string) ([]float64, error) {
+	if len(pubkeys) == 0 {
+		return nil, nil
+	}
+	nodes, err := s.Graph.NodeIDs(ctx, pubkeys...)
+	if err != nil {
+		return nil, err
+	}
+	return s.rankNodes(ctx, algo, pov, nodes...)
 }
 
 // rankNodes ranks the nodes according to the provided [ore.AlgorithmID].
