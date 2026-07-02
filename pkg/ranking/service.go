@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"strings"
 
 	ore "github.com/Open-Ranking/go-sdk"
-	"github.com/nbd-wtf/go-nostr/nip19"
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/redis/go-redis/v9"
 	"github.com/vertex-lab/crawler_v2/pkg/leaks"
 	"github.com/vertex-lab/crawler_v2/pkg/regraph"
@@ -109,20 +108,25 @@ func TTL(algo ore.AlgorithmID) int {
 	}
 }
 
-// NpubToHex tries to convert an npub to an hex pubkey.
-func NpubToHex(key string) (string, error) {
-	key = strings.TrimSpace(key)
-	if strings.HasPrefix(key, "npub1") {
-		_, pubkey, err := nip19.Decode(key)
-		if err != nil {
-			return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
-		}
+// Request represent a request made to the service.
+type Request interface {
+	// Normalize the request in place. It returns an error if invalid.
+	Normalize() error
 
-		pk, ok := pubkey.(string)
-		if !ok {
-			return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
-		}
-		return pk, nil
+	// Cost returns the cost (measured in credits) of a service call with the provided request.
+	Cost() int
+}
+
+// TODO: eventually move away from go-nostr in favor of a minimalistic nostr library
+// where only types, crypto and JSON serialization are defined.
+
+// validatePubkey validates a public key string.
+func validatePubkey(s string) error {
+	if s == "" {
+		return errors.New("empty string")
 	}
-	return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
+	if !nostr.IsValidPublicKey(s) {
+		return errors.New("invalid pubkey")
+	}
+	return nil
 }

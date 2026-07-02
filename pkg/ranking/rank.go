@@ -3,6 +3,7 @@ package ranking
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	ore "github.com/Open-Ranking/go-sdk"
 	"github.com/pippellia-btc/slicex"
@@ -10,10 +11,54 @@ import (
 	"github.com/vertex-lab/crawler_v2/pkg/pagerank"
 )
 
+var supportedAlgoRank = []ore.AlgorithmID{
+	GlobalPagerank, FollowersCount, PersonalizedPagerank,
+}
+
+type RankPubkeysRequest ore.RankPubkeysRequest
+
+func (r *RankPubkeysRequest) Normalize() error {
+	r.Pubkeys = slicex.Unique(r.Pubkeys)
+	if len(r.Pubkeys) == 0 {
+		return fmt.Errorf("pubkeys is required")
+	}
+	if len(r.Pubkeys) > 1000 {
+		return fmt.Errorf("too many pubkeys: %d", len(r.Pubkeys))
+	}
+
+	if r.Limit < 0 {
+		return fmt.Errorf("invalid limit: %d", r.Limit)
+	}
+	if r.Limit == 0 {
+		r.Limit = len(r.Pubkeys)
+	}
+	r.Limit = min(r.Limit, len(r.Pubkeys))
+
+	if r.Algorithm == "" {
+		r.Algorithm = GlobalPagerank
+	}
+	if !slices.Contains(supportedAlgoRank, r.Algorithm) {
+		return fmt.Errorf("invalid algorithm: %s", r.Algorithm)
+	}
+	if r.Algorithm == PersonalizedPagerank {
+		if err := validatePubkey(r.POV); err != nil {
+			return fmt.Errorf("invalid pov: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *RankPubkeysRequest) Cost() int {
+	if r.Algorithm == PersonalizedPagerank {
+		return 10
+	}
+	return 1
+}
+
 // RankPubkeys returns the rank of a batch of pubkeys, as defined by ORE-03.
 // The request is assumed to have been validated by the caller.
 // Learn more here: https://github.com/Open-Ranking/protocol/blob/main/03.md
-func (s *Service) RankPubkeys(ctx context.Context, r ore.RankPubkeysRequest) (ore.RankPubkeysResponse, error) {
+func (s *Service) RankPubkeys(ctx context.Context, r RankPubkeysRequest) (ore.RankPubkeysResponse, error) {
 	ranks, err := s.rankPubkeys(ctx, r.Algorithm, r.POV, r.Pubkeys...)
 	if err != nil {
 		return ore.RankPubkeysResponse{}, err

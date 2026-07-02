@@ -4,17 +4,59 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	ore "github.com/Open-Ranking/go-sdk"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip19"
 	"github.com/pippellia-btc/slicex"
 )
+
+var supportedAlgoSearch = []ore.AlgorithmID{
+	GlobalPagerank, FollowersCount, PersonalizedPagerank,
+}
+
+type SearchPubkeysRequest ore.SearchPubkeysRequest
+
+func (r *SearchPubkeysRequest) Normalize() error {
+	if r.Limit == 0 {
+		r.Limit = 10
+	}
+	if r.Limit < 0 || r.Limit > 100 {
+		return fmt.Errorf("invalid limit: %d", r.Limit)
+	}
+
+	if r.Algorithm == "" {
+		r.Algorithm = GlobalPagerank
+	}
+	if !slices.Contains(supportedAlgoSearch, r.Algorithm) {
+		return fmt.Errorf("invalid algorithm: %s", r.Algorithm)
+	}
+	if r.Algorithm == PersonalizedPagerank {
+		if err := validatePubkey(r.POV); err != nil {
+			return fmt.Errorf("invalid pov: %w", err)
+		}
+	}
+
+	r.Query = strings.TrimSpace(r.Query)
+	if len(r.Query) < 3 || len(r.Query) > 100 {
+		return fmt.Errorf("invalid search: the search parameter must between 3 and 100 characters")
+	}
+	return nil
+}
+
+func (r *SearchPubkeysRequest) Cost() int {
+	if r.Algorithm == PersonalizedPagerank {
+		return 10
+	}
+	return 1
+}
 
 // SearchPubkeys returns the pubkeys that match a search query, as defined by ORE-05.
 // The request is assumed to have been validated by the caller.
 // Learn more here: https://github.com/Open-Ranking/protocol/blob/main/05.md
-func (s *Service) SearchPubkeys(ctx context.Context, r ore.SearchPubkeysRequest) (ore.SearchPubkeysResponse, error) {
+func (s *Service) SearchPubkeys(ctx context.Context, r SearchPubkeysRequest) (ore.SearchPubkeysResponse, error) {
 	if nostr.IsValidPublicKey(r.Query) {
 		ttl := infinite
 		res := ore.SearchPubkeysResponse{
@@ -25,7 +67,7 @@ func (s *Service) SearchPubkeys(ctx context.Context, r ore.SearchPubkeysRequest)
 	}
 
 	if strings.HasPrefix(r.Query, "npub1") {
-		pk, err := NpubToHex(r.Query)
+		pk, err := npubToHex(r.Query)
 		if err == nil {
 			// decode it to hex and return only if it's a valid npub.
 			// otherwise, continue with the full text search.
@@ -128,7 +170,7 @@ func escapeFTS5(term string) string {
 	return `"` + term + `"`
 }
 
-// This function returns the dampening coefficient used to decrease the importance of the
+// dampening returns the dampening coefficient used to decrease the importance of the
 // 'about', 'website', 'nip05' columns when performing full-text search.
 //
 // The rationale is the following: the higher the 'matches', the lower the weight of such columns.
@@ -138,4 +180,22 @@ func escapeFTS5(term string) string {
 func dampening(matches int) float64 {
 	m, l := float64(matches), float64(defaultSearchLimit)
 	return math.Max(1-math.Pow(m/l, 2), 0)
+}
+
+// npubToHex tries to convert an npub to an hex pubkey.
+func npubToHex(key string) (string, error) {
+	key = strings.TrimSpace(key)
+	if strings.HasPrefix(key, "npub1") {
+		_, pubkey, err := nip19.Decode(key)
+		if err != nil {
+			return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
+		}
+
+		pk, ok := pubkey.(string)
+		if !ok {
+			return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
+		}
+		return pk, nil
+	}
+	return "", fmt.Errorf("%w: '%s'", ErrBadlyFormattedKey, key)
 }
