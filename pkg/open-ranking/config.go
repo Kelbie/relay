@@ -23,6 +23,7 @@ func NewConfig() Config {
 	return Config{
 		Ranking:           ranking.NewConfig(),
 		Refill:            credits.NewRefillPolicy(),
+		Address:           "localhost:8080",
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		ShutdownTimeout:   5 * time.Second,
