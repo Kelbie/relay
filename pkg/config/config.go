@@ -71,15 +71,9 @@ func (c Config) Print() {
 // env variables when specified.
 func Load() (Config, error) {
 	config := New()
-	err := env.Parse(&config)
-	if err != nil {
+	if err := env.Parse(&config); err != nil {
 		return Config{}, fmt.Errorf("config.Load: %w", err)
 	}
-
 	config.Relay.Init()
-
-	if err := config.Validate(); err != nil {
-		return Config{}, fmt.Errorf("config.Load: %w", err)
-	}
 	return config, nil
 }

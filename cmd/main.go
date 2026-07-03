@@ -38,6 +38,10 @@ func main() {
 		panic(err)
 	}
 
+	if err := config.Validate(); err != nil {
+		panic(err)
+	}
+
 	core, err := core.NewService(config.Core)
 	if err != nil {
 		panic(err)
