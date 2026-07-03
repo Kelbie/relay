@@ -92,7 +92,7 @@ func (s Server) Capabilities(w http.ResponseWriter, r *http.Request) {
 // StatsPubkey serves POST /stats/pubkey (ORE-02).
 func (s Server) StatsPubkey(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if !s.limiter.Allow(ip, 10) {
+	if !s.limiter.Allow(ip, 5) {
 		ore.WriteError(w, ore.ErrTooMany("Rate limit exceeded, try again later"))
 		return
 	}
@@ -125,7 +125,7 @@ func (s Server) StatsPubkey(w http.ResponseWriter, r *http.Request) {
 // RankPubkeys serves POST /rank/pubkeys (ORE-03).
 func (s Server) RankPubkeys(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if !s.limiter.Allow(ip, 10) {
+	if !s.limiter.Allow(ip, 5) {
 		ore.WriteError(w, ore.ErrTooMany("Rate limit exceeded, try again later"))
 		return
 	}
@@ -158,7 +158,7 @@ func (s Server) RankPubkeys(w http.ResponseWriter, r *http.Request) {
 // RecommendPubkeys serves POST /recommend/pubkeys (ORE-04).
 func (s Server) RecommendPubkeys(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if !s.limiter.Allow(ip, 10) {
+	if !s.limiter.Allow(ip, 5) {
 		ore.WriteError(w, ore.ErrTooMany("Rate limit exceeded, try again later"))
 		return
 	}
@@ -191,7 +191,7 @@ func (s Server) RecommendPubkeys(w http.ResponseWriter, r *http.Request) {
 // SearchPubkeys serves POST /search/pubkeys (ORE-05).
 func (s Server) SearchPubkeys(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if !s.limiter.Allow(ip, 10) {
+	if !s.limiter.Allow(ip, 5) {
 		ore.WriteError(w, ore.ErrTooMany("Rate limit exceeded, try again later"))
 		return
 	}
@@ -224,7 +224,7 @@ func (s Server) SearchPubkeys(w http.ResponseWriter, r *http.Request) {
 // Followers serves POST /followers (ORE-06).
 func (s Server) Followers(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if !s.limiter.Allow(ip, 10) {
+	if !s.limiter.Allow(ip, 5) {
 		ore.WriteError(w, ore.ErrTooMany("Rate limit exceeded, try again later"))
 		return
 	}
@@ -257,7 +257,7 @@ func (s Server) Followers(w http.ResponseWriter, r *http.Request) {
 // CompromisedPubkeys serves POST /compromised/pubkeys (ORE-08).
 func (s Server) CompromisedPubkeys(w http.ResponseWriter, r *http.Request) {
 	ip := rely.GetIP(r).Group()
-	if !s.limiter.Allow(ip, 10) {
+	if !s.limiter.Allow(ip, 5) {
 		ore.WriteError(w, ore.ErrTooMany("Rate limit exceeded, try again later"))
 		return
 	}
