@@ -11,6 +11,10 @@ type Config struct {
 	RedisAddress string `env:"REDIS_ADDRESS"`
 	SqlitePath   string `env:"SQLITE_PATH"`
 	Refill       credits.RefillPolicy
+
+	// CreditsDisabled makes [Service.Allow] always succeed, without deducting credits.
+	// Useful for self-hosted deployments that don't use the credit system.
+	CreditsDisabled bool `env:"CREDITS_DISABLED"`
 }
 
 func NewConfig() Config {

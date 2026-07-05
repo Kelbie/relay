@@ -47,6 +47,9 @@ type Service struct {
 	Graph   regraph.DB
 	Leaks   leaks.DB
 	Credits credits.Manager
+
+	// CreditsDisabled makes [Service.Allow] always succeed, without deducting credits.
+	CreditsDisabled bool
 }
 
 // New creates a [Service] initialized with the specified [Config].
@@ -71,11 +74,16 @@ func NewService(c Config) (*Service, error) {
 	}
 	slog.Info("credits manager initialized")
 
+	if c.CreditsDisabled {
+		slog.Warn("credits are disabled: requests are allowed without deducting credits")
+	}
+
 	return &Service{
-		Sqlite:  sqlite,
-		Graph:   graph,
-		Leaks:   leaks,
-		Credits: credits,
+		Sqlite:          sqlite,
+		Graph:           graph,
+		Leaks:           leaks,
+		Credits:         credits,
+		CreditsDisabled: c.CreditsDisabled,
 	}, nil
 }
 
@@ -102,6 +110,10 @@ type Args interface {
 // Allow returns whether the pubkey is allowed to ask for a job with the
 // provided args. It's allowed if and only if error is nil.
 func (s *Service) Allow(pubkey string, args Args) error {
+	if s.CreditsDisabled {
+		return nil
+	}
+
 	err := s.Credits.Deduct(pubkey, args.Cost())
 	if err != nil {
 		if !errors.Is(err, credits.ErrInsufficientCredits) {
