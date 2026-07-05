@@ -84,3 +84,11 @@ improving after that.
    scan — which deletes their walks and freezes the graph at zero. Values
    <= 1 disable demotion (the arbiter warns accordingly); raise it back
    toward 1.05 once the graph has expanded past a few thousand nodes.
+
+4. **Redis and SQLite must be wiped TOGETHER (or run `sync`).** The engine
+   only updates the graph when a kind-3 is NEW to the SQLite store
+   (`store.Replace` returned true). If Redis is flushed but SQLite kept, every
+   re-fetched follow list is a storage no-op and the graph never gains an
+   edge — silently. Either wipe both stores for a fresh bootstrap, or run the
+   bundled `/app/sync` once (empty Redis required) to rebuild the graph from
+   SQLite.
