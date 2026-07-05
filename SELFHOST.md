@@ -92,3 +92,12 @@ improving after that.
    edge — silently. Either wipe both stores for a fresh bootstrap, or run the
    bundled `/app/sync` once (empty Redis required) to rebuild the graph from
    SQLite.
+
+5. **Set `ARBITER_PROMOTION=0.01` (and `ARBITER_PROMOTION_WAIT=0s`) while
+   bootstrapping.** The code default (0.1 — 10% of base pagerank) is
+   unreachable on a young graph where the seeds hold all the walk mass: no
+   node ever gets promoted, so nothing new is ever fetched and the graph
+   silently freezes at the seeds' first ring (observed live: stuck at ~3.5k
+   nodes for hours; 228 promotions on the first scan after lowering it).
+   Upstream's own .env.example ships 0.01. Raise it back as the graph
+   matures, together with the demotion threshold.
