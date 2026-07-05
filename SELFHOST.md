@@ -67,3 +67,20 @@ follow lists outward and the pagerank iterates as the graph grows. Expect
 **1–2 days** of crawling before global/personalized pagerank and profile
 search return useful results; follower counts and search quality keep
 improving after that.
+
+## Cold-start landmines (learned the hard way)
+
+1. **`POOL_RELAYS` is REQUIRED.** It has no code default — the values in
+   `.env.example` are suggestions, not fallbacks. Unset, the crawler's
+   firehose subscribes to zero relays: everything logs "ready" and the only
+   symptom is `Arbiter: total walks are non-positive total=0` forever.
+2. **If the first boot ever ran without relays, flush Redis.** Init pubkeys
+   are seeded only when the graph is empty (`nodes == 0`), and their fetch is
+   enqueued exactly once. A broken first boot leaves a poisoned graph that no
+   restart repairs — FLUSHALL and redeploy.
+3. **Disable demotion while bootstrapping: `ARBITER_DEMOTION=0.99`.** With a
+   handful of isolated seed nodes every rank sits at the baseline, so the
+   default demotion threshold (1.05 × base) demotes all seeds on the first
+   scan — which deletes their walks and freezes the graph at zero. Values
+   <= 1 disable demotion (the arbiter warns accordingly); raise it back
+   toward 1.05 once the graph has expanded past a few thousand nodes.
